@@ -1,10 +1,15 @@
+"""Plans trajectories to write characters."""
+
 from dataclasses import dataclass
 
 import numpy as np
+from rclpy import Node
 
 
 @dataclass
 class Character:
+    """Represents a set of strokes for a single character."""
+
     char: str
     """Actual UTF character represented by this trajectory"""
 
@@ -23,5 +28,12 @@ class Character:
 
 
 class WritePlanner:
+    """
+    Compute trajectories to write on the real board.
+    """
+
+    def __init__(self, node: Node) -> None:
+        pass
+
     def write_characters(self, characters: list[Character]) -> None:
         pass
