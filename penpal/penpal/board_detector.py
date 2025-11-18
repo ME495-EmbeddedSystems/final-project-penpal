@@ -1,10 +1,10 @@
-"""Locate & orient the whiteboard(s)."""
+"""Detect pose+dimensions of the whiteboard(s)."""
 
 from rclpy import Node
 
 
 class BoardDetector:
-    """Locates & orients the whiteboards in space."""
+    """Detects pose+dimensions of the whiteboard(s) using the camera."""
 
     def __init__(self, node: Node) -> None:
         """Initialize the object."""

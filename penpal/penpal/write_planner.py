@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 
 import numpy as np
+from penpal.penpal.board_detector import BoardDetector
+from penpal.penpal.control.pp_control import PPControlBase
 from rclpy import Node
 
 
@@ -28,12 +30,21 @@ class Character:
 
 
 class WritePlanner:
-    """
-    Compute trajectories to write on the real board.
-    """
+    """Compute trajectories to write on the real board."""
 
-    def __init__(self, node: Node) -> None:
-        pass
+    def __init__(
+        self, node: Node, controller: PPControlBase, board: BoardDetector
+    ) -> None:
+        """Initialize the object."""
+        self.control = controller
+        self.board = board
 
     def write_characters(self, characters: list[Character]) -> None:
+        """Write a list of characters to the board.
+
+        Creates newlines when necessary.
+
+        Args:
+            characters (list[Character]): list of characters to write.
+        """
         pass
