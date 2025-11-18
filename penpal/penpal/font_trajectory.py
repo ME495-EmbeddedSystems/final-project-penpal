@@ -14,11 +14,11 @@ class FontTrajectory:
 
         pass
 
-    def __init__(self, writer: WritePlanner, cfg: Config) -> None:
+    def __init__(self, writer: WritePlanner, cfg: Config | None = None) -> None:
         """Initialize the object."""
         # self._fonts: dict[str, TTFont] = dict()
         self._writer = writer
-        pass
+        self.c = cfg if cfg is not None else self.Config()
 
     def add_font(self, otf_path: pathlib.Path) -> None:
         """

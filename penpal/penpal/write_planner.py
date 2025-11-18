@@ -23,9 +23,9 @@ class Character:
     Nx3 array
     each point is [x, y, z]
     where x is position in virtual board
-    z in [0, 1] where: 
-    - 0 = off the board (no pressure)
-    - (0, 1] = pressure, with 1 being hardest and epsilon being softest.
+    z in [0, 1] where:
+        - 0 = off the board (no pressure)
+        - (0, 1] = pressure, with 1 being hardest and epsilon being softest.
     """
 
 

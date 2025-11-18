@@ -35,16 +35,17 @@ class PPControlBase(abc.ABC):
     class Config:
         """Configuration for PPControl."""
 
-        ee_frame: str
+        # todo make these have correct values
+        ee_frame: str = "tbd"
         """Frame ID in tf tree to be considered as the end-effector."""
-        world_frame: str
+        world_frame: str = "base"
         """Frame ID in tf tree for the world frame (probably robot {base})."""
 
-    def __init__(self, node: Node, cfg: Config) -> None:
+    def __init__(self, node: Node, cfg: Config | None = None) -> None:
         """Initialize the object."""
         # TODO figure out what else we need here
         self._node = node
-        self.c = cfg
+        self.c = cfg if cfg is not None else self.Config()
 
     @abc.abstractmethod
     def execute_trajectory(
