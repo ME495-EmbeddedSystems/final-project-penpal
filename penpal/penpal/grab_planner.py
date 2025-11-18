@@ -32,7 +32,9 @@ class Character:
 class GrabPlanner:
     """Compute trajectories to write on the real board."""
 
-    def __init__(self, node: Node, controller: PPControlBase, pen: PenDetector) -> None:
+    def __init__(
+        self, node: Node, controller: PPControlBase, pen: PenDetector
+    ) -> None:
         """Initialize the object."""
         self.control = controller
         self.pen = pen

@@ -22,15 +22,15 @@ class PenPal(Node):
 
     def __init__(self) -> None:
         """Initialize the node."""
-        super().__init__("PenPal")
+        super().__init__('PenPal')
 
         # todo get this from a parameter
-        p_control_type = "moveit"
+        p_control_type = 'moveit'
 
         match p_control_type:
-            case "moveit":
+            case 'moveit':
                 ctl = moveit_control.MoveItPPControl(self)
-            case "hybrid":
+            case 'hybrid':
                 ctl = hybrid_control.HybridPPControl(self)
 
         pen = pen_detector.PenDetector(self)

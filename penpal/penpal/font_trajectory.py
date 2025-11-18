@@ -14,7 +14,9 @@ class FontTrajectory:
 
         pass
 
-    def __init__(self, writer: WritePlanner, cfg: Config | None = None) -> None:
+    def __init__(
+        self, writer: WritePlanner, cfg: Config | None = None
+    ) -> None:
         """Initialize the object."""
         # self._fonts: dict[str, TTFont] = dict()
         self._writer = writer
@@ -32,7 +34,11 @@ class FontTrajectory:
         pass
 
     def write_text(
-        self, text: str, font_name: str, font_size_mm: float, pen_thickness_mm: float
+        self,
+        text: str,
+        font_name: str,
+        font_size_mm: float,
+        pen_thickness_mm: float,
     ) -> None:
         """Generate trajectories for a string of text.
 

@@ -7,7 +7,9 @@ from rclpy import Node
 class MoveItPPControl(PPControlBase):
     """Controller implementation using MoveIt. Lacks force control."""
 
-    def __init__(self, node: Node, cfg: PPControlBase.Config | None = None) -> None:
+    def __init__(
+        self, node: Node, cfg: PPControlBase.Config | None = None
+    ) -> None:
         """Initialize the object."""
         super().__init__(node, cfg)
 

@@ -36,9 +36,9 @@ class PPControlBase(abc.ABC):
         """Configuration for PPControl."""
 
         # todo make these have correct values
-        ee_frame: str = "tbd"
+        ee_frame: str = 'tbd'
         """Frame ID in tf tree to be considered as the end-effector."""
-        world_frame: str = "base"
+        world_frame: str = 'base'
         """Frame ID in tf tree for the world frame (probably robot {base})."""
 
     def __init__(self, node: Node, cfg: Config | None = None) -> None:
