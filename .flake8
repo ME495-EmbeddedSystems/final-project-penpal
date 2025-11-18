@@ -2,11 +2,8 @@
 # Maximum line length compatible with Black
 max-line-length = 88
 
-# Show error codes in VS Code for clarity
-show-source = True
-
 # Ignore rules that conflict with Black or are overly picky
-ignore = E203,W503,F403,F401
+ignore = E203, W503, F403, F401   
 
 # Exclude irrelevant directories
 exclude = 
@@ -16,4 +13,7 @@ exclude =
     dist,
     .venv,
     env
+
+# Show error codes in VS Code for clarity
+show-source = True
 
