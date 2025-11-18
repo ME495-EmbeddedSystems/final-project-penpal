@@ -18,6 +18,7 @@ class FontTrajectory:
 
     def __init__(self, writer: WritePlanner, cfg: Config) -> None:
         # self._fonts: dict[str, TTFont] = dict()
+        self._writer = writer
         pass
 
     def add_font(self, otf_path: pathlib.Path) -> None:
@@ -30,4 +31,6 @@ class FontTrajectory:
     ) -> None:
         # get what font to use from
         # self._fonts[font_name]
+
+        # then call self._writer.write_characters()
         pass
