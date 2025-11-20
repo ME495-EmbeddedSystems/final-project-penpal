@@ -23,8 +23,10 @@ class Trajectory:
     data: np.ndarray
     """
     set of points to move the EE through. Nx12 array for N trajectory waypoints.
-    Each waypoint provides [pose, wrench], like so:
-    [x, y, z, r, p, yaw, p_x, p_y, p_z, f_x, f_y, f_z]
+    Each waypoint provides [pose, wrench],
+    pose being x,y,z and orientation qx, qy, qz, qw as quaternion
+    like so:
+    [x, y, z, qx, qy, qz, qw , p_x, p_y, p_z, f_x, f_y, f_z]
     """
 
 
@@ -36,9 +38,9 @@ class PPControlBase(abc.ABC):
         """Configuration for PPControl."""
 
         # todo make these have correct values
-        ee_frame: str = 'tbd'
+        ee_frame: str = 'fer_hand_tcp'
         """Frame ID in tf tree to be considered as the end-effector."""
-        world_frame: str = 'base'
+        world_frame: str = 'fer_manipulator'
         """Frame ID in tf tree for the world frame (probably robot {base})."""
 
     def __init__(self, node: Node, cfg: Config | None = None) -> None:

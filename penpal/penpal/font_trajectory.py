@@ -28,6 +28,7 @@ class FontTrajectory:
 
         Args:
             otf_path (pathlib.Path): _description_
+
         """
         # load the font from the file
         # and add it to self._fonts
@@ -48,6 +49,7 @@ class FontTrajectory:
                 using add_font()
             font_size_mm (float): Height of the tallest glyphs in mm
             pen_thickness_mm (float): thickness of the pen we're using to draw.
+
         """
         # get what font to use from
         # self._fonts[font_name]
