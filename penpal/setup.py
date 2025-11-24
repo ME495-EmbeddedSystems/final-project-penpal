@@ -1,4 +1,28 @@
+from pathlib import Path
+
 from setuptools import find_packages, setup
+
+
+def recursive_files(prefix, path):
+    """
+    Recurse over path returning a list of tuples.
+
+    :param prefix: prefix path to prepend to the path.
+    :param path: Path to directory to recurse.
+                 Path should not have a trailing '/'.
+    :return: List of tuples.
+             First element of each tuple is destination path.
+             Second element is a list of files to copy to that path.
+
+    """
+    return [
+        (
+            str(Path(prefix) / subdir),
+            [str(file) for file in subdir.glob('*') if not file.is_dir()],
+        )
+        for subdir in Path(path).glob('**')
+    ]
+
 
 package_name = 'penpal'
 
@@ -7,13 +31,19 @@ setup(
     version='0.0.0',
     packages=find_packages(exclude=['test']),
     data_files=[
-        (
-            'share/ament_index/resource_index/packages',
-            ['resource/' + package_name],
-        ),
+        ('share/ament_index/resource_index/packages', [
+            'resource/' + package_name
+            ]),
         ('share/' + package_name, ['package.xml']),
+        *recursive_files('share/' + package_name, 'launch'),
+        *recursive_files('share/' + package_name, 'config'),
     ],
-    install_requires=['setuptools'],
+    install_requires=[
+        'modern_robotics'
+        'opencv-python',
+        'setuptools',
+        'transforms3d',
+    ],
     zip_safe=True,
     maintainer='conorbot',
     maintainer_email='cwoodhayes@gmail.com',
@@ -25,6 +55,9 @@ setup(
         ],
     },
     entry_points={
-        'console_scripts': [],
+        'console_scripts': [
+            'board_detector = penpal.board_detector:main',
+            'board_detector_debug = penpal.board_detector_debug:main',
+        ],
     },
 )
