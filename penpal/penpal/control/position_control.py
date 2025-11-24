@@ -1,11 +1,12 @@
-"""Controller implementation using a custom hybrid force controller."""
+"""Direct position control using individual joint controllers."""
 
-from penpal.control.pp_control import PPControlBase, PPControlError, Trajectory
-from rclpy import Node
+from rclpy.node import Node
+
+from penpal.control.pp_control import PPControlBase, Trajectory
 
 
-class HybridPPControl(PPControlBase):
-    """Controller implementation using MoveIt. Lacks force control."""
+class PositionPPControl(PPControlBase):
+    """Base class for control of the pen tip."""
 
     def __init__(
         self, node: Node, cfg: PPControlBase.Config | None = None
@@ -23,6 +24,7 @@ class HybridPPControl(PPControlBase):
             traj (Trajectory): path to send the EE through space
             target_ee_velocity_m_s (float): target average velocity for the trajectory
             execution
+
         """
         pass
 
@@ -34,5 +36,7 @@ class HybridPPControl(PPControlBase):
             offset_m: Offset (meters) of each finger from the EE frame.
             grip_force_N: Force to apply once gripped (i.e. to the marker when closed).
             If None, don't control the force.
+
         """
-        pass
+        # not intended to be used in this control scheme. use moveit controller
+        raise NotImplementedError

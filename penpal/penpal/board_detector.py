@@ -1,6 +1,6 @@
 """Detect pose+dimensions of the whiteboard(s)."""
 
-from rclpy import Node
+from rclpy.node import Node
 
 
 class BoardDetector:

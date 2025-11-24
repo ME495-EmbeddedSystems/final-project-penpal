@@ -1,4 +1,5 @@
 """Setup file for Penpal."""
+
 from pathlib import Path
 
 from setuptools import find_packages, setup
@@ -14,16 +15,20 @@ def recursive_files(prefix, path):
     :return: List of tuples. First element of each tuple is destination path,
     second element is a list of files to copy to that path
     """
-    return [(str(Path(prefix) / subdir),
-             [str(file) for file in subdir.glob('*') if not file.is_dir()])
-            for subdir in Path(path).glob('**')]
+    return [
+        (
+            str(Path(prefix) / subdir),
+            [str(file) for file in subdir.glob('*') if not file.is_dir()],
+        )
+        for subdir in Path(path).glob('**')
+    ]
 
 
 package_name = 'penpal'
 
 setup(
     name=package_name,
-    version='0.0.0',
+    version='1.0.0',
     packages=find_packages(exclude=['test']),
     data_files=[
         (
@@ -32,21 +37,23 @@ setup(
         ),
         ('share/' + package_name, ['package.xml']),
         *recursive_files('share/' + package_name, 'launch'),
-        *recursive_files('share/' + package_name, 'config')
-
+        *recursive_files('share/' + package_name, 'config'),
+        *recursive_files('share/' + package_name, 'rviz'),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='conorbot',
     maintainer_email='cwoodhayes@gmail.com',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    description='Robot that writes to a whiteboard held by a human.',
+    license='MIT',
     extras_require={
         'test': [
             'pytest',
         ],
     },
     entry_points={
-        'console_scripts': [],
+        'console_scripts': [
+            'int_test_ppcontrol = penpal.integration_tests.int_test_ppcontrol:main'
+        ],
     },
 )
