@@ -22,7 +22,7 @@ class Trajectory:
     """human-readable label for debugging purposes."""
     data: np.ndarray
     """
-    set of points to move the EE through. Nx12 array for N trajectory waypoints.
+    list of points to move the EE through. Nx12 array for N trajectory waypoints.
     Each waypoint provides [pose, wrench],
     pose being x,y,z and orientation qx, qy, qz, qw as quaternion
     like so:
