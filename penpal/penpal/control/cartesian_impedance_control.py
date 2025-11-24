@@ -1,16 +1,16 @@
 """Impedance Control."""
-from penpal.control.pp_control import PPControlBase, PPControlError, Trajectory
-from rclpy import Node
 from geometry_msgs.msg import PoseStamped
 
+from penpal.control.pp_control import PPControlBase, PPControlError, Trajectory
 
-class CartesianImpedanceControl():
+
+class CartesianImpedanceControl(PPControlBase):
     """Implement Impedance Control from Franka Library."""
 
-    def __init__(self):
+    def __init__(self, node):
         """Initialize the object."""
-        super().__init__()
-        self.topic = '/cartesian_impedance_example_controller/equilibrium_pose'
+        super().__init__(node)
+        self.topic = '/cartesian_pose_example_controller/equilibrium_pose'
         self.pub = self.node.create_publisher(PoseStamped, self.topic, 10)
 
     def execute_trajectory(
@@ -21,11 +21,11 @@ class CartesianImpedanceControl():
 
         Args:
             traj (Trajectory): path to send the EE through space
-            target_ee_velocity_m_s (float): target average velocity for 
+            target_ee_velocity_m_s (float): target average velocity for
             the trajectory execution.
+
         """
-        for i in range(len(traj)):
-            point = traj[i]
+        for point in traj:
             msg = PoseStamped()
             msg.header.stamp = self._node.get_clock().now().to_msg()
             msg.header.frame_id = self.c.world_frame
@@ -41,7 +41,7 @@ class CartesianImpedanceControl():
             msg.pose.orientation.z = point[5]
             msg.pose.orientation.w = point[6]
 
-            self.target_pub.publish(msg)
+            self.pub.publish(msg)
 
     def grip(self, offset_m: float, grip_force_N: float | None = None) -> None:
         """
@@ -49,7 +49,9 @@ class CartesianImpedanceControl():
 
         Args:
             offset_m: Offset (meters) of each finger from the EE frame.
-            grip_force_N: Force to apply once gripped (i.e. to the marker when closed).
+            grip_force_N: Force to apply once gripped
+            (i.e. to the marker when closed).
             If None, don't control the force.
+
         """
         pass

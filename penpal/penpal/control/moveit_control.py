@@ -1,8 +1,6 @@
 """Controller implementation using MoveIt. Lacks force control."""
+from geometry_msgs.msg import Pose, Quaternion
 
-from penpal.control.pp_control import PPControlBase, PPControlError, Trajectory
-from geometry_msgs.msg import Pose, PoseStamped, Quaternion
-from motion_planner.robot_state import RobotState as RS
 from moveit_msgs.action import ExecuteTrajectory, MoveGroup
 from moveit_msgs.msg import (
     BoundingVolume,
@@ -13,17 +11,18 @@ from moveit_msgs.msg import (
     OrientationConstraint,
     PlanningOptions,
     PositionConstraint,
-    RobotState,
-    RobotTrajectory,
 )
 from moveit_msgs.srv import GetCartesianPath
+
 import numpy as np
 
-import rclpy
+from penpal.control.pp_control import PPControlBase, PPControlError, Trajectory
+
 from rclpy.action import ActionClient
 from rclpy.action.client import ClientGoalHandle
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.node import Node
+
 from shape_msgs.msg import SolidPrimitive
 
 
@@ -65,10 +64,34 @@ class MoveItPPControl(PPControlBase):
 
         Args:
             traj (Trajectory): path to send the EE through space
-            target_ee_velocity_m_s (float): target average velocity for the trajectory
-            execution
+            target_ee_velocity_m_s (float): target average velocity 
+            for the trajectory execution.
+
         """
-        pass
+        waypoints = []
+        for point in traj:
+            pose = Pose()
+            pose.position.x = point[0]
+            pose.position.y = point[1]
+            pose.position.z = point[2]
+            pose.orientation.x = point[3]
+            pose.orientation.y = point[4]
+            pose.orientation.z = point[5]
+            pose.orientation.w = point[6]
+            waypoints.append(pose)
+
+        request = GetCartesianPath.Request()
+        request.group_name = 'fer_manipulator'
+        request.link_name = 'fer_hand_tcp'
+        request.waypoints = waypoints
+        request.max_step = 0.01
+
+        response = await self._c_cartesian_path.call_async(request)
+
+        exec_goal = ExecuteTrajectory.Goal()
+        exec_goal.trajectory = response.solution
+        self._logger.info('Executing path')
+        await self._c_execute_trajectory.send_goal_async(exec_goal)
 
     async def grip(self, offset_m: float, grip_force_N: float | None = None) -> None:
         """
@@ -78,6 +101,7 @@ class MoveItPPControl(PPControlBase):
             offset_m: Offset (meters) of each finger from the EE frame.
             grip_force_N: Force to apply once gripped (i.e. to the marker when closed).
             If None, don't control the force.
+
         """
         goal_msg = MoveGroup.Goal()
         request = MotionPlanRequest()
