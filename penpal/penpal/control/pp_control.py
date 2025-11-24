@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from rclpy import Node
+from rclpy.node import Node
 
 
 class PPControlError(Exception):
