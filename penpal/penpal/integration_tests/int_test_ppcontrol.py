@@ -17,6 +17,7 @@ from rclpy.executors import MultiThreadedExecutor
 from penpal.control.position_control import PositionPPControl
 from penpal.control.pp_control import Trajectory
 from penpal.integration_tests import plot
+from penpal.integration_tests.demo_write_planner import DemoWritePlanner
 
 
 def get_circle_trajectory(
@@ -184,6 +185,23 @@ async def integration_test(node: Node, ctl: PositionPPControl) -> None:
         node.get_logger().info('Integration test finished.')
 
 
+async def write_planner_test(node: Node, ctl: PositionPPControl) -> None:
+    """Test the Write Planner logic."""
+    logger = node.get_logger()
+    try:
+        logger.info('Starting Planner Integration Test...')
+        speed = 0.05
+        board_origin = np.array([0.0, 0.0, 0.0])
+        planner = DemoWritePlanner(board_origin)
+        start_pose = np.array([0, 0, 0, 0, 0, 0, 1])
+        seq = get_demo_traj_sequence(start_pose) * 3
+        global_sequence = planner.write_characters(seq)
+        for traj in global_sequence:
+            logger.info(f'Executing {traj.label}...')
+            await ctl.execute_trajectory(traj, speed)
+    finally:
+        node.get_logger().info('Write_planner_test finished.')
+
 def main():
     """Run main."""
     rclpy.init()
@@ -233,8 +251,19 @@ def plot_demo_seq() -> None:
     plot.plot_trajectory_sequence(seq)
     plt.show()
 
+def plot_wp_seq() -> None:
+    """Plot the write planner sequcne on a 3d plot."""
+    rot = R.from_euler('xyz', [2, 3, -1])
+    start_pose = np.array([0, 0, 0, *rot.as_quat(True)])
+    board_origin = np.array([0.0, 0.0, 0.0])
+    planner = DemoWritePlanner(board_origin)
+    seq = get_demo_traj_sequence(start_pose) * 3
+    seq = planner.write_characters(seq)
+    plot.plot_trajectory_sequence(seq)
+    plt.show()
 
 if __name__ == '__main__':
     # plot_shapes()
-    # plot_demo_seq()
-    main()
+    #plot_demo_seq()
+    plot_wp_seq()
+    # main()
