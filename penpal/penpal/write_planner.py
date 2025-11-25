@@ -40,11 +40,13 @@ class WritePlanner:
         self.board = board
 
     def write_characters(self, characters: list[Character]) -> None:
-        """Write a list of characters to the board.
+        """
+        Write a list of characters to the board.
 
         Creates newlines when necessary.
 
         Args:
             characters (list[Character]): list of characters to write.
+
         """
         pass

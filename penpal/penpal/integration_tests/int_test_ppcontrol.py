@@ -17,7 +17,10 @@ from penpal.control.pp_control import Trajectory
 
 
 def get_circle_trajectory(
-    radius_m: float, center: np.ndarray, n_points: int
+    radius_m: float,
+    center: np.ndarray,
+    n_points: int,
+    force: np.ndarray | None = None,
 ) -> Trajectory:
     """
     Return a trajectory of a circle.
@@ -27,11 +30,14 @@ def get_circle_trajectory(
         center (np.ndarray): center & orientation [x, y, z, qx, qy, qz, qw]
         if orientation is 0, circle is on the xy plane.
         n_points (float): number of points with which to construct the circle
+        force (np.ndarray): 3dof force applied at EE
 
     Returns:
         Trajectory: trajectory for a circle in space
 
     """
+    if force is None:
+        force = np.zeros(3)
     xvals = radius_m * np.sin(np.linspace(0, 2 * np.pi, n_points))
     yvals = radius_m * np.cos(np.linspace(0, 2 * np.pi, n_points))
     circle_flat = np.vstack([xvals, yvals, np.zeros_like(yvals)]).T
@@ -41,7 +47,44 @@ def get_circle_trajectory(
     rot = R.from_quat(center[3:])
     points = rot.apply(circle_flat)
 
-    traj = Trajectory('circle', points)
+    force_per_point = np.broadcast_to(force, (points.shape[0], 3))
+    points_with_force = np.hstack([points, force_per_point])
+    traj = Trajectory('circle', points_with_force)
+
+    return traj
+
+
+def get_arrow_trajectory(
+    scale: float, center: np.ndarray, force: np.ndarray | None = None
+) -> Trajectory:
+    """
+    Return a trajectory of an arrow.
+
+    Args:
+        scale (float): length of the long line
+        center (np.ndarray): arrow point location & orientation [x, y, z, qx, qy, qz, qw]
+        if orientation is 0, arrow is on the xy plane.
+        force (np.ndarray): 3dof force applied at EE
+
+    Returns:
+        Trajectory: trajectory through 3d space
+
+    """
+    if force is None:
+        force = np.zeros(3)
+
+    rot = R.from_quat(center[3:])
+    center = center[:3]
+    tail = center + np.array([-scale, 0, 0])
+    lpoint = center + np.array([-scale * 0.1, -scale * 0.1, 0])
+    rpoint = center + np.array([-scale * 0.1, scale * 0.1, 0])
+    points = np.array([tail, center, lpoint, rpoint, center])
+
+    points = rot.apply(points)
+
+    force_per_point = np.broadcast_to(force, (points.shape[0], 3))
+    points_with_force = np.hstack([points, force_per_point])
+    traj = Trajectory('arrow', points_with_force)
 
     return traj
 
@@ -86,9 +129,10 @@ def demo_shapes() -> None:
     ori = R.from_euler('xyz', [np.pi / 2, 0, 0], False)
 
     c = np.array([1, 2, 3, *ori.as_quat(True)])
-    traj = get_circle_trajectory(2.0, c, 30)
+    # traj = get_circle_trajectory(2.0, c, 30)
+    traj = get_arrow_trajectory(1.0, c)
 
-    ax.scatter(traj.data[:, 0], traj.data[:, 1], traj.data[:, 2])
+    ax.plot(traj.data[:, 0], traj.data[:, 1], traj.data[:, 2])
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     ax.set_zlabel('z')
