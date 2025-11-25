@@ -42,7 +42,6 @@ def get_circle_trajectory(
     yvals = radius_m * np.cos(np.linspace(0, 2 * np.pi, n_points))
     circle_flat = np.vstack([xvals, yvals, np.zeros_like(yvals)]).T
     circle_flat += center[:3]
-    print(circle_flat)
 
     rot = R.from_quat(center[3:])
     points = rot.apply(circle_flat)
@@ -76,9 +75,46 @@ def get_arrow_trajectory(
     rot = R.from_quat(center[3:])
     center = center[:3]
     tail = center + np.array([-scale, 0, 0])
-    lpoint = center + np.array([-scale * 0.1, -scale * 0.1, 0])
-    rpoint = center + np.array([-scale * 0.1, scale * 0.1, 0])
+    lpoint = center + np.array([-scale * 0.2, -scale * 0.2, 0])
+    rpoint = center + np.array([-scale * 0.2, scale * 0.2, 0])
     points = np.array([tail, center, lpoint, rpoint, center])
+
+    points = rot.apply(points)
+
+    force_per_point = np.broadcast_to(force, (points.shape[0], 3))
+    points_with_force = np.hstack([points, force_per_point])
+    traj = Trajectory('arrow', points_with_force)
+
+    return traj
+
+
+def get_square_trajectory(
+    side: float, center: np.ndarray, force: np.ndarray | None = None
+) -> Trajectory:
+    """
+    Return a trajectory of a square.
+
+    Args:
+        side (float): length of the long line
+        center (np.ndarray): square center location & orientation [x, y, z, qx, qy, qz, qw]
+        if orientation is 0, square is on the xy plane.
+        force (np.ndarray): 3dof force applied at EE
+
+    Returns:
+        Trajectory: trajectory through 3d space
+
+    """
+    if force is None:
+        force = np.zeros(3)
+
+    rot = R.from_quat(center[3:])
+    center = center[:3]
+
+    bl = center - np.array([0.5 * side, 0.5 * side, 0])
+    tl = bl + np.array([0, side, 0])
+    tr = tl + np.array([side, 0, 0])
+    br = tr + np.array([0, -side, 0])
+    points = np.array([bl, tl, tr, br, bl])
 
     points = rot.apply(points)
 
@@ -129,10 +165,12 @@ def demo_shapes() -> None:
     ori = R.from_euler('xyz', [np.pi / 2, 0, 0], False)
 
     c = np.array([1, 2, 3, *ori.as_quat(True)])
-    # traj = get_circle_trajectory(2.0, c, 30)
-    traj = get_arrow_trajectory(1.0, c)
+    traj1 = get_circle_trajectory(2.0, c, 30)
+    traj2 = get_arrow_trajectory(2.0, c)
+    trajsq = get_square_trajectory(2.0, c)
 
-    ax.plot(traj.data[:, 0], traj.data[:, 1], traj.data[:, 2])
+    for traj in [traj1, traj2, trajsq]:
+        ax.plot(traj.data[:, 0], traj.data[:, 1], traj.data[:, 2])
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     ax.set_zlabel('z')
