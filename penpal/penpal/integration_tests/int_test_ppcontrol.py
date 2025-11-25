@@ -1,14 +1,12 @@
-"""
-Integration test node for developing PP control.
-"""
+"""Integration test node for developing PP control."""
 
 import asyncio
 import threading
 
 import numpy as np
+
 from scipy.spatial.transform import Rotation as R
 import matplotlib.pyplot as plt
-
 
 import rclpy
 from rclpy.node import Node
@@ -202,6 +200,7 @@ async def write_planner_test(node: Node, ctl: PositionPPControl) -> None:
     finally:
         node.get_logger().info('Write_planner_test finished.')
 
+
 def main():
     """Run main."""
     rclpy.init()
@@ -227,7 +226,7 @@ def plot_shapes() -> None:
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
 
-    rot = R.from_euler('xyz', [np.pi / 2, 0, 0], False)
+    rot = R.from_euler('xyz', [0, 0, 0], False)
 
     c = np.array([1, 2, 3])
     traj1 = get_circle_trajectory(2.0, c, rot, 30)
@@ -251,19 +250,23 @@ def plot_demo_seq() -> None:
     plot.plot_trajectory_sequence(seq)
     plt.show()
 
+
 def plot_wp_seq() -> None:
     """Plot the write planner sequcne on a 3d plot."""
-    rot = R.from_euler('xyz', [2, 3, -1])
+    rot = R.from_euler('xyz', [0, 0, 0])
     start_pose = np.array([0, 0, 0, *rot.as_quat(True)])
     board_origin = np.array([0.0, 0.0, 0.0])
-    planner = DemoWritePlanner(board_origin)
-    seq = get_demo_traj_sequence(start_pose) * 3
+    board_orientation = np.array([0.0, 0.3826834, 0.0, 0.9238795])
+    # Rotate 45 degrees in y axis
+    planner = DemoWritePlanner(board_origin, board_orientation)
+    seq = get_demo_traj_sequence(start_pose) * 5
     seq = planner.write_characters(seq)
     plot.plot_trajectory_sequence(seq)
     plt.show()
 
+
 if __name__ == '__main__':
     # plot_shapes()
-    #plot_demo_seq()
+    # plot_demo_seq()
     plot_wp_seq()
     # main()

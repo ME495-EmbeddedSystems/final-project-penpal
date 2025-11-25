@@ -28,6 +28,21 @@ class Character:
         - (0, 1] = pressure, with 1 being hardest and epsilon being softest.
     """
 
+    def __init__(self, width, height):
+        """Initalize property values."""
+        self._width = width
+        self._height = height
+
+    @property
+    def width_m(self) -> float:
+        """Return width of the character."""
+        return self.__width
+
+    @property
+    def height_m(self) -> float:
+        """Return height of the character."""
+        return self._height
+
 
 class WritePlanner:
     """Compute trajectories to write on the real board."""
