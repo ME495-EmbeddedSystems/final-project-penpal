@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
 import numpy as np
+import math
 from fontTools.ttLib import TTFont
 from fontTools.pens.basePen import BasePen
 
@@ -95,13 +96,17 @@ class FontTrajectory:
         # Target spatial step between trajectory points, in mm
         target_step_mm: float = 1.0
         # Line spacing factor relative to font_size_mm
-        line_spacing_factor: float = 1.2
+        line_spacing_factor: float = 1.08
         # Character advance factor (approx width) relative to font_size_mm
         char_advance_factor: float = 0.6
         # Space width factor relative to font_size_mm
         space_advance_factor: float = 0.5
         # Default drawing pressure in [0, 1]
         default_pressure: float = 1.0
+        # Whether to convert glyph outline to a single-stroke skeleton
+        use_skeleton: bool = False
+        # Rasterized image size used for skeletonization
+        skeleton_img_size: int = 256
 
     def __init__(
         self, writer: WritePlanner, cfg: Config | None = None
@@ -172,10 +177,15 @@ class FontTrajectory:
                 cursor_x += space_advance
                 continue
 
-            # 1) Extract glyph outline paths in normalized units (roughly [0,1]).
-            paths_norm = self._glyph_to_paths(
-                font, ch, steps_per_curve=self.c.steps_per_curve
-            )
+            # 1) Extract glyph paths in normalized units (roughly [0,1]).
+            if self.c.use_skeleton:
+                paths_norm = self._glyph_to_paths_single_stroke(
+                    font, ch, steps_per_curve=self.c.steps_per_curve
+                )
+            else:
+                paths_norm = self._glyph_to_paths(
+                    font, ch, steps_per_curve=self.c.steps_per_curve
+                )
 
             if not paths_norm:
                 # Skip characters without outlines (e.g., unsupported codepoints).
@@ -210,6 +220,7 @@ class FontTrajectory:
                 paths_mm=shifted_paths,
                 target_step_mm=self.c.target_step_mm,
                 pressure=self.c.default_pressure,
+                closed_paths=not self.c.use_skeleton,  # outline: closed, skeleton: open
             )
             characters.append(char_obj)
 
@@ -260,29 +271,268 @@ class FontTrajectory:
                 normalized_paths.append(norm_path)
 
         return normalized_paths
+    
+    def _glyph_to_paths_single_stroke(
+        self,
+        font: TTFont,
+        char: str,
+        steps_per_curve: int = 20,
+    ) -> list[list[tuple[float, float]]]:
+        """Approximate single-stroke (skeleton) paths for a glyph.
+
+        Strategy:
+          - Get outline polylines in normalized coords.
+          - For 'O'/'o'/'0', always use a single outer outline loop.
+          - Only for a small whitelist of simple characters do we:
+              * rasterize + skeletonize,
+              * decompose skeleton into strokes,
+              * map strokes back to normalized coords.
+          - For all other characters, just return the outline paths.
+        """
+
+        # ---------- 0) Outline ----------
+        outline_paths = self._glyph_to_paths(
+            font, char, steps_per_curve=steps_per_curve
+        )
+        if not outline_paths:
+            return []
+
+        # ---------- 0a) Special-case donut glyphs ----------
+        # Always draw 'O'/'o'/'0' as a single outer loop (no skeleton).
+        if char in ("O", "o", "0"):
+            def bbox_area(path: list[tuple[float, float]]) -> float:
+                xs = [p[0] for p in path]
+                ys = [p[1] for p in path]
+                return (max(xs) - min(xs)) * (max(ys) - min(ys))
+
+            outer = max(outline_paths, key=bbox_area)
+            return [outer]
+
+        # ---------- 0b) Character whitelist for skeleton ----------
+        # Only these letters will use skeleton; everything else uses outline.
+        SIMPLE_SKELETON_CHARS = set(
+            "HIJKLMNTUVWXYZ"      # uppercase with simple strokes
+            "cijlmnruvwxyz"       # lowercase that usually skeletonize nicely
+        )
+        # 你可以根据效果随时往上面这个集合里加/减字符
+
+        if char not in SIMPLE_SKELETON_CHARS:
+            # Do not attempt skeletonization for more complex glyphs
+            return outline_paths
+
+        # ---------- 1) Bounding box (normalized coords) ----------
+        all_x = [p[0] for path in outline_paths for p in path]
+        all_y = [p[1] for path in outline_paths for p in path]
+        min_x0, max_x0 = min(all_x), max(all_x)
+        min_y0, max_y0 = min(all_y), max(all_y)
+
+        width = max_x0 - min_x0
+        height = max_y0 - min_y0
+        if width <= 0.0 or height <= 0.0:
+            return outline_paths
+
+        pad = 0.05 * max(width, height)
+        min_x = min_x0 - pad
+        max_x = max_x0 + pad
+        min_y = min_y0 - pad
+        max_y = max_y0 + pad
+
+        size = self.c.skeleton_img_size
+
+        # Normalized coords -> pixel coords (leave 1-pixel padding)
+        scale_x = (size - 2) / (max_x - min_x)
+        scale_y = (size - 2) / (max_y - min_y)
+
+        # ---------- 2) Rasterize outline into a filled mask ----------
+        try:
+            from PIL import Image, ImageDraw
+            from skimage.morphology import skeletonize
+            from skimage.measure import label
+        except ImportError as e:
+            raise RuntimeError(
+                "Skeleton mode requires Pillow and scikit-image. "
+                "Install them with 'pip install pillow scikit-image'."
+            ) from e
+
+        img = Image.new("L", (size, size), 0)
+        draw = ImageDraw.Draw(img)
+
+        for path in outline_paths:
+            if len(path) < 3:
+                continue
+            poly: list[tuple[float, float]] = []
+            for (x, y) in path:
+                px = (x - min_x) * scale_x + 1.0
+                py = (max_y - y) * scale_y + 1.0  # flip y
+                poly.append((px, py))
+            if poly[0] != poly[-1]:
+                poly.append(poly[0])
+            draw.polygon(poly, outline=255, fill=255)
+
+        mask = np.array(img, dtype=bool)
+        if not mask.any():
+            return outline_paths
+
+        # ---------- 3) Skeletonize ----------
+        skel = skeletonize(mask)
+
+        # ---------- 4) Label components and build strokes ----------
+        labels = label(skel, connectivity=2)
+        n_labels = labels.max()
+        if n_labels == 0:
+            return outline_paths
+
+        neighbors = [
+            (-1, -1), (-1, 0), (-1, 1),
+            (0, -1),           (0, 1),
+            (1, -1),  (1, 0),  (1, 1),
+        ]
+
+        skeleton_paths_pix: list[list[tuple[int, int]]] = []
+
+        for lab in range(1, n_labels + 1):
+            comp = labels == lab
+            ys, xs = np.nonzero(comp)
+            if len(xs) == 0:
+                continue
+
+            pixels = list(zip(ys, xs))
+            pix_set = set(pixels)
+
+            def pixel_neighbors(p: tuple[int, int]):
+                r, c = p
+                for dr, dc in neighbors:
+                    q = (r + dr, c + dc)
+                    if q in pix_set:
+                        yield q
+
+            # Degree of each pixel in skeleton graph
+            degrees: dict[tuple[int, int], int] = {
+                p: sum(1 for _ in pixel_neighbors(p)) for p in pixels
+            }
+
+            # Nodes: pixels with degree != 2
+            nodes = [p for p, deg in degrees.items() if deg != 2]
+
+            visited_edges: set[tuple[tuple[int, int], tuple[int, int]]] = set()
+
+            def add_edge(a: tuple[int, int], b: tuple[int, int]) -> None:
+                if a <= b:
+                    visited_edges.add((a, b))
+                else:
+                    visited_edges.add((b, a))
+
+            def edge_visited(a: tuple[int, int], b: tuple[int, int]) -> bool:
+                return (a, b) in visited_edges or (b, a) in visited_edges
+
+            # Case 1 – graph with nodes (endpoints / junctions)
+            if nodes:
+                for u in nodes:
+                    for v in pixel_neighbors(u):
+                        if edge_visited(u, v):
+                            continue
+
+                        path_pix: list[tuple[int, int]] = [u, v]
+                        add_edge(u, v)
+                        prev = u
+                        cur = v
+
+                        while True:
+                            deg_cur = degrees.get(cur, 0)
+                            if deg_cur != 2:
+                                # Reached another node; stop stroke here
+                                break
+
+                            nbrs = [w for w in pixel_neighbors(cur) if w != prev]
+                            if not nbrs:
+                                break
+                            w = nbrs[0]
+                            if edge_visited(cur, w):
+                                break
+
+                            path_pix.append(w)
+                            add_edge(cur, w)
+                            prev, cur = cur, w
+
+                        if len(path_pix) >= 2:
+                            skeleton_paths_pix.append(path_pix)
+
+            else:
+                # Case 2: pure loop (all degrees == 2), no endpoints/junctions.
+                start = pixels[0]
+                path_pix: list[tuple[int, int]] = [start]
+                prev = None
+                cur = start
+
+                for _ in range(len(pixels) + 5):
+                    nbrs = list(pixel_neighbors(cur))
+                    if not nbrs:
+                        break
+                    if prev is None:
+                        nxt = nbrs[0]
+                    else:
+                        candidates = [w for w in nbrs if w != prev] or nbrs
+                        nxt = candidates[0]
+                    if nxt == start and prev is not None:
+                        path_pix.append(nxt)
+                        break
+                    if nxt == prev:
+                        break
+                    path_pix.append(nxt)
+                    prev, cur = cur, nxt
+
+                if len(path_pix) >= 2:
+                    skeleton_paths_pix.append(path_pix)
+
+        # ---------- 5) Convert pixel paths back to normalized coords ----------
+        def pix_path_to_norm(path_pix: list[tuple[int, int]]):
+            pts_norm: list[tuple[float, float]] = []
+            for (r, c) in path_pix:
+                x_norm = (c - 1.0) / scale_x + min_x
+                y_norm = max_y - (r - 1.0) / scale_y
+                pts_norm.append((x_norm, y_norm))
+            return pts_norm
+
+        skeleton_paths: list[list[tuple[float, float]]] = [
+            pix_path_to_norm(path_pix)
+            for path_pix in skeleton_paths_pix
+            if len(path_pix) >= 2
+        ]
+
+        if not skeleton_paths:
+            # Skeletonization failed → fall back to outline
+            return outline_paths
+
+        # ---------- 6) Normal case: use skeleton paths ----------
+        return skeleton_paths
+
+
 
     def _resample_path(
         self,
         path: list[tuple[float, float]],
         target_step_mm: float,
+        closed: bool = True,
     ) -> list[tuple[float, float]]:
         """Resample a closed path so that distances between successive points
         are roughly <= target_step_mm.
 
         Path is assumed to be in physical units (mm).
-        The path is treated as closed: last point connects back to the first.
+        If closed=True, last point connects back to the first.
         """
         if len(path) < 2:
             return path
 
-        # Make an explicit closed version: ... p[n-1], p[0]
-        closed = list(path) + [path[0]]
+        if closed:
+            pts = list(path) + [path[0]]
+        else:
+            pts = list(path)
 
-        new_path: list[tuple[float, float]] = [closed[0]]
+        new_path: list[tuple[float, float]] = [pts[0]]
 
-        for i in range(len(closed) - 1):
-            x0, y0 = closed[i]
-            x1, y1 = closed[i + 1]
+        for i in range(len(pts) - 1):
+            x0, y0 = pts[i]
+            x1, y1 = pts[i + 1]
             dx = x1 - x0
             dy = y1 - y0
             seg_len = float(np.hypot(dx, dy))
@@ -305,6 +555,7 @@ class FontTrajectory:
         paths_mm: list[list[tuple[float, float]]],
         target_step_mm: float,
         pressure: float,
+        closed_paths: bool = True,
     ) -> Character:
         """Convert a list of 2D paths (in mm) into a Character with Nx3 trajectory.
 
@@ -320,7 +571,7 @@ class FontTrajectory:
                 continue
 
             # Resample each path (treated as closed) for approximate constant speed.
-            resampled = self._resample_path(path, target_step_mm=target_step_mm)
+            resampled = self._resample_path(path, target_step_mm=target_step_mm, closed=closed_paths)
             if len(resampled) == 0:
                 continue
 

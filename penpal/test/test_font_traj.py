@@ -14,6 +14,7 @@ import pathlib
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.animation import FuncAnimation
 
 from penpal.font_trajectory import FontTrajectory
 from penpal.write_planner import Character
@@ -82,13 +83,371 @@ def plot_characters(characters: list[Character]) -> None:
     ax.grid(True)
     plt.show()
 
+def animate_characters(characters, interval_ms: int = 15) -> None:
+    """Animate how the robot would write a sequence of characters.
+
+    `characters` is a list[Character], each with trajectory: (N, 3) array,
+    columns = [x_mm, y_mm, z_pressure].
+    """
+
+    # ---------- 1) 展开所有轨迹，加入“抬笔断点” ----------
+    flat_points: list[tuple[float | None, float | None]] = []
+
+    for ch in characters:
+        traj = ch.trajectory  # shape (N, 3)
+        if traj is None or traj.shape[0] == 0:
+            continue
+
+        for i in range(traj.shape[0]):
+            x, y, z = traj[i]
+            if i > 0:
+                # 如果这一步或上一步的 z<=0，就认为是抬笔跳跃，插一个分割点
+                z_prev = traj[i - 1, 2]
+                if z <= 0.0 or z_prev <= 0.0:
+                    flat_points.append((None, None))  # pen up
+
+            flat_points.append((float(x), float(y)))
+
+    # 如果一个点都没有就直接返回
+    real_pts = [(x, y) for (x, y) in flat_points if x is not None]
+    if not real_pts:
+        print("No points to animate.")
+        return
+
+    xs_all = [p[0] for p in real_pts]
+    ys_all = [p[1] for p in real_pts]
+
+    # ---------- 2) 建立图像 ----------
+    fig, ax = plt.subplots()
+    ax.set_aspect("equal", "box")
+    margin = 5.0
+    ax.set_xlim(min(xs_all) - margin, max(xs_all) + margin)
+    ax.set_ylim(min(ys_all) - margin, max(ys_all) + margin)
+    ax.set_xlabel("x (mm)")
+    ax.set_ylabel("y (mm)")
+    ax.set_title("Animated writing demo")
+
+    # 底下先画一遍淡淡的完整轨迹，做背景参考
+    for ch in characters:
+        traj = ch.trajectory
+        if traj is None or traj.shape[0] < 2:
+            continue
+        ax.plot(traj[:, 0], traj[:, 1], linewidth=0.5, alpha=0.2)
+
+    # 真正的“当前笔迹”用一条线来画，逐帧增长
+    line, = ax.plot([], [], "-", linewidth=2)
+    xs_draw: list[float] = []
+    ys_draw: list[float] = []
+
+    def init():
+        line.set_data([], [])
+        return (line,)
+
+    def update(frame_idx: int):
+        x, y = flat_points[frame_idx]
+        if x is None:
+            # 抬笔：插一个 NaN 让线条断开
+            xs_draw.append(np.nan)
+            ys_draw.append(np.nan)
+        else:
+            xs_draw.append(x)
+            ys_draw.append(y)
+        line.set_data(xs_draw, ys_draw)
+        return (line,)
+
+    anim = FuncAnimation(
+        fig,
+        update,
+        frames=range(len(flat_points)),
+        init_func=init,
+        interval=interval_ms,
+        blit=True,
+        repeat=False,
+    )
+
+    plt.show()
+
+def build_flat_path_constant_speed(
+    characters,
+    step_mm: float = 1.0,
+) -> np.ndarray:
+    """Build a single continuous path for all characters, with approx constant
+    speed in the xy-plane. z > 0 means pen down, z = 0 means pen up.
+
+    Characters are written in the given order. Between the end of char i and
+    the beginning of char i+1 we insert a straight pen-up segment.
+    """
+
+    seg_starts: list[np.ndarray] = []
+    seg_ends: list[np.ndarray] = []
+    seg_down: list[bool] = []
+
+    prev_end_xy: np.ndarray | None = None
+
+    for ch in characters:
+        traj = ch.trajectory
+        if traj is None:
+            continue
+        traj = np.asarray(traj, dtype=float)
+        if traj.size == 0:
+            continue
+
+        # Ensure shape (N, 3)
+        if traj.ndim != 2 or traj.shape[1] not in (2, 3):
+            raise ValueError("Character.trajectory must be (N,2) or (N,3).")
+
+        if traj.shape[1] == 2:
+            # If no z column, assume the whole trajectory is pen down.
+            z_col = np.ones((traj.shape[0], 1), dtype=float)
+            traj = np.hstack([traj, z_col])
+
+        # If all z are 0, also interpret as pen-down strokes.
+        if np.allclose(traj[:, 2], 0.0):
+            traj[:, 2] = 1.0
+
+        # Pen-up link from previous character end to this character start
+        start_xy = traj[0, :2]
+        if prev_end_xy is not None:
+            link_vec = start_xy - prev_end_xy
+            if np.linalg.norm(link_vec) > 1e-6:
+                seg_starts.append(prev_end_xy.copy())
+                seg_ends.append(start_xy.copy())
+                seg_down.append(False)  # pen up during this jump
+
+        # Segments inside this character
+        for i in range(1, traj.shape[0]):
+            p0 = traj[i - 1, :2]
+            p1 = traj[i, :2]
+            if np.allclose(p0, p1):
+                continue
+            seg_starts.append(p0)
+            seg_ends.append(p1)
+            pen_down = (traj[i - 1, 2] > 0.0) and (traj[i, 2] > 0.0)
+            seg_down.append(pen_down)
+
+        prev_end_xy = traj[-1, :2]
+
+    if not seg_starts:
+        return np.zeros((0, 3), dtype=float)
+
+    seg_starts_arr = np.vstack(seg_starts)
+    seg_ends_arr = np.vstack(seg_ends)
+    seg_down_arr = np.asarray(seg_down, dtype=bool)
+
+    # Segment lengths and cumulative arc-length
+    diffs = seg_ends_arr - seg_starts_arr
+    seg_lens = np.hypot(diffs[:, 0], diffs[:, 1])
+
+    # Remove zero-length segments just in case
+    mask_nonzero = seg_lens > 1e-9
+    seg_starts_arr = seg_starts_arr[mask_nonzero]
+    seg_ends_arr = seg_ends_arr[mask_nonzero]
+    seg_down_arr = seg_down_arr[mask_nonzero]
+    seg_lens = seg_lens[mask_nonzero]
+
+    if seg_starts_arr.shape[0] == 0:
+        return np.zeros((0, 3), dtype=float)
+
+    cumlen = np.concatenate(([0.0], np.cumsum(seg_lens)))
+    total_len = float(cumlen[-1])
+    if total_len <= 0.0:
+        p = np.hstack(
+            [
+                seg_starts_arr[0],
+                [1.0 if seg_down_arr[0] else 0.0],
+            ]
+        )
+        return p[None, :]
+
+    n_steps = max(1, int(total_len / step_mm))
+    s_values = np.linspace(0.0, total_len, n_steps + 1)
+
+    new_pts: list[list[float]] = []
+    idx = 0
+    for s in s_values:
+        # Find segment such that cumlen[idx] <= s <= cumlen[idx+1]
+        while idx < len(seg_lens) - 1 and s > cumlen[idx + 1]:
+            idx += 1
+        seg_len = seg_lens[idx]
+        if seg_len <= 0.0:
+            t = 0.0
+        else:
+            t = (s - cumlen[idx]) / seg_len
+
+        p0 = seg_starts_arr[idx]
+        p1 = seg_ends_arr[idx]
+        xy = p0 + t * (p1 - p0)
+        z = 1.0 if seg_down_arr[idx] else 0.0
+        new_pts.append([xy[0], xy[1], z])
+
+    return np.asarray(new_pts, dtype=float)
+
+def plot_flat_path_colored(path: np.ndarray) -> None:
+    """Plot a single flattened path, coloring pen-down and pen-up parts."""
+
+    path = np.asarray(path, dtype=float)
+    if path.shape[0] < 2:
+        print("Path too short to plot.")
+        return
+
+    fig, ax = plt.subplots()
+    ax.set_aspect("equal", "box")
+
+    xs = path[:, 0]
+    ys = path[:, 1]
+    margin = 5.0
+    ax.set_xlim(xs.min() - margin, xs.max() + margin)
+    ax.set_ylim(ys.min() - margin, ys.max() + margin)
+    ax.set_xlabel("x (mm)")
+    ax.set_ylabel("y (mm)")
+    ax.set_title("Flattened trajectory (blue = pen down, orange = pen up)")
+    ax.grid(True)
+
+    down_x, down_y = [], []
+    up_x, up_y = [], []
+    prev_down: bool | None = None
+
+    for i in range(path.shape[0]):
+        x, y, z = path[i]
+        is_down = z > 0.0
+
+        if is_down:
+            if prev_down is False:
+                # Break the up polyline
+                up_x.append(np.nan)
+                up_y.append(np.nan)
+            down_x.append(x)
+            down_y.append(y)
+        else:
+            if prev_down is True:
+                # Break the down polyline
+                down_x.append(np.nan)
+                down_y.append(np.nan)
+            up_x.append(x)
+            up_y.append(y)
+
+        prev_down = is_down
+
+    ax.plot(
+        down_x,
+        down_y,
+        "-",
+        color="tab:blue",
+        linewidth=1.5,
+        label="pen down",
+    )
+    ax.plot(
+        up_x,
+        up_y,
+        "-",
+        color="tab:orange",
+        linewidth=1.5,
+        label="pen up",
+    )
+    ax.legend()
+    plt.show()
+
+def animate_flat_path_colored(path: np.ndarray, interval_ms: int = 10) -> None:
+    """Animate a flattened path with two colors:
+    blue = pen down (z>0), orange = pen up (z<=0).
+    """
+
+    path = np.asarray(path, dtype=float)
+    if path.shape[0] == 0:
+        print("Empty path, nothing to animate.")
+        return
+
+    fig, ax = plt.subplots()
+    ax.set_aspect("equal", "box")
+
+    xs = path[:, 0]
+    ys = path[:, 1]
+    margin = 5.0
+    ax.set_xlim(xs.min() - margin, xs.max() + margin)
+    ax.set_ylim(ys.min() - margin, ys.max() + margin)
+    ax.set_xlabel("x (mm)")
+    ax.set_ylabel("y (mm)")
+    ax.set_title("Animated trajectory (blue = pen down, orange = pen up)")
+    ax.grid(True)
+
+    down_line, = ax.plot(
+        [],
+        [],
+        "-",
+        color="tab:blue",
+        linewidth=2,
+        label="pen down",
+    )
+    up_line, = ax.plot(
+        [],
+        [],
+        "-",
+        color="tab:orange",
+        linewidth=2,
+        label="pen up",
+    )
+    ax.legend()
+
+    down_x, down_y = [], []
+    up_x, up_y = [], []
+    prev_down: bool | None = None
+
+    def init():
+        down_line.set_data([], [])
+        up_line.set_data([], [])
+        return down_line, up_line
+
+    def update(i: int):
+        nonlocal prev_down
+
+        x, y, z = path[i]
+        is_down = z > 0.0
+
+        if is_down:
+            if prev_down is False:
+                # Break the orange polyline when switching up -> down
+                up_x.append(np.nan)
+                up_y.append(np.nan)
+            down_x.append(x)
+            down_y.append(y)
+        else:
+            if prev_down is True:
+                # Break the blue polyline when switching down -> up
+                down_x.append(np.nan)
+                down_y.append(np.nan)
+            up_x.append(x)
+            up_y.append(y)
+
+        prev_down = is_down
+
+        down_line.set_data(down_x, down_y)
+        up_line.set_data(up_x, up_y)
+        return down_line, up_line
+
+    anim = FuncAnimation(
+        fig,
+        update,
+        frames=range(path.shape[0]),
+        init_func=init,
+        interval=interval_ms,
+        blit=True,
+        repeat=False,
+    )
+
+    plt.show()
+
+
 
 def main() -> None:
     # 1) Create a dummy writer instead of a real WritePlanner
     writer = DummyWriter()
 
-    # 2) Create FontTrajectory with default config
-    ft = FontTrajectory(writer=writer)
+    # 2) Create FontTrajectory with a config
+    cfg = FontTrajectory.Config(
+    use_skeleton=False,       # turn on skeleton mode
+    skeleton_img_size=512,   # you can try 256 ~ 512
+    )
+    ft = FontTrajectory(writer=writer, cfg=cfg)
 
     # 3) Register a font file (Linux example: DejaVuSans)
     font_path = pathlib.Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
@@ -109,13 +468,13 @@ def main() -> None:
     #    font_name must match font_path.stem, e.g. "DejaVuSans"
     ft.write_text(
         #text="HELLO\nWORLD",
-        text="HELLO\nWORLD",
+        text="ABCDEFGHIJKLMN\nOPQRSTUVWXYZ\nabcdefghijklmn\nopqrstuvwxyz",
         #font_name="DejaVuSans",
         #font_name="OpenSans-Italic",
         #font_name="DejaVuSans-ExtraLight",
         #font_name="DejaVuSansCondensed-Oblique",
-        #font_name="Lato-HairlineItalic", # This font is very thin!
-        font_name="Lato-ThinItalic",
+        font_name="Lato-HairlineItalic", # This font is very thin!
+        #font_name="Lato-ThinItalic",
 
         font_size_mm=40.0,      # approximate letter height in mm
         pen_thickness_mm=1.0,   # currently unused
@@ -127,6 +486,19 @@ def main() -> None:
 
     # 5) Plot the resulting trajectories
     plot_characters(writer.characters)
+
+    # Build one continuous, approximately constant-speed path
+    flat_path = build_flat_path_constant_speed(
+        writer.characters,
+        step_mm=1.0,  # you can tune this
+    )
+
+    # Static view: blue = pen down, orange = pen up
+    plot_flat_path_colored(flat_path)
+
+    # Animated view of the same path
+    animate_flat_path_colored(flat_path, interval_ms=10)
+
 
 
 if __name__ == "__main__":
