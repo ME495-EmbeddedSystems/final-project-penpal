@@ -81,11 +81,12 @@ def plot_characters(characters: list[Character]) -> None:
 
 
 def plot_flat_path_colored(path: np.ndarray) -> None:
-    """Plot a single flattened path, coloring pen-down and pen-up parts.
+    """Plot a single flattened path.
 
-    Blue  = pen down (z > 0)
-    Orange = pen up  (z == 0)
+    Blue  = pen down (z > 0) segments as lines.
+    Orange = pen up (z == 0) points as markers (no line).
     """
+
     path = np.asarray(path, dtype=float)
     if path.shape[0] < 2:
         print("Path too short to plot.")
@@ -101,60 +102,41 @@ def plot_flat_path_colored(path: np.ndarray) -> None:
     ax.set_ylim(ys.min() - margin, ys.max() + margin)
     ax.set_xlabel("x (mm)")
     ax.set_ylabel("y (mm)")
-    ax.set_title("Flattened trajectory (blue = pen down, orange = pen up)")
+    ax.set_title("Flattened trajectory (blue = pen down, orange dots = pen up)")
     ax.grid(True)
 
-    down_x, down_y = [], []
-    up_x, up_y = [], []
-    prev_down: bool | None = None
+    # ----- 只在 z>0 段画蓝线 -----
+    for i in range(1, path.shape[0]):
+        x0, y0, z0 = path[i - 1]
+        x1, y1, z1 = path[i]
 
-    for i in range(path.shape[0]):
-        x, y, z = path[i]
-        is_down = z > 0.0
+        # Only draw a line if both ends are pen-down
+        if z0 > 0.0 and z1 > 0.0:
+            ax.plot([x0, x1], [y0, y1], "-", color="tab:blue", linewidth=1.5)
 
-        if is_down:
-            if prev_down is False:
-                # Break the up polyline
-                up_x.append(np.nan)
-                up_y.append(np.nan)
-            down_x.append(x)
-            down_y.append(y)
-        else:
-            if prev_down is True:
-                # Break the down polyline
-                down_x.append(np.nan)
-                down_y.append(np.nan)
-            up_x.append(x)
-            up_y.append(y)
+    # ----- 抬笔的位置只用橙色点标出来（不连线） -----
+    up_mask = path[:, 2] <= 0.0
+    if np.any(up_mask):
+        ax.scatter(
+            path[up_mask, 0],
+            path[up_mask, 1],
+            s=5,
+            color="tab:orange",
+            label="pen up (no line)",
+        )
 
-        prev_down = is_down
-
-    ax.plot(
-        down_x,
-        down_y,
-        "-",
-        color="tab:blue",
-        linewidth=1.5,
-        label="pen down",
-    )
-    ax.plot(
-        up_x,
-        up_y,
-        "-",
-        color="tab:orange",
-        linewidth=1.5,
-        label="pen up",
-    )
     ax.legend()
     plt.show()
 
 
-def animate_flat_path_colored(path: np.ndarray, interval_ms: int = 10) -> None:
-    """Animate a flattened path with two colors:
 
-    Blue   = pen down (z > 0)
-    Orange = pen up   (z <= 0)
+def animate_flat_path_colored(path: np.ndarray, interval_ms: int = 10) -> None:
+    """Animate a flattened path.
+
+    Blue  = pen-down segments (z > 0) drawn as line segments.
+    Orange dot = current pen-up position (z <= 0); pen-up segments are not drawn as lines.
     """
+
     path = np.asarray(path, dtype=float)
     if path.shape[0] == 0:
         print("Empty path, nothing to animate.")
@@ -170,9 +152,10 @@ def animate_flat_path_colored(path: np.ndarray, interval_ms: int = 10) -> None:
     ax.set_ylim(ys.min() - margin, ys.max() + margin)
     ax.set_xlabel("x (mm)")
     ax.set_ylabel("y (mm)")
-    ax.set_title("Animated trajectory (blue = pen down, orange = pen up)")
+    ax.set_title("Animated trajectory (blue = pen down, orange dot = pen up)")
     ax.grid(True)
 
+    # One blue line for all pen-down segments, gradually revealed.
     down_line, = ax.plot(
         [],
         [],
@@ -181,51 +164,52 @@ def animate_flat_path_colored(path: np.ndarray, interval_ms: int = 10) -> None:
         linewidth=2,
         label="pen down",
     )
-    up_line, = ax.plot(
+    # One orange marker for the current pen-up position (no orange line).
+    up_marker, = ax.plot(
         [],
         [],
-        "-",
+        "o",
         color="tab:orange",
-        linewidth=2,
-        label="pen up",
+        markersize=4,
+        label="pen up position",
     )
     ax.legend()
 
-    down_x, down_y = [], []
-    up_x, up_y = [], []
-    prev_down: bool | None = None
-
     def init():
         down_line.set_data([], [])
-        up_line.set_data([], [])
-        return down_line, up_line
+        up_marker.set_data([], [])
+        return down_line, up_marker
 
     def update(i: int):
-        nonlocal prev_down
+        # Use all points up to frame i, and rebuild the blue polyline
+        # using exactly the same rule as in the static plot:
+        # draw a line only if both endpoints of the segment have z > 0.
+        sub = path[: i + 1]
 
-        x, y, z = path[i]
-        is_down = z > 0.0
+        down_x: list[float] = []
+        down_y: list[float] = []
 
-        if is_down:
-            if prev_down is False:
-                # Break the orange polyline when switching up -> down
-                up_x.append(np.nan)
-                up_y.append(np.nan)
-            down_x.append(x)
-            down_y.append(y)
-        else:
-            if prev_down is True:
-                # Break the blue polyline when switching down -> up
-                down_x.append(np.nan)
-                down_y.append(np.nan)
-            up_x.append(x)
-            up_y.append(y)
+        for k in range(1, sub.shape[0]):
+            x0, y0, z0 = sub[k - 1]
+            x1, y1, z1 = sub[k]
 
-        prev_down = is_down
+            if z0 > 0.0 and z1 > 0.0:
+                # Add a tiny segment [ (x0,y0) -> (x1,y1) ], separated by NaN
+                # so that non-contiguous segments do not get connected.
+                down_x.extend([np.nan, x0, x1])
+                down_y.extend([np.nan, y0, y1])
 
         down_line.set_data(down_x, down_y)
-        up_line.set_data(up_x, up_y)
-        return down_line, up_line
+
+        # Current point: if pen is up, show orange dot at this position;
+        # if pen is down, hide the orange marker.
+        x_cur, y_cur, z_cur = sub[-1]
+        if z_cur <= 0.0:
+            up_marker.set_data([x_cur], [y_cur])
+        else:
+            up_marker.set_data([], [])
+
+        return down_line, up_marker
 
     _ = FuncAnimation(
         fig,
@@ -238,6 +222,8 @@ def animate_flat_path_colored(path: np.ndarray, interval_ms: int = 10) -> None:
     )
 
     plt.show()
+
+
 
 
 def main() -> None:
@@ -272,8 +258,8 @@ def main() -> None:
         #font_name="OpenSans-Italic",
         #font_name="DejaVuSans-ExtraLight",
         #font_name="DejaVuSansCondensed-Oblique",
-        font_name="Lato-HairlineItalic",  # very thin font
-        #font_name="Lato-ThinItalic",
+        #font_name="Lato-HairlineItalic",  # very thin font
+        font_name="Lato-ThinItalic",
         font_size_mm=40.0,
         pen_thickness_mm=1.0,  # currently unused
     )
