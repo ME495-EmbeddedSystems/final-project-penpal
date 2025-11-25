@@ -105,7 +105,7 @@ def plot_flat_path_colored(path: np.ndarray) -> None:
     ax.set_title("Flattened trajectory (blue = pen down, orange dots = pen up)")
     ax.grid(True)
 
-    # ----- 只在 z>0 段画蓝线 -----
+    # ----- only draws blue lines at z>0 segments -----
     for i in range(1, path.shape[0]):
         x0, y0, z0 = path[i - 1]
         x1, y1, z1 = path[i]
@@ -114,7 +114,7 @@ def plot_flat_path_colored(path: np.ndarray) -> None:
         if z0 > 0.0 and z1 > 0.0:
             ax.plot([x0, x1], [y0, y1], "-", color="tab:blue", linewidth=1.5)
 
-    # ----- 抬笔的位置只用橙色点标出来（不连线） -----
+    # ----- when the pen if off board, use orange dots to show its trail -----
     up_mask = path[:, 2] <= 0.0
     if np.any(up_mask):
         ax.scatter(
