@@ -14,7 +14,7 @@ class PositionPPControl(PPControlBase):
         """Initialize the object."""
         super().__init__(node, cfg)
 
-    def execute_trajectory(
+    async def execute_trajectory(
         self, traj: Trajectory, target_ee_velocity_m_s: float
     ) -> None:
         """
@@ -28,7 +28,9 @@ class PositionPPControl(PPControlBase):
         """
         pass
 
-    def grip(self, offset_m: float, grip_force_N: float | None = None) -> None:
+    async def grip(
+        self, offset_m: float, grip_force_N: float | None = None
+    ) -> None:
         """
         Open or close the gripper to the desired offset, then applies a force.
 

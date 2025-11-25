@@ -7,6 +7,8 @@ import threading
 
 import numpy as np
 from scipy.spatial.transform import Rotation as R
+import matplotlib.pyplot as plt
+
 
 import rclpy
 from rclpy.node import Node
@@ -14,6 +16,7 @@ from rclpy.executors import MultiThreadedExecutor
 
 from penpal.control.position_control import PositionPPControl
 from penpal.control.pp_control import Trajectory
+from penpal.integration_tests import plot
 
 
 def get_circle_trajectory(
@@ -125,11 +128,67 @@ def get_square_trajectory(
     return traj
 
 
+def get_demo_traj_sequence(start_pose: np.ndarray) -> list[Trajectory]:
+    """
+    Put together a demo trajectory sequence of circle, arrow, sq.
+
+    Args:
+        start_pose: [x, y, z, qx, qy, qz, qw]
+
+    """
+    lineh = 0.05
+    off_board_dist = 0.02
+    rot = R.from_quat(start_pose[3:])
+    circle_c = start_pose[:3]
+    arrow_c = circle_c + rot.apply(np.array([lineh * 1.6, 0, 0]))
+    square_c = arrow_c + rot.apply(np.array([lineh * 0.6, 0, 0]))
+
+    circle_traj = get_circle_trajectory(
+        lineh / 2, np.array([*circle_c, *rot.as_quat(True)]), 50
+    )
+    arrow_traj = get_arrow_trajectory(
+        lineh, np.array([*arrow_c, *rot.as_quat(True)])
+    )
+    square_traj = get_square_trajectory(
+        lineh, np.array([*square_c, *rot.as_quat(True)])
+    )
+
+    board_gap = rot.apply(np.array([0, 0, off_board_dist]))
+    board_gap = np.array([*board_gap, 0, 0, 0])
+
+    out = []
+    last_point = None
+    for traj in [circle_traj, arrow_traj, square_traj]:
+        if last_point is not None:
+            # insert extra points hovering off the board so we don't draw
+            # between the shapes
+            points = np.array(
+                [
+                    last_point + board_gap,
+                    traj.data[0] + board_gap,
+                ]
+            )
+            # these extra points should have no force
+            points[:, 3:] = 0
+            space_traj = Trajectory('space', points)
+            out.append(space_traj)
+        out.append(traj)
+        last_point = traj.data[-1]
+
+    return out
+
+
 async def integration_test(node: Node, ctl: PositionPPControl) -> None:
     """Test move plan functions."""
     logger = node.get_logger()
     try:
-        logger.info('helloworld from integration test')
+        logger.info('Starting integration test...')
+        speed = 0.05
+        start_pose = np.array([0, 0, 0, 0, 0, 0, 1])
+        seq = get_demo_traj_sequence(start_pose)
+        for traj in seq:
+            logger.info(f'Executing trajectory {traj.label}...')
+            await ctl.execute_trajectory(traj, speed)
 
     finally:
         node.get_logger().info('Integration test finished.')
@@ -155,10 +214,8 @@ def main():
         rclpy.shutdown()
 
 
-def demo_shapes() -> None:
+def plot_shapes() -> None:
     """Quick plotting demos of the trajectory functions."""
-    import matplotlib.pyplot as plt
-
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
 
@@ -178,6 +235,15 @@ def demo_shapes() -> None:
     plt.show()
 
 
+def plot_demo_seq() -> None:
+    """Plot the demo sequence on a 3d plot."""
+    start_pose = np.array([0, 0, 0, 0, 0, 0, 1])
+    seq = get_demo_traj_sequence(start_pose)
+    plot.plot_trajectory_sequence(seq)
+    plt.show()
+
+
 if __name__ == '__main__':
-    demo_shapes()
+    # plot_shapes()
+    plot_demo_seq()
     # main()

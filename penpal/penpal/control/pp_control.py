@@ -50,7 +50,7 @@ class PPControlBase(abc.ABC):
         self.c = cfg if cfg is not None else self.Config()
 
     @abc.abstractmethod
-    def execute_trajectory(
+    async def execute_trajectory(
         self, traj: Trajectory, target_ee_velocity_m_s: float
     ) -> None:
         """
@@ -60,11 +60,14 @@ class PPControlBase(abc.ABC):
             traj (Trajectory): path to send the EE through space
             target_ee_velocity_m_s (float): target average velocity for the trajectory
             execution
+
         """
         pass
 
     @abc.abstractmethod
-    def grip(self, offset_m: float, grip_force_N: float | None = None) -> None:
+    async def grip(
+        self, offset_m: float, grip_force_N: float | None = None
+    ) -> None:
         """
         Open or close the gripper to the desired offset, then applies a force.
 
@@ -72,5 +75,6 @@ class PPControlBase(abc.ABC):
             offset_m: Offset (meters) of each finger from the EE frame.
             grip_force_N: Force to apply once gripped (i.e. to the marker when closed).
             If None, don't control the force.
+
         """
         pass
