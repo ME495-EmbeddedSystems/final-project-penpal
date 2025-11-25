@@ -6,8 +6,8 @@ import pathlib
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
-import numpy as np
 import math
+import numpy as np
 from fontTools.ttLib import TTFont
 from fontTools.pens.basePen import BasePen
 
@@ -20,9 +20,9 @@ class PathCollectorPen(BasePen):
     def __init__(self, glyph_set, steps_per_curve: int = 20) -> None:
         super().__init__(glyph_set)
         self.steps = steps_per_curve
-        # List of contours; each contour is a list of (x, y) points
+        # List of contours; each contour is a list of (x, y) points.
         self.paths: List[List[Tuple[float, float]]] = []
-        # Points for the current contour
+        # Points for the current contour.
         self._current_path: List[Tuple[float, float]] = []
 
     def _moveTo(self, p0) -> None:
@@ -91,21 +91,21 @@ class FontTrajectory:
     class Config:
         """Configuration for the object."""
 
-        # Number of samples per Bezier curve segment
+        # Number of samples per Bezier curve segment.
         steps_per_curve: int = 20
-        # Target spatial step between trajectory points, in mm
+        # Target spatial step between trajectory points, in mm.
         target_step_mm: float = 1.0
-        # Line spacing factor relative to font_size_mm
+        # Line spacing factor relative to font_size_mm.
         line_spacing_factor: float = 1.08
-        # Character advance factor (approx width) relative to font_size_mm
+        # Character advance factor (approx width) relative to font_size_mm.
         char_advance_factor: float = 0.6
-        # Space width factor relative to font_size_mm
+        # Space width factor relative to font_size_mm.
         space_advance_factor: float = 0.5
-        # Default drawing pressure in [0, 1]
+        # Default drawing pressure in [0, 1].
         default_pressure: float = 1.0
-        # Whether to convert glyph outline to a single-stroke skeleton
+        # Whether to convert glyph outline to a single-stroke skeleton.
         use_skeleton: bool = False
-        # Rasterized image size used for skeletonization
+        # Rasterized image size used for skeletonization.
         skeleton_img_size: int = 256
 
     def __init__(
@@ -114,7 +114,7 @@ class FontTrajectory:
         """Initialize the object."""
         self._writer = writer
         self.c = cfg if cfg is not None else self.Config()
-        # Loaded fonts: key is font_name, value is TTFont object
+        # Loaded fonts: key is font_name, value is TTFont object.
         self._fonts: Dict[str, TTFont] = {}
 
     # ------------------------------------------------------------------
@@ -137,17 +137,64 @@ class FontTrajectory:
         text: str,
         font_name: str,
         font_size_mm: float,
-        pen_thickness_mm: float,  # currently unused, reserved for pressure mapping
+        pen_thickness_mm: float,
     ) -> None:
         """Generate trajectories for a string of text and send them to WritePlanner.
 
-        Args:
-            text (str): Text string to generate.
-            font_name (str): Name of the font to use. Must have been added
-                using add_font().
-            font_size_mm (float): Approximate height of tallest glyphs in mm.
-            pen_thickness_mm (float): Thickness of the pen we're using to draw.
-                (Not yet used; can be mapped to pressure in future.)
+        This preserves the original public API: it creates a list of Character
+        objects and calls self._writer.write_characters(characters).
+        """
+        characters = self._text_to_characters(
+            text=text,
+            font_name=font_name,
+            font_size_mm=font_size_mm,
+            pen_thickness_mm=pen_thickness_mm,
+        )
+
+        if characters:
+            self._writer.write_characters(characters)
+
+    def write_text_flat(
+        self,
+        text: str,
+        font_name: str,
+        font_size_mm: float,
+        pen_thickness_mm: float,
+        step_mm: float | None = None,
+    ) -> np.ndarray:
+        """Generate a single continuous trajectory for the whole text.
+
+        The returned array is shape (N, 3) in the virtual-board frame:
+        columns [x_mm, y_mm, z_pressure], where z = 0 means pen up and z > 0
+        means pen down. This method does NOT call WritePlanner.
+        """
+        characters = self._text_to_characters(
+            text=text,
+            font_name=font_name,
+            font_size_mm=font_size_mm,
+            pen_thickness_mm=pen_thickness_mm,
+        )
+        if not characters:
+            return np.zeros((0, 3), dtype=float)
+
+        step = step_mm if step_mm is not None else self.c.target_step_mm
+        return self.build_flat_path_constant_speed(characters, step_mm=step)
+
+    # ------------------------------------------------------------------
+    # Internal helpers: text -> per-character trajectories
+    # ------------------------------------------------------------------
+
+    def _text_to_characters(
+        self,
+        text: str,
+        font_name: str,
+        font_size_mm: float,
+        pen_thickness_mm: float,  # currently unused, reserved for pressure mapping
+    ) -> list[Character]:
+        """Convert a text string into a list of Character objects.
+
+        This is the core text-to-glyph-to-trajectory pipeline shared by
+        write_text() and write_text_flat().
         """
         if font_name not in self._fonts:
             raise ValueError(
@@ -166,13 +213,13 @@ class FontTrajectory:
         space_advance = self.c.space_advance_factor * font_size_mm
 
         for ch in text:
-            # Newline handling
+            # Newline handling.
             if ch == "\n":
                 cursor_x = 0.0
                 cursor_y -= line_height
                 continue
 
-            # Space handling
+            # Space handling.
             if ch == " ":
                 cursor_x += space_advance
                 continue
@@ -198,23 +245,19 @@ class FontTrajectory:
             for path in paths_norm:
                 scaled = [(x * scale, y * scale) for (x, y) in path]
                 paths_mm.append(scaled)
-            
-                # Compute approximate glyph width in normalized units
+
+            # 3) Compute approximate glyph width in normalized units.
             all_x = [p[0] for path in paths_norm for p in path]
             glyph_width_norm = max(all_x) - min(all_x)
-            # Convert to mm
             glyph_width_mm = glyph_width_norm * font_size_mm
 
-            # 3) Shift to current cursor position (simple layout).
+            # 4) Shift to current cursor position (simple layout).
             shifted_paths: list[list[tuple[float, float]]] = []
             for path in paths_mm:
-                shifted = [
-                    (x + cursor_x, y + cursor_y)
-                    for (x, y) in path
-                ]
+                shifted = [(x + cursor_x, y + cursor_y) for (x, y) in path]
                 shifted_paths.append(shifted)
 
-            # 4) Convert these paths into a Character (Nx3 trajectory).
+            # 5) Convert these paths into a Character (Nx3 trajectory).
             char_obj = self._paths_to_character(
                 char=ch,
                 paths_mm=shifted_paths,
@@ -224,18 +267,15 @@ class FontTrajectory:
             )
             characters.append(char_obj)
 
-            # 5) Advance cursor to the right for the next character.
+            # 6) Advance cursor to the right for the next character.
             #    Use actual glyph width plus a small extra spacing.
-            extra_spacing_mm = 0.1 * font_size_mm  # you can tune this
+            extra_spacing_mm = 0.1 * font_size_mm  # tunable
             cursor_x += glyph_width_mm + extra_spacing_mm
 
-        # 6) Hand the characters to WritePlanner, which will handle
-        #    virtual-board -> real-robot mapping and execution.
-        if characters:
-            self._writer.write_characters(characters)
+        return characters
 
     # ------------------------------------------------------------------
-    # Internal helpers
+    # Internal helpers: glyph outlines
     # ------------------------------------------------------------------
 
     def _glyph_to_paths(
@@ -271,7 +311,7 @@ class FontTrajectory:
                 normalized_paths.append(norm_path)
 
         return normalized_paths
-    
+
     def _glyph_to_paths_single_stroke(
         self,
         font: TTFont,
@@ -314,10 +354,10 @@ class FontTrajectory:
             "HIJKLMNTUVWXYZ"      # uppercase with simple strokes
             "cijlmnruvwxyz"       # lowercase that usually skeletonize nicely
         )
-        # 你可以根据效果随时往上面这个集合里加/减字符
+        # You can add or remove characters here based on visual results.
 
         if char not in SIMPLE_SKELETON_CHARS:
-            # Do not attempt skeletonization for more complex glyphs
+            # Do not attempt skeletonization for more complex glyphs.
             return outline_paths
 
         # ---------- 1) Bounding box (normalized coords) ----------
@@ -339,7 +379,7 @@ class FontTrajectory:
 
         size = self.c.skeleton_img_size
 
-        # Normalized coords -> pixel coords (leave 1-pixel padding)
+        # Normalized coords -> pixel coords (leave 1-pixel padding).
         scale_x = (size - 2) / (max_x - min_x)
         scale_y = (size - 2) / (max_y - min_y)
 
@@ -406,12 +446,12 @@ class FontTrajectory:
                     if q in pix_set:
                         yield q
 
-            # Degree of each pixel in skeleton graph
+            # Degree of each pixel in skeleton graph.
             degrees: dict[tuple[int, int], int] = {
                 p: sum(1 for _ in pixel_neighbors(p)) for p in pixels
             }
 
-            # Nodes: pixels with degree != 2
+            # Nodes: pixels with degree != 2.
             nodes = [p for p, deg in degrees.items() if deg != 2]
 
             visited_edges: set[tuple[tuple[int, int], tuple[int, int]]] = set()
@@ -425,7 +465,7 @@ class FontTrajectory:
             def edge_visited(a: tuple[int, int], b: tuple[int, int]) -> bool:
                 return (a, b) in visited_edges or (b, a) in visited_edges
 
-            # Case 1 – graph with nodes (endpoints / junctions)
+            # Case 1 – graph with nodes (endpoints / junctions).
             if nodes:
                 for u in nodes:
                     for v in pixel_neighbors(u):
@@ -440,7 +480,7 @@ class FontTrajectory:
                         while True:
                             deg_cur = degrees.get(cur, 0)
                             if deg_cur != 2:
-                                # Reached another node; stop stroke here
+                                # Reached another node; stop stroke here.
                                 break
 
                             nbrs = [w for w in pixel_neighbors(cur) if w != prev]
@@ -500,13 +540,15 @@ class FontTrajectory:
         ]
 
         if not skeleton_paths:
-            # Skeletonization failed → fall back to outline
+            # Skeletonization failed → fall back to outline.
             return outline_paths
 
         # ---------- 6) Normal case: use skeleton paths ----------
         return skeleton_paths
 
-
+    # ------------------------------------------------------------------
+    # Internal helpers: per-character path resampling
+    # ------------------------------------------------------------------
 
     def _resample_path(
         self,
@@ -514,7 +556,7 @@ class FontTrajectory:
         target_step_mm: float,
         closed: bool = True,
     ) -> list[tuple[float, float]]:
-        """Resample a closed path so that distances between successive points
+        """Resample a path so that distances between successive points
         are roughly <= target_step_mm.
 
         Path is assumed to be in physical units (mm).
@@ -562,7 +604,7 @@ class FontTrajectory:
         For each path, we:
           - Move pen (z=0) to the first point.
           - Press pen down (z=pressure).
-          - Follow the closed path with z=pressure (approximately constant speed).
+          - Follow the path with z=pressure (approximately constant speed).
         """
         points: list[list[float]] = []
 
@@ -570,8 +612,10 @@ class FontTrajectory:
             if len(path) == 0:
                 continue
 
-            # Resample each path (treated as closed) for approximate constant speed.
-            resampled = self._resample_path(path, target_step_mm=target_step_mm, closed=closed_paths)
+            # Resample each path for approximate constant speed.
+            resampled = self._resample_path(
+                path, target_step_mm=target_step_mm, closed=closed_paths
+            )
             if len(resampled) == 0:
                 continue
 
@@ -587,10 +631,133 @@ class FontTrajectory:
             for (x, y) in resampled[1:]:
                 points.append([x, y, pressure])
 
-            # Optional: at the end we could lift the pen again, but it is
-            # not strictly necessary here. If desired:
-            # x_end, y_end = resampled[-1]
-            # points.append([x_end, y_end, 0.0])
+            # Optionally we could lift the pen at the end here.
 
         traj = np.array(points, dtype=float)  # shape (N, 3)
         return Character(char=char, trajectory=traj)
+
+    # ------------------------------------------------------------------
+    # Internal helper: build one continuous, constant-speed path
+    # ------------------------------------------------------------------
+
+    def build_flat_path_constant_speed(
+        self,
+        characters: list[Character],
+        step_mm: float | None = None,
+    ) -> np.ndarray:
+        """Flatten a list of Character trajectories into a single path.
+
+        The returned array has shape (N, 3) with columns [x_mm, y_mm, z],
+        where z = 0 means pen up and z > 0 means pen down. The spacing in
+        the xy-plane is approximately constant.
+
+        Characters are written in the given order. Between the end of
+        character i and the beginning of character i+1 we insert a straight
+        pen-up segment.
+        """
+        if step_mm is None:
+            step_mm = self.c.target_step_mm
+
+        seg_starts: list[np.ndarray] = []
+        seg_ends: list[np.ndarray] = []
+        seg_down: list[bool] = []
+
+        prev_end_xy: np.ndarray | None = None
+
+        for ch in characters:
+            traj = ch.trajectory
+            if traj is None:
+                continue
+            traj = np.asarray(traj, dtype=float)
+            if traj.size == 0:
+                continue
+
+            # Ensure shape (N, 3).
+            if traj.ndim != 2 or traj.shape[1] not in (2, 3):
+                raise ValueError("Character.trajectory must be (N,2) or (N,3).")
+
+            if traj.shape[1] == 2:
+                # If no z column, assume the whole trajectory is pen down.
+                z_col = np.ones((traj.shape[0], 1), dtype=float)
+                traj = np.hstack([traj, z_col])
+
+            # If all z are 0, also interpret as pen-down strokes.
+            if np.allclose(traj[:, 2], 0.0):
+                traj[:, 2] = 1.0
+
+            # Pen-up link from previous character end to this character start.
+            start_xy = traj[0, :2]
+            if prev_end_xy is not None:
+                link_vec = start_xy - prev_end_xy
+                if np.linalg.norm(link_vec) > 1e-6:
+                    seg_starts.append(prev_end_xy.copy())
+                    seg_ends.append(start_xy.copy())
+                    seg_down.append(False)  # pen up during this jump
+
+            # Segments inside this character.
+            for i in range(1, traj.shape[0]):
+                p0 = traj[i - 1, :2]
+                p1 = traj[i, :2]
+                if np.allclose(p0, p1):
+                    continue
+                seg_starts.append(p0)
+                seg_ends.append(p1)
+                pen_down = (traj[i - 1, 2] > 0.0) and (traj[i, 2] > 0.0)
+                seg_down.append(pen_down)
+
+            prev_end_xy = traj[-1, :2]
+
+        if not seg_starts:
+            return np.zeros((0, 3), dtype=float)
+
+        seg_starts_arr = np.vstack(seg_starts)
+        seg_ends_arr = np.vstack(seg_ends)
+        seg_down_arr = np.asarray(seg_down, dtype=bool)
+
+        # Segment lengths and cumulative arc-length.
+        diffs = seg_ends_arr - seg_starts_arr
+        seg_lens = np.hypot(diffs[:, 0], diffs[:, 1])
+
+        # Remove zero-length segments just in case.
+        mask_nonzero = seg_lens > 1e-9
+        seg_starts_arr = seg_starts_arr[mask_nonzero]
+        seg_ends_arr = seg_ends_arr[mask_nonzero]
+        seg_down_arr = seg_down_arr[mask_nonzero]
+        seg_lens = seg_lens[mask_nonzero]
+
+        if seg_starts_arr.shape[0] == 0:
+            return np.zeros((0, 3), dtype=float)
+
+        cumlen = np.concatenate(([0.0], np.cumsum(seg_lens)))
+        total_len = float(cumlen[-1])
+        if total_len <= 0.0:
+            p = np.hstack(
+                [
+                    seg_starts_arr[0],
+                    [1.0 if seg_down_arr[0] else 0.0],
+                ]
+            )
+            return p[None, :]
+
+        n_steps = max(1, int(total_len / step_mm))
+        s_values = np.linspace(0.0, total_len, n_steps + 1)
+
+        new_pts: list[list[float]] = []
+        idx = 0
+        for s in s_values:
+            # Find segment such that cumlen[idx] <= s <= cumlen[idx+1].
+            while idx < len(seg_lens) - 1 and s > cumlen[idx + 1]:
+                idx += 1
+            seg_len = seg_lens[idx]
+            if seg_len <= 0.0:
+                t = 0.0
+            else:
+                t = (s - cumlen[idx]) / seg_len
+
+            p0 = seg_starts_arr[idx]
+            p1 = seg_ends_arr[idx]
+            xy = p0 + t * (p1 - p0)
+            z = 1.0 if seg_down_arr[idx] else 0.0
+            new_pts.append([xy[0], xy[1], z])
+
+        return np.asarray(new_pts, dtype=float)
