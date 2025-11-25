@@ -29,7 +29,7 @@ class DemoWritePlanner:
         self.line_height = 0.1
         self.line_space = 0.01
         self.center = board_center
-        self.oreintation = board_orientation
+        self.orientation = board_orientation
         self.rotation = R.from_quat(board_orientation)
 
     def write_characters(self, characters) -> None:
