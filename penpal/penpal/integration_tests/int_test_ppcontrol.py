@@ -236,5 +236,5 @@ def plot_demo_seq() -> None:
 
 if __name__ == '__main__':
     # plot_shapes()
-    plot_demo_seq()
-    # main()
+    # plot_demo_seq()
+    main()

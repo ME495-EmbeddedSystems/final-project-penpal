@@ -26,7 +26,7 @@ class PositionPPControl(PPControlBase):
             execution
 
         """
-        pass
+        self._logger.info(f"Executing trajectory '{traj.label}'")
 
     async def grip(
         self, offset_m: float, grip_force_N: float | None = None

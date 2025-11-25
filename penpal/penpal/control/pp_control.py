@@ -48,6 +48,7 @@ class PPControlBase(abc.ABC):
         # TODO figure out what else we need here
         self._node = node
         self.c = cfg if cfg is not None else self.Config()
+        self._logger = node.get_logger().get_child(self.__class__.__name__)
 
     @abc.abstractmethod
     async def execute_trajectory(
