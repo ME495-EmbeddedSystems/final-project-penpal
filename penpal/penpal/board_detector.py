@@ -4,12 +4,14 @@ import numpy as np
 import cv2
 import transforms3d.quaternions as tquat
 
+from typing import Optional, Tuple, Dict
+
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import CameraInfo
 from geometry_msgs.msg import PoseStamped, Point
 from visualization_msgs.msg import Marker
-from apriltag_msgs.msg import AprilTagDetectionArray
+from apriltag_msgs.msg import AprilTagDetectionArray, AprilTagDetection
 
 
 class BoardDetector(Node):
@@ -20,21 +22,22 @@ class BoardDetector(Node):
         super().__init__("board_detector")
 
         # board + tag geometry
-        self.width = self.declare_parameter("board_width_m", 0.8).value
-        self.height = self.declare_parameter("board_height_m", 0.61).value
-        self.tag_size = self.declare_parameter("tag_size_m", 0.07).value
+        self.width: float = self.declare_parameter("board_width_m", 0.8).value
+        self.height: float = self.declare_parameter("board_height_m", 0.61).value
+        self.tag_size: float = self.declare_parameter("tag_size_m", 0.07).value
 
         # tag IDs at known board corners
-        self.tag_tl = self.declare_parameter("top_left_id", 0).value
-        self.tag_br = self.declare_parameter("bottom_right_id", 1).value
+        self.tag_tl: int = self.declare_parameter("top_left_id", 0).value
+        self.tag_br: int = self.declare_parameter("bottom_right_id", 1).value
 
         # detection topic
-        self.tag_topic = self.declare_parameter("tag_topic", "/detections").value
+        self.tag_topic: str = self.declare_parameter("tag_topic", "/detections").value
 
         # camera intrinsics
-        self.K = None
-        self.D = None
+        self.K: Optional[np.ndarray] = None
+        self.D: Optional[np.ndarray] = None
 
+        # ---------------- Subscriptions ----------------
         self.caminfo_sub = self.create_subscription(
             CameraInfo,
             "/camera/camera/color/camera_info",
@@ -49,6 +52,7 @@ class BoardDetector(Node):
             10,
         )
 
+        # ------------------ Publishers ------------------
         self.pose_pub = self.create_publisher(
             PoseStamped,
             "whiteboard_pose",
@@ -64,20 +68,35 @@ class BoardDetector(Node):
         self.get_logger().info("BoardDetector running")
 
     # ---------------- Camera intrinsics ----------------
-    def cam_info_cb(self, msg):
+    def cam_info_cb(self, msg: CameraInfo) -> None:
         """Cache camera intrinsics K, D from CameraInfo."""
         if self.K is not None:
             return
         # use for solvePnP
         self.K = np.array(msg.k, dtype=float).reshape(3, 3)
         self.D = np.array(msg.d, dtype=float)
+
         self.get_logger().info("Camera intrinsics received")
         # we only need intrinsics once
         self.destroy_subscription(self.caminfo_sub)
 
     # --------------- SolvePnP helper -------------------
-    def estimate_tag_pose(self, detection):
-        """Estimate tag pose (R, t) in camera frame from 4 corners using IPPE_SQUARE."""
+    def estimate_tag_pose(
+        self,
+        detection: AprilTagDetection
+    ) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+        """
+        Estimate tag pose (R, t) in camera frame from 4 corners using IPPE_SQUARE.
+
+        Returns
+        -------
+        (R, t): if successful
+            R: 3x3 rotation matrix (tag frame -> camera frame)
+            t: shape (3,) translation vector (tag origin in camera frame)
+        None:
+            if intrinsics missing or PnP fails
+
+        """
         if self.K is None:
             return None
 
@@ -91,7 +110,7 @@ class BoardDetector(Node):
         uv = np.array([[c.x, c.y] for c in detection.corners], dtype=float)
 
         # tag-frame 3D corners (square in z=0 plane, centered at origin)
-        s = self.tag_size / 2.0
+        s: float = self.tag_size / 2.0
         XYZ = np.array([
             [-s, s, 0],
             [s, s, 0],
@@ -123,13 +142,13 @@ class BoardDetector(Node):
         return R, t
 
     # ---------------- Main callback --------------------
-    def tag_cb(self, msg):
+    def tag_cb(self, msg: AprilTagDetectionArray) -> None:
         """Use TL + BR tags to compute board pose and outline."""
         if self.K is None:
             return
 
         # map id -> detection
-        dets = {d.id: d for d in msg.detections}
+        dets: Dict[int, AprilTagDetection] = {d.id: d for d in msg.detections}
         if self.tag_tl not in dets or self.tag_br not in dets:
             # need both corner tags for this model
             return
@@ -149,9 +168,9 @@ class BoardDetector(Node):
         R = R_tl
 
         # board center from tag centers
-        W = self.width
-        H = self.height
-        S = self.tag_size
+        W: float = self.width
+        H: float = self.height
+        S: float = self.tag_size
         hw, hh, hs = W / 2.0, H / 2.0, S / 2.0
 
         # tag centers expressed in board frame
@@ -187,17 +206,23 @@ class BoardDetector(Node):
         self.publish_outline(msg.header, R, center)
 
     # --------------- Visualization ---------------------
-    def publish_outline(self, header, R, center):
+    def publish_outline(
+        self,
+        header: PoseStamped.Header,
+        R: np.ndarray,
+        center: np.ndarray,
+    ) -> None:
         """Draw board rectangle in camera frame using board pose (R, center)."""
         hw, hh = self.width / 2.0, self.height / 2.0
 
         # board corners in board frame
-        corners_b = np.array([
-            [-hw, -hh, 0.0],
-            [hw, -hh, 0.0],
-            [hw, hh, 0.0],
-            [-hw, hh, 0.0],
-        ]).T
+        corners_b = np.array(
+            [
+                [-hw, -hh, 0.0],
+                [hw, -hh, 0.0],
+                [hw, hh, 0.0],
+                [-hw, hh, 0.0],
+            ], dtype=float,).T
 
         # transform to camera frame
         corners_c = R @ corners_b + center.reshape(3, 1)
