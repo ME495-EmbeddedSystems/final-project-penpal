@@ -20,7 +20,7 @@ from penpal.control.pp_control import PPControlBase, PPControlError, Trajectory
 
 from rclpy.action import ActionClient
 from rclpy.action.client import ClientGoalHandle
-from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
 from rclpy.node import Node
 
 from shape_msgs.msg import SolidPrimitive
@@ -36,7 +36,7 @@ class MoveItPPControl(PPControlBase):
     ) -> None:
         """Initialize the object."""
         super().__init__(node, cfg)
-        self._cbgroup = MutuallyExclusiveCallbackGroup()
+        self._cbgroup = ReentrantCallbackGroup()
         self._c_move_group = ActionClient(
             node,
             MoveGroup,
@@ -69,7 +69,7 @@ class MoveItPPControl(PPControlBase):
 
         """
         waypoints = []
-        for point in traj:
+        for point in traj.data:
             pose = Pose()
             pose.position.x = point[0]
             pose.position.y = point[1]
@@ -91,7 +91,10 @@ class MoveItPPControl(PPControlBase):
         exec_goal = ExecuteTrajectory.Goal()
         exec_goal.trajectory = response.solution
         self._logger.info('Executing path')
-        await self._c_execute_trajectory.send_goal_async(exec_goal)
+        goal_handle = await self._c_execute_trajectory.send_goal_async(exec_goal)
+        self._logger.info('Goal accepted. waiting for result.')
+        res = await goal_handle.get_result_async()
+        self._logger.info(f'Execution finished: {res.status}')
 
     async def grip(self, offset_m: float, grip_force_N: float | None = None) -> None:
         """
@@ -236,6 +239,10 @@ class MoveItPPControl(PPControlBase):
             self._logger.info(
                 f'Received response goal handle: {goal_handle.accepted}'
             )
+        if execute_immediately and goal_handle.accepted:
+            self._logger.info('Waiting for move completion...')
+            await goal_handle.get_result_async()
+            self._logger.info('Move complete.')
         return goal_handle
 
     async def plan_cartesian_path(

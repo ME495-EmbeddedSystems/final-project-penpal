@@ -10,8 +10,13 @@ import matplotlib.pyplot as plt
 
 import rclpy
 from rclpy.node import Node
-from rclpy.executors import MultiThreadedExecutor
+from rclpy.executors import SingleThreadedExecutor
 
+from geometry_msgs.msg import Point
+from std_msgs.msg import ColorRGBA
+from visualization_msgs.msg import Marker, MarkerArray
+
+from penpal.control.moveit_control import MoveItPPControl
 from penpal.control.position_control import PositionPPControl
 from penpal.control.pp_control import Trajectory
 from penpal.integration_tests import plot
@@ -201,22 +206,76 @@ async def write_planner_test(node: Node, ctl: PositionPPControl) -> None:
         node.get_logger().info('Write_planner_test finished.')
 
 
+async def integration_test_write_on_board(node: Node,
+                                          planner: MoveItPPControl) -> None:
+    """Test move plan functions."""
+    logger = node.get_logger()
+    viz = RvizVisualizer(node)
+    try:
+        logger.info('Service is ready. Waiting 3sec...')
+        await asyncio.sleep(3.0)
+        # cartesian pose of ee tip : [0.307, 0.000, 0.487]
+
+        board_origin = np.array([0.4, -0.025, 0.191])
+
+        r_measured = R.from_quat([-0.000, -0.087, 0.000, -0.996])
+        r_fix = R.from_euler('x', 180, degrees=True)
+        r_final = r_measured * r_fix
+        board_orientation = r_final.as_quat()
+        demo_planner = DemoWritePlanner(board_origin, board_orientation)
+        seq = get_demo_traj_sequence(np.array([0, 0, 0, 0, 0, 0, 1]))
+        global_sequence = demo_planner.write_characters(seq)
+        logger.info('PUblihsing marker')
+        viz.publish_trajectories(global_sequence)
+        speed_m_s = 0.01
+        if global_sequence:
+            first_pt = global_sequence[0].data[0]
+            hover_pos = first_pt[:3].copy()
+            hover_pos[2] += 0.05
+            logger.info('Move to start hover position')
+            hover_pose_7d = np.concatenate([hover_pos, board_orientation])
+            await planner.plan_cartesian_path(goal_ee_pose=hover_pose_7d,
+                                              execute_immediately=True)
+
+        for i, traj in enumerate(global_sequence):
+            logger.info(f'Executing segment {i}: {traj.label}')
+            # convert [x, y, z, fx, fy, fz]to[x, y, z, qx, qy, qz, qw]
+            points_7d = []
+            for pt in traj.data:
+                p7 = np.concatenate([pt[:3], board_orientation])
+                points_7d.append(p7)
+            traj_7d = Trajectory(traj.label, np.array(points_7d))
+            await planner.execute_trajectory(traj_7d, speed_m_s)
+            await asyncio.sleep(0.5)
+
+        # Start Citation[2] #
+        logger.info('Test Complete. Keeping node alive to show markers...')
+        logger.info('Press CTRL+C in the terminal to exit.')
+        while rclpy.ok():
+            await asyncio.sleep(1.0)
+        # End Citation #
+
+    finally:
+        node.get_logger().info('Integration test finished.')
+
+
 def main():
     """Run main."""
     rclpy.init()
     node = rclpy.create_node('test_position_controller_node')
-    executor = MultiThreadedExecutor()
+    executor = SingleThreadedExecutor()
     executor.add_node(node)
     executor_thread = threading.Thread(target=executor.spin, daemon=True)
     executor_thread.start()
 
-    ctl = PositionPPControl(node)
-
+    # ctl = PositionPPControl(node)
+    ctl = MoveItPPControl(node)
     try:
-        asyncio.run(integration_test(node, ctl))
+        asyncio.run(integration_test_write_on_board(node, ctl))
     finally:
         executor.shutdown()
-        executor_thread.join()
+        if executor_thread.join():
+            executor_thread.join()
         node.destroy_node()
         rclpy.shutdown()
 
@@ -256,13 +315,67 @@ def plot_wp_seq() -> None:
     rot = R.from_euler('xyz', [0, 0, 0])
     start_pose = np.array([0, 0, 0, *rot.as_quat(True)])
     board_origin = np.array([0.0, 0.0, 0.0])
-    board_orientation = np.array([0.0, 0.3826834, 0.0, 0.9238795])
+    board_orientation = np.array([0.0, -0.087, 0.0, -0.996])
     # Rotate 45 degrees in y axis
     planner = DemoWritePlanner(board_origin, board_orientation)
     seq = get_demo_traj_sequence(start_pose) * 5
     seq = planner.write_characters(seq)
     plot.plot_trajectory_sequence(seq)
     plt.show()
+
+
+class RvizVisualizer:
+    """Visualize Markers to see what the robot is writing."""
+
+    def __init__(self, node: Node):
+        """Initialize markers."""
+        self.node = node
+        self.pub = node.create_publisher(MarkerArray, '/writing_markers', 10)
+        self.stored_markers = MarkerArray()
+        self.timer = node.create_timer(1.0, self._timer_callback)
+
+    # Begin Citation[2] #
+    def publish_trajectories(self, trajectories: list[Trajectory]):
+        """Generate the markers and stores them for continuous publishing."""
+        ma = MarkerArray()
+        id_counter = 0
+
+        for traj in trajectories:
+            marker = Marker()
+            marker.header.frame_id = 'base'
+            marker.header.stamp = self.node.get_clock().now().to_msg()
+            marker.ns = 'writing_path'
+            marker.id = id_counter
+            id_counter += 1
+            marker.type = Marker.LINE_STRIP
+            marker.action = Marker.ADD
+            marker.scale.x = 0.002
+
+            # Colors
+            if 'space' in traj.label:
+                marker.color = ColorRGBA(r=1.0, g=0.0, b=0.0, a=0.5) 
+            else:
+                marker.color = ColorRGBA(r=0.0, g=1.0, b=0.0, a=1.0) 
+
+            for pt in traj.data:
+                p = Point()
+                p.x, p.y, p.z = pt[0], pt[1], pt[2]
+                marker.points.append(p)
+
+            ma.markers.append(marker)
+
+        # Store and publish immediately
+        self.stored_markers = ma
+        self.pub.publish(ma)
+
+    def _timer_callback(self):
+        """Periodically republishes the markers so RViz doesn't miss them."""
+        if self.stored_markers.markers:
+            now = self.node.get_clock().now().to_msg()
+            for m in self.stored_markers.markers:
+                m.header.stamp = now
+            self.pub.publish(self.stored_markers)
+    # End Citation #
 
 
 if __name__ == '__main__':
