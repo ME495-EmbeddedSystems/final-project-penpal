@@ -32,12 +32,10 @@ class Character:
 class WritePlanner:
     """Compute trajectories to write on the real board."""
 
-    def __init__(
-        self, node: Node, controller: PPControlBase, board: BoardDetector
-    ) -> None:
+    def __init__(self, node: Node, controller: PPControlBase) -> None:
         """Initialize the object."""
         self.control = controller
-        self.board = board
+        # TODO - subscribe to BoardDetector topics
 
     def write_characters(self, characters: list[Character]) -> None:
         """
