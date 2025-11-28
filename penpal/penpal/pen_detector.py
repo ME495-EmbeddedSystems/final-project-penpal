@@ -1,6 +1,6 @@
 """Detect pose+dimensions of the pen."""
 
-from rclpy import Node
+from rclpy.node import Node
 
 
 class PenDetector:

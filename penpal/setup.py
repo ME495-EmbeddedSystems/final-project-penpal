@@ -1,3 +1,5 @@
+"""Setup file for Penpal."""
+
 from pathlib import Path
 
 from setuptools import find_packages, setup
@@ -28,7 +30,7 @@ package_name = 'penpal'
 
 setup(
     name=package_name,
-    version='0.0.0',
+    version='1.0.0',
     packages=find_packages(exclude=['test']),
     data_files=[
         ('share/ament_index/resource_index/packages', [
@@ -43,12 +45,13 @@ setup(
         'opencv-python',
         'setuptools',
         'transforms3d',
+        *recursive_files('share/' + package_name, 'rviz'),
     ],
     zip_safe=True,
     maintainer='conorbot',
     maintainer_email='cwoodhayes@gmail.com',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    description='Robot that writes to a whiteboard held by a human.',
+    license='MIT',
     extras_require={
         'test': [
             'pytest',
@@ -58,6 +61,7 @@ setup(
         'console_scripts': [
             'board_detector = penpal.board_detector:main',
             'board_detector_debug = penpal.board_detector_debug:main',
+            'int_test_ppcontrol = penpal.integration_tests.int_test_ppcontrol:main'
         ],
     },
 )
