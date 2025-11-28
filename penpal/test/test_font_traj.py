@@ -4,6 +4,31 @@
 How to run (from repo root):
     cd penpal_ws/src/final-project-penpal
     python3 penpal/test/test_font_traj.py
+
+To use Hershey fonts, must do pip install Hershey-Fonts.
+
+Commands:
+cd ~/penpal_ws
+colcon build
+source install/setup.bash
+
+cd ~/penpal_ws/src/final-project-penpal
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install \
+  matplotlib \
+  numpy \
+  fonttools \
+  pyyaml \
+  Hershey-Fonts \
+  typing_extensions \
+  setuptools \
+  jinja2 \
+  typeguard \
+  pillow scikit-image
+
+python3 penpal/test/test_font_traj.py 
 """
 
 import pathlib
@@ -129,7 +154,6 @@ def plot_flat_path_colored(path: np.ndarray) -> None:
     plt.show()
 
 
-
 def animate_flat_path_colored(path: np.ndarray, interval_ms: int = 10) -> None:
     """Animate a flattened path.
 
@@ -224,8 +248,6 @@ def animate_flat_path_colored(path: np.ndarray, interval_ms: int = 10) -> None:
     plt.show()
 
 
-
-
 def main() -> None:
     # 1) Create a dummy writer instead of a real WritePlanner
     writer = DummyWriter()
@@ -251,6 +273,18 @@ def main() -> None:
     font_path = pathlib.Path("/usr/share/fonts/truetype/lato/Lato-ThinItalic.ttf")
     ft.add_font(font_path)
 
+    # 3b) Register Hershey single-stroke fonts (RECOMMENDED for plotters)
+    # Available fonts: futural, scripts, cursive, rowmans, timesi, etc.
+    # See FontTrajectory.HERSHEY_FONT_NAMES for full list.
+    # Use site https://solhsa.com/hershey/fontprev.html to see pictrues.
+    ft.add_hershey_font("futural")   # Simple sans-serif (recommended)
+    ft.add_hershey_font("cursive") 
+    ft.add_hershey_font("scriptc") 
+    ft.add_hershey_font("music") 
+    ft.add_hershey_font("rowmant")
+    ft.add_hershey_font("astrology")   # fancy font with serif
+    ft.add_hershey_font("gothgbt")   # Gothic fancy font.
+
     # 4) Generate trajectories for some text.
     ft.write_text(
         text="ABCDEFGHIJKLMN\nOPQRSTUVWXYZ\nabcdefghijklmn\nopqrstuvwxyz",
@@ -259,8 +293,16 @@ def main() -> None:
         #font_name="DejaVuSans-ExtraLight",
         #font_name="DejaVuSansCondensed-Oblique",
         #font_name="Lato-HairlineItalic",  # very thin font
-        font_name="Lato-ThinItalic",
-        font_size_mm=40.0,
+        #font_name="Lato-ThinItalic",
+        
+        #font_name="futural",  # Hershey single-stroke font (RECOMMENDED)
+        #font_name="cursive", 
+        font_name="scriptc",
+        #font_name="music", 
+        #font_name="rowmant",
+        #font_name="astrology", # Dude this is fancy.
+        #font_name="gothgbt", # Gothic fancy.
+        font_size_mm=20.0,
         pen_thickness_mm=1.0,  # currently unused
     )
 

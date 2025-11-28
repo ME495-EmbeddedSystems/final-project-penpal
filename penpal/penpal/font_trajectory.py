@@ -85,7 +85,22 @@ class PathCollectorPen(BasePen):
 
 
 class FontTrajectory:
-    """Generates 2D trajectories + pressure given font & text."""
+    """Generates 2D trajectories + pressure given font & text.
+    
+    Supports two font types:
+    - TTF/OTF fonts via add_font()
+    - Hershey single-stroke fonts via add_hershey_font() (recommended for plotters)
+    """
+
+    # Available Hershey font names
+    HERSHEY_FONT_NAMES = [
+        'futural', 'futuram', 'scripts', 'scriptc', 'cursive',
+        'rowmans', 'rowmand', 'rowmant', 'timesr', 'timesi', 'timesib',
+        'timesg', 'timesrb', 'gothiceng', 'gothicger', 'gothicita',
+        'gothgbt', 'gothgrt', 'gothitt', 'greek', 'greekc', 'greeks',
+        'cyrillic', 'cyrilc_1', 'japanese', 'markers', 'mathlow',
+        'mathupp', 'meteorology', 'music', 'symbolic', 'astrology',
+    ]
 
     @dataclass
     class Config:
@@ -103,7 +118,7 @@ class FontTrajectory:
         space_advance_factor: float = 0.5
         # Default drawing pressure in [0, 1].
         default_pressure: float = 1.0
-        # Whether to convert glyph outline to a single-stroke skeleton.
+        # Whether to convert glyph outline to a single-stroke skeleton (TTF only).
         use_skeleton: bool = False
         # Rasterized image size used for skeletonization.
         skeleton_img_size: int = 256
@@ -116,6 +131,8 @@ class FontTrajectory:
         self.c = cfg if cfg is not None else self.Config()
         # Loaded fonts: key is font_name, value is TTFont object.
         self._fonts: Dict[str, TTFont] = {}
+        # Loaded Hershey fonts: key is font_name, value is HersheyFonts object.
+        self._hershey_fonts: Dict[str, object] = {}
 
     # ------------------------------------------------------------------
     # Public API
@@ -131,6 +148,35 @@ class FontTrajectory:
         font = TTFont(str(otf_path))
         font_name = otf_path.stem
         self._fonts[font_name] = font
+
+    def add_hershey_font(self, font_name: str) -> None:
+        """
+        Register a Hershey font (single-stroke font ideal for plotters).
+
+        Recommended fonts:
+        - 'futural': Future Light (simple sans-serif) - BEST for legibility
+        - 'scripts': Script Simplex (handwriting-like)
+        - 'rowmans': Roman Simplex (serif)
+        """
+        try:
+            from HersheyFonts import HersheyFonts
+        except ImportError:
+            raise RuntimeError(
+                "Hershey fonts require the Hershey-Fonts package. "
+                "Install with: pip install Hershey-Fonts"
+            )
+
+        hf = HersheyFonts()
+        available = hf.default_font_names
+        if font_name not in available:
+            raise ValueError(
+                f"Unknown Hershey font '{font_name}'. "
+                f"Available fonts: {available}"
+            )
+
+        hf.load_default_font(font_name)
+        self._hershey_fonts[font_name] = hf
+
 
     def write_text(
         self,
@@ -196,10 +242,142 @@ class FontTrajectory:
         This is the core text-to-glyph-to-trajectory pipeline shared by
         write_text() and write_text_flat().
         """
+        # Check if it's a Hershey font
+        if font_name in self._hershey_fonts:
+            return self._text_to_characters_hershey(
+                text=text,
+                font_name=font_name,
+                font_size_mm=font_size_mm,
+            )
+
+        # Otherwise, use TTF font
         if font_name not in self._fonts:
             raise ValueError(
-                f"Font '{font_name}' has not been added via add_font()."
+                f"Font '{font_name}' has not been added via add_font() or add_hershey_font()."
             )
+
+        return self._text_to_characters_ttf(
+            text=text,
+            font_name=font_name,
+            font_size_mm=font_size_mm,
+        )
+
+    def _text_to_characters_hershey(
+        self,
+        text: str,
+        font_name: str,
+        font_size_mm: float,
+    ) -> list[Character]:
+        """Convert text to Character objects using a Hershey font."""
+        hf = self._hershey_fonts[font_name]
+
+        # Normalize rendering so that typical glyph height ~= font_size_mm.
+        # After this call, coordinates returned by strokes_for_text() are in
+        # the same scale (we treat them directly as millimeters in the board frame).
+        hf.normalize_rendering(font_size_mm)
+
+        # Optional: make sure there is no extra internal spacing from the font,
+        # because we handle spacing ourselves via current_x.
+        if "spacing" in hf.render_options:
+            hf.render_options["spacing"] = 1.0
+
+        characters: list[Character] = []
+
+        # Multi-line layout (top-to-bottom)
+        lines = text.split("\n")
+        line_height = self.c.line_spacing_factor * font_size_mm
+
+        for line_idx, line in enumerate(lines):
+            if not line:
+                continue
+
+            # Each new line is shifted downward by line_height
+            y_offset = -line_idx * line_height
+            current_x = 0.0
+
+            for ch in line:
+                # Space character: advance cursor only.
+                if ch == " ":
+                    current_x += self.c.space_advance_factor * font_size_mm
+                    continue
+
+                # Get strokes for this single character.
+                try:
+                    strokes = list(hf.strokes_for_text(ch))
+                except Exception:
+                    # Unsupported character: just advance a default width.
+                    current_x += self.c.char_advance_factor * font_size_mm
+                    continue
+
+                if not strokes:
+                    current_x += self.c.char_advance_factor * font_size_mm
+                    continue
+
+                paths_mm: list[list[tuple[float, float]]] = []
+                min_x = float("inf")
+                max_x = float("-inf")
+
+                # Convert each stroke to a polyline path
+                for stroke in strokes:
+                    pts = list(stroke)
+                    if len(pts) < 2:
+                        continue
+
+                    path: list[tuple[float, float]] = []
+                    for (x, y) in pts:
+                        # Coordinates from HersheyFonts are already scaled
+                        # by normalize_rendering(), so we treat them as mm.
+                        path.append((float(x), float(y)))
+                        if x < min_x:
+                            min_x = x
+                        if x > max_x:
+                            max_x = x
+
+                    if len(path) >= 2:
+                        paths_mm.append(path)
+
+                if not paths_mm or not math.isfinite(min_x) or not math.isfinite(max_x):
+                    current_x += self.c.char_advance_factor * font_size_mm
+                    continue
+
+                # Estimate character width from bounding box.
+                char_width = max_x - min_x
+                if char_width <= 0.0:
+                    char_width = 0.5 * font_size_mm
+
+                # Shift all paths to the current cursor position.
+                shifted_paths: list[list[tuple[float, float]]] = []
+                for path in paths_mm:
+                    shifted = [
+                        (x - min_x + current_x, y + y_offset)
+                        for (x, y) in path
+                    ]
+                    shifted_paths.append(shifted)
+
+                # Build Character. Hershey strokes are open paths (no closing).
+                char_obj = self._paths_to_character(
+                    char=ch,
+                    paths_mm=shifted_paths,
+                    target_step_mm=self.c.target_step_mm,
+                    pressure=self.c.default_pressure,
+                    closed_paths=False,
+                )
+                characters.append(char_obj)
+
+                # Advance cursor for the next character.
+                extra_spacing = 0.1 * font_size_mm
+                current_x += char_width + extra_spacing
+
+        return characters
+
+
+    def _text_to_characters_ttf(
+        self,
+        text: str,
+        font_name: str,
+        font_size_mm: float,
+    ) -> list[Character]:
+        """Convert text to Character objects using a TTF font."""
         font = self._fonts[font_name]
 
         characters: list[Character] = []
