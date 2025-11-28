@@ -43,14 +43,14 @@ class PathCollectorPen(BasePen):
             x = (
                 (1 - t) ** 3 * p0[0]
                 + 3 * (1 - t) ** 2 * t * p1[0]
-                + 3 * (1 - t) * t ** 2 * p2[0]
-                + t ** 3 * p3[0]
+                + 3 * (1 - t) * t**2 * p2[0]
+                + t**3 * p3[0]
             )
             y = (
                 (1 - t) ** 3 * p0[1]
                 + 3 * (1 - t) ** 2 * t * p1[1]
-                + 3 * (1 - t) * t ** 2 * p2[1]
-                + t ** 3 * p3[1]
+                + 3 * (1 - t) * t**2 * p2[1]
+                + t**3 * p3[1]
             )
             self._current_path.append((x, y))
 
@@ -59,16 +59,8 @@ class PathCollectorPen(BasePen):
         p0 = self._getCurrentPoint()
         for i in range(1, self.steps + 1):
             t = i / self.steps
-            x = (
-                (1 - t) ** 2 * p0[0]
-                + 2 * (1 - t) * t * p1[0]
-                + t ** 2 * p2[0]
-            )
-            y = (
-                (1 - t) ** 2 * p0[1]
-                + 2 * (1 - t) * t * p1[1]
-                + t ** 2 * p2[1]
-            )
+            x = (1 - t) ** 2 * p0[0] + 2 * (1 - t) * t * p1[0] + t**2 * p2[0]
+            y = (1 - t) ** 2 * p0[1] + 2 * (1 - t) * t * p1[1] + t**2 * p2[1]
             self._current_path.append((x, y))
 
     def _closePath(self) -> None:
@@ -86,7 +78,7 @@ class PathCollectorPen(BasePen):
 
 class FontTrajectory:
     """Generates 2D trajectories + pressure given font & text.
-    
+
     Supports two font types:
     - TTF/OTF fonts via add_font()
     - Hershey single-stroke fonts via add_hershey_font() (recommended for plotters)
@@ -94,12 +86,38 @@ class FontTrajectory:
 
     # Available Hershey font names
     HERSHEY_FONT_NAMES = [
-        'futural', 'futuram', 'scripts', 'scriptc', 'cursive',
-        'rowmans', 'rowmand', 'rowmant', 'timesr', 'timesi', 'timesib',
-        'timesg', 'timesrb', 'gothiceng', 'gothicger', 'gothicita',
-        'gothgbt', 'gothgrt', 'gothitt', 'greek', 'greekc', 'greeks',
-        'cyrillic', 'cyrilc_1', 'japanese', 'markers', 'mathlow',
-        'mathupp', 'meteorology', 'music', 'symbolic', 'astrology',
+        'futural',
+        'futuram',
+        'scripts',
+        'scriptc',
+        'cursive',
+        'rowmans',
+        'rowmand',
+        'rowmant',
+        'timesr',
+        'timesi',
+        'timesib',
+        'timesg',
+        'timesrb',
+        'gothiceng',
+        'gothicger',
+        'gothicita',
+        'gothgbt',
+        'gothgrt',
+        'gothitt',
+        'greek',
+        'greekc',
+        'greeks',
+        'cyrillic',
+        'cyrilc_1',
+        'japanese',
+        'markers',
+        'mathlow',
+        'mathupp',
+        'meteorology',
+        'music',
+        'symbolic',
+        'astrology',
     ]
 
     @dataclass
@@ -162,8 +180,8 @@ class FontTrajectory:
             from HersheyFonts import HersheyFonts
         except ImportError:
             raise RuntimeError(
-                "Hershey fonts require the Hershey-Fonts package. "
-                "Install with: pip install Hershey-Fonts"
+                'Hershey fonts require the Hershey-Fonts package. '
+                'Install with: pip install Hershey-Fonts'
             )
 
         hf = HersheyFonts()
@@ -171,12 +189,11 @@ class FontTrajectory:
         if font_name not in available:
             raise ValueError(
                 f"Unknown Hershey font '{font_name}'. "
-                f"Available fonts: {available}"
+                f'Available fonts: {available}'
             )
 
         hf.load_default_font(font_name)
         self._hershey_fonts[font_name] = hf
-
 
     def write_text(
         self,
@@ -185,10 +202,19 @@ class FontTrajectory:
         font_size_mm: float,
         pen_thickness_mm: float,
     ) -> None:
-        """Generate trajectories for a string of text and send them to WritePlanner.
+        """
+        Generate trajectories for a string of text and send them to WritePlanner.
 
         This preserves the original public API: it creates a list of Character
         objects and calls self._writer.write_characters(characters).
+
+        Args:
+            text (str): text string to generate.
+            font_name (str): name of the font to use. must have been added
+                using add_font()
+            font_size_mm (float): Height of the tallest glyphs in mm
+            pen_thickness_mm (float): thickness of the pen we're using to draw.
+
         """
         characters = self._text_to_characters(
             text=text,
@@ -208,7 +234,8 @@ class FontTrajectory:
         pen_thickness_mm: float,
         step_mm: float | None = None,
     ) -> np.ndarray:
-        """Generate a single continuous trajectory for the whole text.
+        """
+        Generate a single continuous trajectory for the whole text.
 
         The returned array is shape (N, 3) in the virtual-board frame:
         columns [x_mm, y_mm, z_pressure], where z = 0 means pen up and z > 0
@@ -237,7 +264,8 @@ class FontTrajectory:
         font_size_mm: float,
         pen_thickness_mm: float,  # currently unused, reserved for pressure mapping
     ) -> list[Character]:
-        """Convert a text string into a list of Character objects.
+        """
+        Convert a text string into a list of Character objects.
 
         This is the core text-to-glyph-to-trajectory pipeline shared by
         write_text() and write_text_flat().
@@ -278,13 +306,13 @@ class FontTrajectory:
 
         # Optional: make sure there is no extra internal spacing from the font,
         # because we handle spacing ourselves via current_x.
-        if "spacing" in hf.render_options:
-            hf.render_options["spacing"] = 1.0
+        if 'spacing' in hf.render_options:
+            hf.render_options['spacing'] = 1.0
 
         characters: list[Character] = []
 
         # Multi-line layout (top-to-bottom)
-        lines = text.split("\n")
+        lines = text.split('\n')
         line_height = self.c.line_spacing_factor * font_size_mm
 
         for line_idx, line in enumerate(lines):
@@ -297,7 +325,7 @@ class FontTrajectory:
 
             for ch in line:
                 # Space character: advance cursor only.
-                if ch == " ":
+                if ch == ' ':
                     current_x += self.c.space_advance_factor * font_size_mm
                     continue
 
@@ -314,8 +342,8 @@ class FontTrajectory:
                     continue
 
                 paths_mm: list[list[tuple[float, float]]] = []
-                min_x = float("inf")
-                max_x = float("-inf")
+                min_x = float('inf')
+                max_x = float('-inf')
 
                 # Convert each stroke to a polyline path
                 for stroke in strokes:
@@ -324,7 +352,7 @@ class FontTrajectory:
                         continue
 
                     path: list[tuple[float, float]] = []
-                    for (x, y) in pts:
+                    for x, y in pts:
                         # Coordinates from HersheyFonts are already scaled
                         # by normalize_rendering(), so we treat them as mm.
                         path.append((float(x), float(y)))
@@ -336,7 +364,11 @@ class FontTrajectory:
                     if len(path) >= 2:
                         paths_mm.append(path)
 
-                if not paths_mm or not math.isfinite(min_x) or not math.isfinite(max_x):
+                if (
+                    not paths_mm
+                    or not math.isfinite(min_x)
+                    or not math.isfinite(max_x)
+                ):
                     current_x += self.c.char_advance_factor * font_size_mm
                     continue
 
@@ -370,7 +402,6 @@ class FontTrajectory:
 
         return characters
 
-
     def _text_to_characters_ttf(
         self,
         text: str,
@@ -392,13 +423,13 @@ class FontTrajectory:
 
         for ch in text:
             # Newline handling.
-            if ch == "\n":
+            if ch == '\n':
                 cursor_x = 0.0
                 cursor_y -= line_height
                 continue
 
             # Space handling.
-            if ch == " ":
+            if ch == ' ':
                 cursor_x += space_advance
                 continue
 
@@ -481,10 +512,12 @@ class FontTrajectory:
         pen = PathCollectorPen(glyph_set, steps_per_curve=steps_per_curve)
         glyph.draw(pen)
 
-        units_per_em = font["head"].unitsPerEm
+        units_per_em = font['head'].unitsPerEm
         normalized_paths: list[list[tuple[float, float]]] = []
         for path in pen.paths:
-            norm_path = [(x / units_per_em, y / units_per_em) for (x, y) in path]
+            norm_path = [
+                (x / units_per_em, y / units_per_em) for (x, y) in path
+            ]
             if len(norm_path) >= 2:
                 normalized_paths.append(norm_path)
 
@@ -517,7 +550,8 @@ class FontTrajectory:
 
         # ---------- 0a) Special-case donut glyphs ----------
         # Always draw 'O'/'o'/'0' as a single outer loop (no skeleton).
-        if char in ("O", "o", "0"):
+        if char in ('O', 'o', '0'):
+
             def bbox_area(path: list[tuple[float, float]]) -> float:
                 xs = [p[0] for p in path]
                 ys = [p[1] for p in path]
@@ -529,8 +563,8 @@ class FontTrajectory:
         # ---------- 0b) Character whitelist for skeleton ----------
         # Only these letters will use skeleton; everything else uses outline.
         SIMPLE_SKELETON_CHARS = set(
-            "HIJKLMNTUVWXYZ"      # uppercase with simple strokes
-            "cijlmnruvwxyz"       # lowercase that usually skeletonize nicely
+            'HIJKLMNTUVWXYZ'  # uppercase with simple strokes
+            'cijlmnruvwxyz'  # lowercase that usually skeletonize nicely
         )
         # You can add or remove characters here based on visual results.
 
@@ -568,18 +602,18 @@ class FontTrajectory:
             from skimage.measure import label
         except ImportError as e:
             raise RuntimeError(
-                "Skeleton mode requires Pillow and scikit-image. "
+                'Skeleton mode requires Pillow and scikit-image. '
                 "Install them with 'pip install pillow scikit-image'."
             ) from e
 
-        img = Image.new("L", (size, size), 0)
+        img = Image.new('L', (size, size), 0)
         draw = ImageDraw.Draw(img)
 
         for path in outline_paths:
             if len(path) < 3:
                 continue
             poly: list[tuple[float, float]] = []
-            for (x, y) in path:
+            for x, y in path:
                 px = (x - min_x) * scale_x + 1.0
                 py = (max_y - y) * scale_y + 1.0  # flip y
                 poly.append((px, py))
@@ -601,9 +635,14 @@ class FontTrajectory:
             return outline_paths
 
         neighbors = [
-            (-1, -1), (-1, 0), (-1, 1),
-            (0, -1),           (0, 1),
-            (1, -1),  (1, 0),  (1, 1),
+            (-1, -1),
+            (-1, 0),
+            (-1, 1),
+            (0, -1),
+            (0, 1),
+            (1, -1),
+            (1, 0),
+            (1, 1),
         ]
 
         skeleton_paths_pix: list[list[tuple[int, int]]] = []
@@ -661,7 +700,9 @@ class FontTrajectory:
                                 # Reached another node; stop stroke here.
                                 break
 
-                            nbrs = [w for w in pixel_neighbors(cur) if w != prev]
+                            nbrs = [
+                                w for w in pixel_neighbors(cur) if w != prev
+                            ]
                             if not nbrs:
                                 break
                             w = nbrs[0]
@@ -705,7 +746,7 @@ class FontTrajectory:
         # ---------- 5) Convert pixel paths back to normalized coords ----------
         def pix_path_to_norm(path_pix: list[tuple[int, int]]):
             pts_norm: list[tuple[float, float]] = []
-            for (r, c) in path_pix:
+            for r, c in path_pix:
                 x_norm = (c - 1.0) / scale_x + min_x
                 y_norm = max_y - (r - 1.0) / scale_y
                 pts_norm.append((x_norm, y_norm))
@@ -806,7 +847,7 @@ class FontTrajectory:
             points.append([x0, y0, pressure])
 
             # Draw remaining points with constant pressure.
-            for (x, y) in resampled[1:]:
+            for x, y in resampled[1:]:
                 points.append([x, y, pressure])
 
             # Optionally we could lift the pen at the end here.
@@ -852,7 +893,9 @@ class FontTrajectory:
 
             # Ensure shape (N, 3).
             if traj.ndim != 2 or traj.shape[1] not in (2, 3):
-                raise ValueError("Character.trajectory must be (N,2) or (N,3).")
+                raise ValueError(
+                    'Character.trajectory must be (N,2) or (N,3).'
+                )
 
             if traj.shape[1] == 2:
                 # If no z column, assume the whole trajectory is pen down.
