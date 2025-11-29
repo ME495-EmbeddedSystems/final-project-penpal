@@ -19,12 +19,7 @@ pip install \
   matplotlib \
   numpy \
   fonttools \
-  pyyaml \
   Hershey-Fonts \
-  typing_extensions \
-  setuptools \
-  jinja2 \
-  typeguard \
   pillow scikit-image
 
 python penpal/penpal/integration_tests/int_test_font_traj.py
