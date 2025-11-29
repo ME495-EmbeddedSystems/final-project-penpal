@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 from penpal.penpal.pen_detector import PenDetector
 from penpal.penpal.control.pp_control import PPControlBase
-from rclpy import Node
+from rclpy.node import Node
 
 
 @dataclass
