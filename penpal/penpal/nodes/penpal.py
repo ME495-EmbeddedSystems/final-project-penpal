@@ -9,8 +9,11 @@ from rclpy import Context, Node
 from rclpy.parameter import Parameter
 from rclpy.qos import QoSProfile, qos_profile_rosout_default
 
-import board_detector, font_trajectory, grab_planner, pen_detector, write_planner
-from control import moveit_control, hybrid_control, pp_control
+import font_trajectory
+import grab_planner
+import pen_detector
+import write_planner
+from control import moveit_control, position_control
 
 
 class PenPal(Node):
@@ -31,10 +34,9 @@ class PenPal(Node):
             case 'moveit':
                 ctl = moveit_control.MoveItPPControl(self)
             case 'hybrid':
-                ctl = hybrid_control.HybridPPControl(self)
+                ctl = position_control.PositionPPControl(self)
 
         pen = pen_detector.PenDetector(self)
-        board = board_detector.BoardDetector(self)
-        writer = write_planner.WritePlanner(self, ctl, board)
+        writer = write_planner.WritePlanner(self, ctl)
         self.fonts = font_trajectory.FontTrajectory(writer)
         self.grabber = grab_planner.GrabPlanner(self, ctl, pen)
