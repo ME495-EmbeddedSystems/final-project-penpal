@@ -1,9 +1,8 @@
-#!/usr/bin/env python3
 """Standalone test for FontTrajectory (no ROS nodes required).
 
 How to run (from repo root):
     cd penpal_ws/src/final-project-penpal
-    python3 penpal/test/test_font_traj.py
+    python penpal/penpal/integration_tests/int_test_font_traj.py
 
 To use Hershey fonts, must do pip install Hershey-Fonts.
 
@@ -28,8 +27,8 @@ pip install \
   typeguard \
   pillow scikit-image
 
-python3 penpal/test/test_font_traj.py 
-"""
+python penpal/penpal/integration_tests/int_test_font_traj.py
+"""  # noqa: D213
 
 import pathlib
 
@@ -82,11 +81,11 @@ def plot_characters(characters: list[Character]) -> None:
                     start_idx = i
             else:
                 if start_idx is not None:
-                    ax.plot(x[start_idx:i], y[start_idx:i], "-")
+                    ax.plot(x[start_idx:i], y[start_idx:i], '-')
                     start_idx = None
 
         if start_idx is not None:
-            ax.plot(x[start_idx:], y[start_idx:], "-")
+            ax.plot(x[start_idx:], y[start_idx:], '-')
 
         # Mark the start of each character for debugging
         ax.text(
@@ -94,13 +93,13 @@ def plot_characters(characters: list[Character]) -> None:
             y[0],
             ch.char,
             fontsize=8,
-            color="red",
+            color='red',
         )
 
-    ax.set_aspect("equal", "box")
-    ax.set_xlabel("x (mm)")
-    ax.set_ylabel("y (mm)")
-    ax.set_title("FontTrajectory output (virtual board frame)")
+    ax.set_aspect('equal', 'box')
+    ax.set_xlabel('x (mm)')
+    ax.set_ylabel('y (mm)')
+    ax.set_title('FontTrajectory output (virtual board frame)')
     ax.grid(True)
     plt.show()
 
@@ -114,20 +113,22 @@ def plot_flat_path_colored(path: np.ndarray) -> None:
 
     path = np.asarray(path, dtype=float)
     if path.shape[0] < 2:
-        print("Path too short to plot.")
+        print('Path too short to plot.')
         return
 
     fig, ax = plt.subplots()
-    ax.set_aspect("equal", "box")
+    ax.set_aspect('equal', 'box')
 
     xs = path[:, 0]
     ys = path[:, 1]
     margin = 5.0
     ax.set_xlim(xs.min() - margin, xs.max() + margin)
     ax.set_ylim(ys.min() - margin, ys.max() + margin)
-    ax.set_xlabel("x (mm)")
-    ax.set_ylabel("y (mm)")
-    ax.set_title("Flattened trajectory (blue = pen down, orange dots = pen up)")
+    ax.set_xlabel('x (mm)')
+    ax.set_ylabel('y (mm)')
+    ax.set_title(
+        'Flattened trajectory (blue = pen down, orange dots = pen up)'
+    )
     ax.grid(True)
 
     # ----- only draws blue lines at z>0 segments -----
@@ -137,7 +138,7 @@ def plot_flat_path_colored(path: np.ndarray) -> None:
 
         # Only draw a line if both ends are pen-down
         if z0 > 0.0 and z1 > 0.0:
-            ax.plot([x0, x1], [y0, y1], "-", color="tab:blue", linewidth=1.5)
+            ax.plot([x0, x1], [y0, y1], '-', color='tab:blue', linewidth=1.5)
 
     # ----- when the pen if off board, use orange dots to show its trail -----
     up_mask = path[:, 2] <= 0.0
@@ -146,8 +147,8 @@ def plot_flat_path_colored(path: np.ndarray) -> None:
             path[up_mask, 0],
             path[up_mask, 1],
             s=5,
-            color="tab:orange",
-            label="pen up (no line)",
+            color='tab:orange',
+            label='pen up (no line)',
         )
 
     ax.legend()
@@ -163,39 +164,39 @@ def animate_flat_path_colored(path: np.ndarray, interval_ms: int = 10) -> None:
 
     path = np.asarray(path, dtype=float)
     if path.shape[0] == 0:
-        print("Empty path, nothing to animate.")
+        print('Empty path, nothing to animate.')
         return
 
     fig, ax = plt.subplots()
-    ax.set_aspect("equal", "box")
+    ax.set_aspect('equal', 'box')
 
     xs = path[:, 0]
     ys = path[:, 1]
     margin = 5.0
     ax.set_xlim(xs.min() - margin, xs.max() + margin)
     ax.set_ylim(ys.min() - margin, ys.max() + margin)
-    ax.set_xlabel("x (mm)")
-    ax.set_ylabel("y (mm)")
-    ax.set_title("Animated trajectory (blue = pen down, orange dot = pen up)")
+    ax.set_xlabel('x (mm)')
+    ax.set_ylabel('y (mm)')
+    ax.set_title('Animated trajectory (blue = pen down, orange dot = pen up)')
     ax.grid(True)
 
     # One blue line for all pen-down segments, gradually revealed.
-    down_line, = ax.plot(
+    (down_line,) = ax.plot(
         [],
         [],
-        "-",
-        color="tab:blue",
+        '-',
+        color='tab:blue',
         linewidth=2,
-        label="pen down",
+        label='pen down',
     )
     # One orange marker for the current pen-up position (no orange line).
-    up_marker, = ax.plot(
+    (up_marker,) = ax.plot(
         [],
         [],
-        "o",
-        color="tab:orange",
+        'o',
+        color='tab:orange',
         markersize=4,
-        label="pen up position",
+        label='pen up position',
     )
     ax.legend()
 
@@ -254,59 +255,68 @@ def main() -> None:
 
     # 2) Create FontTrajectory with a config
     cfg = FontTrajectory.Config(
-        use_skeleton=False,    # skeleton mode off for now
-        skeleton_img_size=512, # used only if use_skeleton=True
+        use_skeleton=False,  # skeleton mode off for now
+        skeleton_img_size=512,  # used only if use_skeleton=True
     )
     ft = FontTrajectory(writer=writer, cfg=cfg)
 
     # 3) Register font files (paths are for typical Ubuntu installations)
-    font_path = pathlib.Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
+    font_path = pathlib.Path('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf')
     ft.add_font(font_path)
-    font_path = pathlib.Path("/usr/share/fonts/truetype/open-sans/OpenSans-Italic.ttf")
+    font_path = pathlib.Path(
+        '/usr/share/fonts/truetype/open-sans/OpenSans-Italic.ttf'
+    )
     ft.add_font(font_path)
-    font_path = pathlib.Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-ExtraLight.ttf")
+    font_path = pathlib.Path(
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans-ExtraLight.ttf'
+    )
     ft.add_font(font_path)
-    font_path = pathlib.Path("/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Oblique.ttf")
+    font_path = pathlib.Path(
+        '/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Oblique.ttf'
+    )
     ft.add_font(font_path)
-    font_path = pathlib.Path("/usr/share/fonts/truetype/lato/Lato-HairlineItalic.ttf")
+    font_path = pathlib.Path(
+        '/usr/share/fonts/truetype/lato/Lato-HairlineItalic.ttf'
+    )
     ft.add_font(font_path)
-    font_path = pathlib.Path("/usr/share/fonts/truetype/lato/Lato-ThinItalic.ttf")
+    font_path = pathlib.Path(
+        '/usr/share/fonts/truetype/lato/Lato-ThinItalic.ttf'
+    )
     ft.add_font(font_path)
 
     # 3b) Register Hershey single-stroke fonts (RECOMMENDED for plotters)
     # Available fonts: futural, scripts, cursive, rowmans, timesi, etc.
     # See FontTrajectory.HERSHEY_FONT_NAMES for full list.
     # Use site https://solhsa.com/hershey/fontprev.html to see pictrues.
-    ft.add_hershey_font("futural")   # Simple sans-serif (recommended)
-    ft.add_hershey_font("cursive") 
-    ft.add_hershey_font("scriptc") 
-    ft.add_hershey_font("music") 
-    ft.add_hershey_font("rowmant")
-    ft.add_hershey_font("astrology")   # fancy font with serif
-    ft.add_hershey_font("gothgbt")   # Gothic fancy font.
+    ft.add_hershey_font('futural')  # Simple sans-serif (recommended)
+    ft.add_hershey_font('cursive')
+    ft.add_hershey_font('scriptc')
+    ft.add_hershey_font('music')
+    ft.add_hershey_font('rowmant')
+    ft.add_hershey_font('astrology')  # fancy font with serif
+    ft.add_hershey_font('gothgbt')  # Gothic fancy font.
 
     # 4) Generate trajectories for some text.
     ft.write_text(
-        text="ABCDEFGHIJKLMN\nOPQRSTUVWXYZ\nabcdefghijklmn\nopqrstuvwxyz",
-        #font_name="DejaVuSans",
-        #font_name="OpenSans-Italic",
-        #font_name="DejaVuSans-ExtraLight",
-        #font_name="DejaVuSansCondensed-Oblique",
-        #font_name="Lato-HairlineItalic",  # very thin font
-        #font_name="Lato-ThinItalic",
-        
-        #font_name="futural",  # Hershey single-stroke font (RECOMMENDED)
-        #font_name="cursive", 
-        font_name="scriptc",
-        #font_name="music", 
-        #font_name="rowmant",
-        #font_name="astrology", # Dude this is fancy.
-        #font_name="gothgbt", # Gothic fancy.
+        text='ABCDEFGHIJKLMN\nOPQRSTUVWXYZ\nabcdefghijklmn\nopqrstuvwxyz',
+        # font_name="DejaVuSans",
+        # font_name="OpenSans-Italic",
+        # font_name="DejaVuSans-ExtraLight",
+        # font_name="DejaVuSansCondensed-Oblique",
+        # font_name="Lato-HairlineItalic",  # very thin font
+        # font_name="Lato-ThinItalic",
+        # font_name="futural",  # Hershey single-stroke font (RECOMMENDED)
+        # font_name="cursive",
+        font_name='scriptc',
+        # font_name="music",
+        # font_name="rowmant",
+        # font_name="astrology", # Dude this is fancy.
+        # font_name="gothgbt", # Gothic fancy.
         font_size_mm=20.0,
         pen_thickness_mm=1.0,  # currently unused
     )
 
-    print(f"Generated {len(writer.characters)} Character objects.")
+    print(f'Generated {len(writer.characters)} Character objects.')
     for ch in writer.characters:
         print(repr(ch.char), ch.trajectory.shape)
 
@@ -326,5 +336,5 @@ def main() -> None:
     animate_flat_path_colored(flat_path, interval_ms=10)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
