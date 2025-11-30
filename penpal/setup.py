@@ -62,6 +62,7 @@ setup(
         'console_scripts': [
             'board_detector = penpal.nodes.board_detector:main',
             'int_test_ppcontrol = penpal.integration_tests.int_test_ppcontrol:main',
+            'ocr_node = penpal.nodes.ocr_node:main',
         ],
     },
 )
