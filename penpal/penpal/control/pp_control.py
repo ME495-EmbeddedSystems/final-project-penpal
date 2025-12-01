@@ -23,11 +23,18 @@ class Trajectory:
     data: np.ndarray
     """
     list of points to move the EE through. Nx12 array for N trajectory waypoints.
-    Each waypoint provides [pose, wrench],
+    Each waypoint provides [pose, force scalar in the orientation direction],
     pose being x,y,z and orientation qx, qy, qz, qw as quaternion
     like so:
-    [x, y, z, qx, qy, qz, qw , p_x, p_y, p_z, f_x, f_y, f_z]
+    [x, y, z, qx, qy, qz, qw , f]
     """
+
+    def __post_init__(self) -> None:
+        """Post-initialization input checking."""
+        if self.data.shape[1] != 8:
+            raise PPControlError(
+                f'Incorrect shape {self.data.shape} for Trajectory.data'
+            )
 
 
 class PPControlBase(abc.ABC):
