@@ -14,7 +14,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
 
-from penpal.control.position_control import PositionPPControl
+from penpal.control import position_control, moveit_control, pp_control
 from penpal.control.pp_control import Trajectory
 from penpal.integration_tests import plot
 
@@ -168,11 +168,13 @@ def get_demo_traj_sequence(start_pose: np.ndarray) -> list[Trajectory]:
     return out
 
 
-async def integration_test(node: Node, ctl: PositionPPControl) -> None:
+async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
     """Test move plan functions."""
     logger = node.get_logger()
     try:
         logger.info('Starting integration test...')
+        await ctl.configure()
+
         speed = 0.05
         start_pose = np.array([0, 0, 0, 0, 0, 0, 1])
         seq = get_demo_traj_sequence(start_pose)
@@ -182,26 +184,6 @@ async def integration_test(node: Node, ctl: PositionPPControl) -> None:
 
     finally:
         node.get_logger().info('Integration test finished.')
-
-
-def main():
-    """Run main."""
-    rclpy.init()
-    node = rclpy.create_node('test_position_controller_node')
-    executor = MultiThreadedExecutor()
-    executor.add_node(node)
-    executor_thread = threading.Thread(target=executor.spin, daemon=True)
-    executor_thread.start()
-
-    ctl = PositionPPControl(node)
-
-    try:
-        asyncio.run(integration_test(node, ctl))
-    finally:
-        executor.shutdown()
-        executor_thread.join()
-        node.destroy_node()
-        rclpy.shutdown()
 
 
 def plot_shapes() -> None:
@@ -234,7 +216,27 @@ def plot_demo_seq() -> None:
     plt.show()
 
 
+def main_moveit():
+    """Run main."""
+    rclpy.init()
+    node = rclpy.create_node('test_moveit_ctl')
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
+    executor_thread = threading.Thread(target=executor.spin, daemon=True)
+    executor_thread.start()
+
+    ctl = moveit_control.MoveItPPControl(node)
+
+    try:
+        asyncio.run(integration_test(node, ctl))
+    finally:
+        executor.shutdown()
+        executor_thread.join()
+        node.destroy_node()
+        rclpy.shutdown()
+
+
 if __name__ == '__main__':
     # plot_shapes()
     # plot_demo_seq()
-    main()
+    main_moveit()

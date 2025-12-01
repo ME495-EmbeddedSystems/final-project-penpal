@@ -18,7 +18,8 @@ def generate_launch_description():
 
     int_test_node = Node(
         package='penpal',
-        executable='int_test_ppcontrol',
+        executable='moveit_ctl',
+        arguments=['--ros-args', '--log-level', 'test_moveit_ctl:=DEBUG'],
     )
 
     return LaunchDescription(

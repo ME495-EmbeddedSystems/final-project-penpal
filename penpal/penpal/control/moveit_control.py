@@ -65,7 +65,9 @@ class MoveItPPControl(PPControlBase):
             for the trajectory execution.
 
         """
-        await self.plan_cartesian_path(traj.data, None, True)
+        self._logger.info(f"Executing trajectory '{traj.label}'")
+        pose_only = traj.data[:, :7]
+        await self.plan_cartesian_path(pose_only, None, True)
 
     async def grip(
         self, offset_m: float, grip_force_N: float | None = None
@@ -244,6 +246,7 @@ class MoveItPPControl(PPControlBase):
         request.waypoints = []
         request.max_step = 0.01
 
+        self._logger.debug(str(waypoints))
         for goal_ee_pose in waypoints:
             goal_pose = Pose()
             goal_pose.position.x = goal_ee_pose[0]

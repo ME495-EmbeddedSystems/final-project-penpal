@@ -79,3 +79,8 @@ class PPControlBase(abc.ABC):
 
         """
         pass
+
+    async def configure(self) -> None:
+        """Configure control parameters, TCP frame, collision behavior, etc."""
+        # TODO
+        # raise NotImplementedError
