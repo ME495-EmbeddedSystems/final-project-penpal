@@ -170,6 +170,9 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
     """Test move plan functions."""
     logger = node.get_logger()
     try:
+        wait_t = 3.0
+        logger.info(f'Waiting {wait_t} seconds...')
+        await asyncio.sleep(wait_t)
         logger.info('Starting integration test...')
         await ctl.configure()
 

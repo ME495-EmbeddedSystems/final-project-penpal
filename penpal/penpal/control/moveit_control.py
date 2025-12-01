@@ -246,7 +246,6 @@ class MoveItPPControl(PPControlBase):
         request.waypoints = []
         request.max_step = 0.01
 
-        self._logger.debug(str(waypoints))
         for goal_ee_pose in waypoints:
             goal_pose = Pose()
             goal_pose.position.x = goal_ee_pose[0]
@@ -256,13 +255,14 @@ class MoveItPPControl(PPControlBase):
             goal_pose.orientation.y = goal_ee_pose[4]
             goal_pose.orientation.z = goal_ee_pose[5]
             goal_pose.orientation.w = goal_ee_pose[6]
-            request.waypoints.append(goal_ee_pose)
+            self._logger.debug(f'POSE: {goal_pose}')
+            request.waypoints.append(goal_pose)
 
         if start_ee_pose is not None:
             request.start_state = self.start_state(start_ee_pose)
 
         self._logger.info('Waiting for /compute_cartesian_path service')
-        while not self._c_cartesian_path.wait_for_service(timeout_sec=10.0):
+        while not self._c_cartesian_path.wait_for_service(timeout_sec=5.0):
             self._logger.warn('Still waiting for service')
 
         self._logger.info('Request Cartesian path from service')
