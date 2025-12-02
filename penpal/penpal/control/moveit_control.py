@@ -255,7 +255,6 @@ class MoveItPPControl(PPControlBase):
             goal_pose.orientation.y = goal_ee_pose[4]
             goal_pose.orientation.z = goal_ee_pose[5]
             goal_pose.orientation.w = goal_ee_pose[6]
-            self._logger.debug(f'POSE: {goal_pose}')
             request.waypoints.append(goal_pose)
 
         if start_ee_pose is not None:
@@ -285,8 +284,13 @@ class MoveItPPControl(PPControlBase):
             request.trajectory = response.solution
             resp = await self._c_execute_trajectory.send_goal_async(request)
             if resp is not None and resp.accepted:
-                await resp.get_result_async()
-                self._logger.info('Cartesian path execution complete!')
+                res = await resp.get_result_async()
+                if res.result.error_code != MoveItErrorCodes.SUCCESS:
+                    self._logger.error(
+                        f'Cartesian path execution failed: {res}'
+                    )
+                    raise PPControlError('Cartesian Path execution failed.')
+                self._logger.info('Cartesian path execution success!')
             else:
                 self._logger.error('Failed to execute cartesian path.')
         return response

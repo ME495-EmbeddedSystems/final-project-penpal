@@ -129,7 +129,7 @@ def get_demo_traj_sequence(start_pose: np.ndarray) -> list[Trajectory]:
         start_pose: [x, y, z, qx, qy, qz, qw]
 
     """
-    lineh = 0.05
+    lineh = 0.02
     off_board_dist = 0.02
     rot = R.from_quat(start_pose[3:])
     circle_c = start_pose[:3]
@@ -170,7 +170,7 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
     """Test move plan functions."""
     logger = node.get_logger()
     try:
-        wait_t = 3.0
+        wait_t = 5.0
         logger.info(f'Waiting {wait_t} seconds...')
         await asyncio.sleep(wait_t)
         logger.info('Starting integration test...')
@@ -211,7 +211,7 @@ def plot_shapes() -> None:
 def plot_demo_seq() -> None:
     """Plot the demo sequence on a 3d plot."""
     rot = R.from_euler('xyz', [2, 3, -1])
-    start_pose = np.array([0, 0, 0, *rot.as_quat(True)])
+    start_pose = np.array([0.2, 0.2, 0.2, *rot.as_quat(True)])
     seq = get_demo_traj_sequence(start_pose)
     plot.plot_trajectory_sequence(seq, True)
     plt.show()

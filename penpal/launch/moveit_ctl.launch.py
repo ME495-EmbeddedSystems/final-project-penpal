@@ -60,10 +60,10 @@ def generate_launch_description():
                 remappings=[('/move_action', '/viz/move_action')],
             ),
             int_test_node,
-            RegisterEventHandler(
-                OnProcessExit(
-                    target_action=int_test_node, on_exit=[Shutdown()]
-                )
-            ),
+            # RegisterEventHandler(
+            #     OnProcessExit(
+            #         target_action=int_test_node, on_exit=[Shutdown()]
+            #     )
+            # ),
         ]
     )
