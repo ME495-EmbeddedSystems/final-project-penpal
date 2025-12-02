@@ -4,7 +4,8 @@ import cv2
 import numpy as np
 from pathlib import Path
 from datetime import datetime
-from ocr import QwenOCREngine
+
+from penpal.penpal.ocr_engine import QwenOCREngine
 
 
 def capture_webcam_frame(cam_index: int = 0) -> np.ndarray:
@@ -78,6 +79,15 @@ def main():
     print("\n===== LINES =====")
     for i, line in enumerate(result.lines):
         print(f"{i + 1}. {line}")
+
+    print("\nRunning read_and_answer_board()...")
+    qa_result = engine.read_and_answer_board(rgb_img)
+
+    print("\n===== BOARD QUESTION (from OCR) =====")
+    print(qa_result.question)
+
+    print("\n===== MODEL ANSWER =====")
+    print(qa_result.answer)
 
 
 if __name__ == "__main__":
