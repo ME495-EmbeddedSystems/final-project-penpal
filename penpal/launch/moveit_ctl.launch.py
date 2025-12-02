@@ -1,7 +1,12 @@
 """Integration test launchfile for motion controller."""
 
 from launch import LaunchDescription
-from launch.actions import RegisterEventHandler, Shutdown
+from launch.actions import (
+    RegisterEventHandler,
+    Shutdown,
+    IncludeLaunchDescription,
+)
+from launch.launch_description_sources import AnyLaunchDescriptionSource
 from launch.event_handlers import OnProcessExit
 from launch.substitutions import PathJoinSubstitution
 from launch_ros.actions import Node
@@ -16,6 +21,19 @@ def generate_launch_description():
         'fer', package_name='franka_fer_moveit_config'
     ).to_moveit_configs()
 
+    # this needs the demo to run
+    demo_ld = IncludeLaunchDescription(
+        AnyLaunchDescriptionSource(
+            PathJoinSubstitution(
+                [
+                    FindPackageShare('franka_fer_moveit_config'),
+                    'launch',
+                    'demo.launch.py',
+                ]
+            )
+        )
+    )
+
     int_test_node = Node(
         package='penpal',
         executable='moveit_ctl',
@@ -24,6 +42,7 @@ def generate_launch_description():
 
     return LaunchDescription(
         [
+            demo_ld,
             Node(
                 package='moveit_ros_move_group',
                 executable='move_group',
@@ -60,10 +79,5 @@ def generate_launch_description():
                 remappings=[('/move_action', '/viz/move_action')],
             ),
             int_test_node,
-            # RegisterEventHandler(
-            #     OnProcessExit(
-            #         target_action=int_test_node, on_exit=[Shutdown()]
-            #     )
-            # ),
         ]
     )

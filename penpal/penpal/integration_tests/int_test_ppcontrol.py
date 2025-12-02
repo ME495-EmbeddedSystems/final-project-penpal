@@ -170,14 +170,14 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
     """Test move plan functions."""
     logger = node.get_logger()
     try:
-        wait_t = 5.0
+        wait_t = 15.0
         logger.info(f'Waiting {wait_t} seconds...')
         await asyncio.sleep(wait_t)
         logger.info('Starting integration test...')
         await ctl.configure()
 
         speed = 0.05
-        start_pose = np.array([0, 0, 0, 0, 0, 0, 1])
+        start_pose = np.array([0.5, 0.5, 0.5, 0, 0, 0, 1])
         seq = get_demo_traj_sequence(start_pose)
         for traj in seq:
             logger.info(f'Executing trajectory {traj.label}...')
