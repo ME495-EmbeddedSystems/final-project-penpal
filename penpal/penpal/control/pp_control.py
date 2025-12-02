@@ -58,8 +58,11 @@ class PPControlBase(abc.ABC):
         self._logger = node.get_logger().get_child(self.__class__.__name__)
 
     @abc.abstractmethod
-    async def execute_trajectory(
-        self, traj: Trajectory, target_ee_velocity_m_s: float
+    async def _execute_trajectory(
+        self,
+        traj: Trajectory,
+        target_ee_velocity_m_s: float,
+        publish_markers: bool = False,
     ) -> None:
         """
         Move the EE through a trajectory.
@@ -71,6 +74,29 @@ class PPControlBase(abc.ABC):
 
         """
         pass
+
+    async def execute_trajectory(
+        self,
+        traj: Trajectory,
+        target_ee_velocity_m_s: float,
+        publish_markers: bool = False,
+    ) -> None:
+        """
+        Move the EE through a trajectory.
+
+        Args:
+            traj (Trajectory): path to send the EE through space
+            target_ee_velocity_m_s (float): target average velocity for the trajectory
+            execution
+
+        """
+        self._logger.info(f"Executing trajectory '{traj.label}'")
+        if publish_markers:
+            self._logger.info('Publishing debug markers...')
+            await self.publish_marker(traj)
+        return await self._execute_trajectory(
+            traj, target_ee_velocity_m_s, publish_markers
+        )
 
     @abc.abstractmethod
     async def grip(
@@ -85,6 +111,14 @@ class PPControlBase(abc.ABC):
             If None, don't control the force.
 
         """
+        pass
+
+    async def publish_marker(
+        self,
+        traj: Trajectory,
+    ) -> None:
+        """Publish trajectory as a line marker to rviz."""
+        # todo amber implement here
         pass
 
     async def configure(self) -> None:
