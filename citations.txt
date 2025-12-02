@@ -2,3 +2,4 @@
 # https://nu-msr.github.io/citation_rules.html
 
 [1] https://stackoverflow.com/questions/77182278/type-hints-for-matplotlib-axes3d Accessed on Nov 24, 2025
+[2] https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct

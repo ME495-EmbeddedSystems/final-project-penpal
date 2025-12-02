@@ -1,6 +1,7 @@
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch_ros.substitutions import FindPackageShare
 from launch.substitutions import PathJoinSubstitution
 from launch_ros.actions import Node as RosNode
 from ament_index_python.packages import get_package_share_directory
@@ -59,16 +60,39 @@ def generate_launch_description():
         output="screen",
     )
 
-    rviz_node = RosNode(
-        package="rviz2",
-        executable="rviz2",
+    ocr_node = RosNode(
+        package="penpal",
+        executable="ocr_node",
+        name="ocr_node",
         output="screen",
-        name="rviz",
+        parameters=[
+            {
+                "image_topic": "/camera/camera/color/image_raw",
+                "service_name": "read_and_answer_board",
+            }
+        ],
+    )
+
+    rviz_node = RosNode(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        arguments=[
+            '-d',
+            PathJoinSubstitution(
+                [
+                    FindPackageShare('penpal'),
+                    'config',
+                    'robot_view.rviz',
+                ]
+            ),
+        ],
     )
 
     return LaunchDescription([
         realsense_launch,
         apriltag_node,
         board_detector_node,
+        ocr_node,
         rviz_node,
     ])

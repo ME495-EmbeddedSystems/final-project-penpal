@@ -208,7 +208,7 @@ class BoardDetector(Node):
     # --------------- Visualization ---------------------
     def publish_outline(
         self,
-        header: PoseStamped.Header,
+        header: PoseStamped.header,
         R: np.ndarray,
         center: np.ndarray,
     ) -> None:
