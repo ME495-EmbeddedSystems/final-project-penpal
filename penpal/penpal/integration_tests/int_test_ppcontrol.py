@@ -177,11 +177,24 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
         await ctl.configure()
 
         speed = 0.05
-        start_pose = np.array([0.5, 0.5, 0.5, 0, 0, 0, 1])
+        rot = R.from_euler('xyz', [2, 3, -1])
+        start_pose = np.array([0.5, 0.5, 0.5, *rot.as_quat(True)])
         seq = get_demo_traj_sequence(start_pose)
+
+        # publish trajectories one by one
+        # uncomment once no failure
+        # for traj in seq:
+        #     logger.info(f'Executing trajectory {traj.label}...')
+        #     await ctl.execute_trajectory(traj, speed, publish_markers=True)
+
+        logger.info('Publishing all trajectory markers...')
+        for traj in seq:
+            await ctl.publish_marker(traj)
+
         for traj in seq:
             logger.info(f'Executing trajectory {traj.label}...')
-            await ctl.execute_trajectory(traj, speed)
+            # markers already published for now so no need to republish here
+            await ctl.execute_trajectory(traj, speed, publish_markers=False)
 
     finally:
         node.get_logger().info('Integration test finished.')
