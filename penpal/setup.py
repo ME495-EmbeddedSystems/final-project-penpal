@@ -61,7 +61,7 @@ setup(
     entry_points={
         'console_scripts': [
             'board_detector = penpal.nodes.board_detector:main',
-            'int_test_ppcontrol = penpal.integration_tests.int_test_ppcontrol:main',
+            'moveit_ctl = penpal.integration_tests.int_test_ppcontrol:main_moveit',
             'ocr_node = penpal.nodes.ocr_node:main',
         ],
     },

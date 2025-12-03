@@ -1,29 +1,39 @@
 """Helpful plotting functions."""
 
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d.axes3d import Axes3D
+from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 
 from penpal.control.pp_control import Trajectory
 
 
-def plot_trajectory_sequence(seq: list[Trajectory]) -> None:
+def plot_trajectory_sequence(
+    seq: list[Trajectory], plot_ori_arrows: bool = False
+) -> None:
     """Plot a sequence of trajectories on the same 3d plot."""
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
 
     last_point = None
     for traj in seq:
+        print(f"Plotting '{traj.label}'")
         if last_point is not None:
             points = np.array([last_point[:3], traj.data[0][:3]])
             ax.plot(points[:, 0], points[:, 1], points[:, 2], c='black')
-        ax.plot(
-            traj.data[:, 0],
-            traj.data[:, 1],
-            traj.data[:, 2],
-            label=traj.label,
-        )
+        X = traj.data[:, 0]
+        Y = traj.data[:, 1]
+        Z = traj.data[:, 2]
+        ax.plot(X, Y, Z, label=traj.label)
         last_point = traj.data[-1]
+
+        if plot_ori_arrows:
+            rot = R.from_quat(traj.data[:, 3:7])
+            euler = rot.as_euler('xyz')
+            U = euler[:, 0]
+            V = euler[:, 1]
+            W = euler[:, 2]
+            ax.quiver(X, Y, Z, U, V, W, length=0.01)
 
         # plot green & red dots for start & end, respectively
         ax.scatter(

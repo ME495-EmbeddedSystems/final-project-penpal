@@ -4,6 +4,7 @@ Integration test node for developing PP control.
 
 import asyncio
 import threading
+import signal
 
 import numpy as np
 from scipy.spatial.transform import Rotation as R
@@ -14,9 +15,32 @@ import rclpy
 from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
 
-from penpal.control.position_control import PositionPPControl
+from penpal.control import position_control, moveit_control, pp_control
 from penpal.control.pp_control import Trajectory
 from penpal.integration_tests import plot
+
+
+def traj_from_points(
+    label: str,
+    points: np.ndarray,
+    center: np.ndarray,
+    rot: R,
+    force: float | None,
+) -> Trajectory:
+    """Convert set of R3 points into full 8D array."""
+    if force is None:
+        force = 0.0
+
+    points = rot.apply(points) + center
+    down = R.from_euler('xyz', [0, 0, -np.pi / 2])
+    ori = R.from_matrix(rot.as_matrix() @ down.as_matrix())
+    ori_quat = ori.as_quat(True)
+    # ori_quat = down.as_quat(True)
+
+    force_per_point = np.full((points.shape[0], 1), force)
+    ori_per_point = np.broadcast_to(ori_quat, (points.shape[0], 4))
+    points_full = np.hstack([points, ori_per_point, force_per_point])
+    return Trajectory(label, points_full)
 
 
 def get_circle_trajectory(
@@ -24,7 +48,7 @@ def get_circle_trajectory(
     center: np.ndarray,
     rot: R,
     n_points: int,
-    force: np.ndarray | None = None,
+    force: float | None = None,
 ) -> Trajectory:
     """
     Return a trajectory of a circle.
@@ -40,23 +64,15 @@ def get_circle_trajectory(
         Trajectory: trajectory for a circle in space
 
     """
-    if force is None:
-        force = np.zeros(3)
     xvals = radius_m * np.sin(np.linspace(0, 2 * np.pi, n_points))
     yvals = radius_m * np.cos(np.linspace(0, 2 * np.pi, n_points))
     circle_flat = np.vstack([xvals, yvals, np.zeros_like(yvals)]).T
 
-    points = rot.apply(circle_flat) + center
-
-    force_per_point = np.broadcast_to(force, (points.shape[0], 3))
-    points_with_force = np.hstack([points, force_per_point])
-    traj = Trajectory('circle', points_with_force)
-
-    return traj
+    return traj_from_points('circle', circle_flat, center, rot, force)
 
 
 def get_arrow_trajectory(
-    scale: float, center: np.ndarray, rot: R, force: np.ndarray | None = None
+    scale: float, center: np.ndarray, rot: R, force: float | None = None
 ) -> Trajectory:
     """
     Return a trajectory of an arrow.
@@ -71,26 +87,17 @@ def get_arrow_trajectory(
         Trajectory: trajectory through 3d space
 
     """
-    if force is None:
-        force = np.zeros(3)
-
-    tip = np.zeros(3)
+    tip = np.array([0, 0, 0])
     tail = np.array([-scale, 0, 0])
     lpoint = np.array([-scale * 0.2, -scale * 0.2, 0])
     rpoint = np.array([-scale * 0.2, scale * 0.2, 0])
     points = np.array([tail, tip, lpoint, rpoint, tip])
 
-    points = rot.apply(points) + center
-
-    force_per_point = np.broadcast_to(force, (points.shape[0], 3))
-    points_with_force = np.hstack([points, force_per_point])
-    traj = Trajectory('arrow', points_with_force)
-
-    return traj
+    return traj_from_points('arrow', points, center, rot, force)
 
 
 def get_square_trajectory(
-    side: float, center: np.ndarray, rot: R, force: np.ndarray | None = None
+    side: float, center: np.ndarray, rot: R, force: float | None = None
 ) -> Trajectory:
     """
     Return a trajectory of a square.
@@ -105,22 +112,13 @@ def get_square_trajectory(
         Trajectory: trajectory through 3d space
 
     """
-    if force is None:
-        force = np.zeros(3)
-
     bl = -np.array([0.5 * side, 0.5 * side, 0])
     tl = bl + np.array([0, side, 0])
     tr = tl + np.array([side, 0, 0])
     br = tr + np.array([0, -side, 0])
     points = np.array([bl, tl, tr, br, bl])
 
-    points = rot.apply(points) + center
-
-    force_per_point = np.broadcast_to(force, (points.shape[0], 3))
-    points_with_force = np.hstack([points, force_per_point])
-    traj = Trajectory('arrow', points_with_force)
-
-    return traj
+    return traj_from_points('square', points, center, rot, force)
 
 
 def get_demo_traj_sequence(start_pose: np.ndarray) -> list[Trajectory]:
@@ -131,7 +129,7 @@ def get_demo_traj_sequence(start_pose: np.ndarray) -> list[Trajectory]:
         start_pose: [x, y, z, qx, qy, qz, qw]
 
     """
-    lineh = 0.05
+    lineh = 0.02
     off_board_dist = 0.02
     rot = R.from_quat(start_pose[3:])
     circle_c = start_pose[:3]
@@ -144,7 +142,7 @@ def get_demo_traj_sequence(start_pose: np.ndarray) -> list[Trajectory]:
     square_traj = get_square_trajectory(lineh, square_c, rot)
 
     board_gap = rot.apply(np.array([0, 0, off_board_dist]))
-    board_gap = np.array([*board_gap, 0, 0, 0])
+    board_gap = np.array([*board_gap, 0, 0, 0, 0, 0])
 
     out = []
     last_point = None
@@ -159,7 +157,7 @@ def get_demo_traj_sequence(start_pose: np.ndarray) -> list[Trajectory]:
                 ]
             )
             # these extra points should have no force
-            points[:, 3:] = 0
+            points[:, 7] = 0
             space_traj = Trajectory('space', points)
             out.append(space_traj)
         out.append(traj)
@@ -168,13 +166,18 @@ def get_demo_traj_sequence(start_pose: np.ndarray) -> list[Trajectory]:
     return out
 
 
-async def integration_test(node: Node, ctl: PositionPPControl) -> None:
+async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
     """Test move plan functions."""
     logger = node.get_logger()
     try:
+        wait_t = 15.0
+        logger.info(f'Waiting {wait_t} seconds...')
+        await asyncio.sleep(wait_t)
         logger.info('Starting integration test...')
+        await ctl.configure()
+
         speed = 0.05
-        start_pose = np.array([0, 0, 0, 0, 0, 0, 1])
+        start_pose = np.array([0.5, 0.5, 0.5, 0, 0, 0, 1])
         seq = get_demo_traj_sequence(start_pose)
         for traj in seq:
             logger.info(f'Executing trajectory {traj.label}...')
@@ -182,26 +185,6 @@ async def integration_test(node: Node, ctl: PositionPPControl) -> None:
 
     finally:
         node.get_logger().info('Integration test finished.')
-
-
-def main():
-    """Run main."""
-    rclpy.init()
-    node = rclpy.create_node('test_position_controller_node')
-    executor = MultiThreadedExecutor()
-    executor.add_node(node)
-    executor_thread = threading.Thread(target=executor.spin, daemon=True)
-    executor_thread.start()
-
-    ctl = PositionPPControl(node)
-
-    try:
-        asyncio.run(integration_test(node, ctl))
-    finally:
-        executor.shutdown()
-        executor_thread.join()
-        node.destroy_node()
-        rclpy.shutdown()
 
 
 def plot_shapes() -> None:
@@ -228,13 +211,36 @@ def plot_shapes() -> None:
 def plot_demo_seq() -> None:
     """Plot the demo sequence on a 3d plot."""
     rot = R.from_euler('xyz', [2, 3, -1])
-    start_pose = np.array([0, 0, 0, *rot.as_quat(True)])
+    start_pose = np.array([0.2, 0.2, 0.2, *rot.as_quat(True)])
     seq = get_demo_traj_sequence(start_pose)
-    plot.plot_trajectory_sequence(seq)
+    plot.plot_trajectory_sequence(seq, True)
     plt.show()
 
 
+def main_moveit():
+    """Run main."""
+    rclpy.init()
+    node = rclpy.create_node('test_moveit_ctl')
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
+    executor_thread = threading.Thread(target=executor.spin, daemon=True)
+    executor_thread.start()
+
+    ctl = moveit_control.MoveItPPControl(node)
+
+    try:
+        asyncio.run(integration_test(node, ctl))
+    finally:
+        executor.shutdown()
+        executor_thread.join()
+        node.destroy_node()
+        rclpy.shutdown()
+
+
 if __name__ == '__main__':
+    # make matplotlib handle ctrl+c
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+
     # plot_shapes()
-    # plot_demo_seq()
-    main()
+    plot_demo_seq()
+    # main_moveit()

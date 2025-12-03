@@ -1,4 +1,5 @@
 """Controller implementation using MoveIt. Lacks force control."""
+
 from geometry_msgs.msg import Pose, Quaternion
 
 from moveit_msgs.action import ExecuteTrajectory, MoveGroup
@@ -11,6 +12,7 @@ from moveit_msgs.msg import (
     OrientationConstraint,
     PlanningOptions,
     PositionConstraint,
+    RobotState,
 )
 from moveit_msgs.srv import GetCartesianPath
 
@@ -30,18 +32,13 @@ class MoveItPPControl(PPControlBase):
     """Controller implementation using MoveIt. Lacks force control."""
 
     def __init__(
-        self,
-        node: Node,
-        cfg: PPControlBase.Config | None = None
+        self, node: Node, cfg: PPControlBase.Config | None = None
     ) -> None:
         """Initialize the object."""
         super().__init__(node, cfg)
         self._cbgroup = MutuallyExclusiveCallbackGroup()
         self._c_move_group = ActionClient(
-            node,
-            MoveGroup,
-            '/move_action',
-            callback_group=self._cbgroup
+            node, MoveGroup, '/move_action', callback_group=self._cbgroup
         )
         self._c_execute_trajectory = ActionClient(
             node,
@@ -64,36 +61,17 @@ class MoveItPPControl(PPControlBase):
 
         Args:
             traj (Trajectory): path to send the EE through space
-            target_ee_velocity_m_s (float): target average velocity 
+            target_ee_velocity_m_s (float): target average velocity
             for the trajectory execution.
 
         """
-        waypoints = []
-        for point in traj:
-            pose = Pose()
-            pose.position.x = point[0]
-            pose.position.y = point[1]
-            pose.position.z = point[2]
-            pose.orientation.x = point[3]
-            pose.orientation.y = point[4]
-            pose.orientation.z = point[5]
-            pose.orientation.w = point[6]
-            waypoints.append(pose)
+        self._logger.info(f"Executing trajectory '{traj.label}'")
+        pose_only = traj.data[:, :7]
+        await self.plan_cartesian_path(pose_only, None, True)
 
-        request = GetCartesianPath.Request()
-        request.group_name = 'fer_manipulator'
-        request.link_name = 'fer_hand_tcp'
-        request.waypoints = waypoints
-        request.max_step = 0.01
-
-        response = await self._c_cartesian_path.call_async(request)
-
-        exec_goal = ExecuteTrajectory.Goal()
-        exec_goal.trajectory = response.solution
-        self._logger.info('Executing path')
-        await self._c_execute_trajectory.send_goal_async(exec_goal)
-
-    async def grip(self, offset_m: float, grip_force_N: float | None = None) -> None:
+    async def grip(
+        self, offset_m: float, grip_force_N: float | None = None
+    ) -> None:
         """
         Open or close the gripper to the desired offset, then applies a force.
 
@@ -110,6 +88,7 @@ class MoveItPPControl(PPControlBase):
         request.max_acceleration_scaling_factor = 0.1
 
         constraints = Constraints()
+        constraints.joint_constraints = []
         for joint in ['fer_finger_joint1', 'fer_finger_joint2']:
             jc = JointConstraint()
             jc.joint_name = joint
@@ -240,7 +219,7 @@ class MoveItPPControl(PPControlBase):
 
     async def plan_cartesian_path(
         self,
-        goal_ee_pose: np.ndarray,
+        waypoints: np.ndarray,
         start_ee_pose: np.ndarray | None = None,
         execute_immediately: bool = False,
     ) -> GetCartesianPath.Response:
@@ -251,8 +230,8 @@ class MoveItPPControl(PPControlBase):
 
         Args:
         ----
-        goal_ee_pose (np.ndarray): destination pose [x,y,z,x,y,z,w]
-        start_ee_pose (np.ndarray): start pose [x,y,z,x,y,z,w].
+        waypoints (np.ndarray): destination poses [[x,y,z,qx,qy,qz,qw], ...]
+        start_ee_pose (np.ndarray): start pose [x,y,z,qx,qy,qz,qw].
         If not provided, use current robot pose as start pose.
         execute_immediately (bool): immediately execute the path.
 
@@ -264,8 +243,10 @@ class MoveItPPControl(PPControlBase):
         request = GetCartesianPath.Request()
         request.group_name = 'fer_manipulator'
         request.link_name = 'fer_hand_tcp'
+        request.waypoints = []
+        request.max_step = 0.01
 
-        if goal_ee_pose is not None:
+        for goal_ee_pose in waypoints:
             goal_pose = Pose()
             goal_pose.position.x = goal_ee_pose[0]
             goal_pose.position.y = goal_ee_pose[1]
@@ -274,14 +255,13 @@ class MoveItPPControl(PPControlBase):
             goal_pose.orientation.y = goal_ee_pose[4]
             goal_pose.orientation.z = goal_ee_pose[5]
             goal_pose.orientation.w = goal_ee_pose[6]
-            request.waypoints = [goal_pose]
-            request.max_step = 0.01
+            request.waypoints.append(goal_pose)
 
         if start_ee_pose is not None:
             request.start_state = self.start_state(start_ee_pose)
 
         self._logger.info('Waiting for /compute_cartesian_path service')
-        while not self._c_cartesian_path.wait_for_service(timeout_sec=10.0):
+        while not self._c_cartesian_path.wait_for_service(timeout_sec=5.0):
             self._logger.warn('Still waiting for service')
 
         self._logger.info('Request Cartesian path from service')
@@ -304,8 +284,39 @@ class MoveItPPControl(PPControlBase):
             request.trajectory = response.solution
             resp = await self._c_execute_trajectory.send_goal_async(request)
             if resp is not None and resp.accepted:
-                await resp.get_result_async()
-                self._logger.info('Cartesian path execution complete!')
+                res = await resp.get_result_async()
+                if res.result.error_code != MoveItErrorCodes.SUCCESS:
+                    self._logger.error(
+                        f'Cartesian path execution failed: {res}'
+                    )
+                    raise PPControlError('Cartesian Path execution failed.')
+                self._logger.info('Cartesian path execution success!')
             else:
                 self._logger.error('Failed to execute cartesian path.')
         return response
+
+    def start_state(self, joints):
+        """Set start state."""
+        robotstate = RobotState()
+        robotstate.joint_state.name = [
+            'fer_joint1',
+            'fer_joint2',
+            'fer_joint3',
+            'fer_joint4',
+            'fer_joint5',
+            'fer_joint6',
+            'fer_joint7',
+        ]
+        if joints is None:
+            robotstate.joint_state.position = [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+            ]
+        else:
+            robotstate.joint_state.position = [float(j) for j in joints]
+        return robotstate
