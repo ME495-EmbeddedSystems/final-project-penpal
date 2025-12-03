@@ -53,8 +53,11 @@ class MoveItPPControl(PPControlBase):
             callback_group=self._cbgroup,
         )
 
-    async def execute_trajectory(
-        self, traj: Trajectory, target_ee_velocity_m_s: float
+    async def _execute_trajectory(
+        self,
+        traj: Trajectory,
+        target_ee_velocity_m_s: float,
+        publish_markers: bool = False,
     ) -> None:
         """
         Move the EE through a trajectory.
@@ -65,7 +68,6 @@ class MoveItPPControl(PPControlBase):
             for the trajectory execution.
 
         """
-        self._logger.info(f"Executing trajectory '{traj.label}'")
         pose_only = traj.data[:, :7]
         await self.plan_cartesian_path(pose_only, None, True)
 

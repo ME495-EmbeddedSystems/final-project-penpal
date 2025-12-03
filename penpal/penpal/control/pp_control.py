@@ -5,7 +5,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from geometry_msgs.msg import Point
 from rclpy.node import Node
+from visualization_msgs.msg import Marker
 
 
 class PPControlError(Exception):
@@ -47,7 +49,7 @@ class PPControlBase(abc.ABC):
         # todo make these have correct values
         ee_frame: str = 'fer_hand_tcp'
         """Frame ID in tf tree to be considered as the end-effector."""
-        world_frame: str = 'fer_manipulator'
+        world_frame: str = 'base'
         """Frame ID in tf tree for the world frame (probably robot {base})."""
 
     def __init__(self, node: Node, cfg: Config | None = None) -> None:
@@ -57,9 +59,16 @@ class PPControlBase(abc.ABC):
         self.c = cfg if cfg is not None else self.Config()
         self._logger = node.get_logger().get_child(self.__class__.__name__)
 
+        # publish trajectory markers in rviz
+        self._marker_pub = None
+        self._next_marker_id: int = 0
+
     @abc.abstractmethod
-    async def execute_trajectory(
-        self, traj: Trajectory, target_ee_velocity_m_s: float
+    async def _execute_trajectory(
+        self,
+        traj: Trajectory,
+        target_ee_velocity_m_s: float,
+        publish_markers: bool = False,
     ) -> None:
         """
         Move the EE through a trajectory.
@@ -71,6 +80,29 @@ class PPControlBase(abc.ABC):
 
         """
         pass
+
+    async def execute_trajectory(
+        self,
+        traj: Trajectory,
+        target_ee_velocity_m_s: float,
+        publish_markers: bool = False,
+    ) -> None:
+        """
+        Move the EE through a trajectory.
+
+        Args:
+            traj (Trajectory): path to send the EE through space
+            target_ee_velocity_m_s (float): target average velocity for the trajectory
+            execution
+
+        """
+        self._logger.info(f"Executing trajectory '{traj.label}'")
+        if publish_markers:
+            self._logger.info('Publishing debug markers...')
+            await self.publish_marker(traj)
+        return await self._execute_trajectory(
+            traj, target_ee_velocity_m_s, publish_markers
+        )
 
     @abc.abstractmethod
     async def grip(
@@ -85,6 +117,54 @@ class PPControlBase(abc.ABC):
             If None, don't control the force.
 
         """
+        pass
+
+    async def publish_marker(
+        self,
+        traj: Trajectory,
+    ) -> None:
+        """Publish trajectory as a line marker to rviz."""
+        if self._marker_pub is None:
+            self._marker_pub = self._node.create_publisher(
+                Marker,
+                'pp_trajectories',
+                10,
+            )
+        if traj.label == 'space':
+            self._logger.debug(
+                f"Skipping visualization for hover trajectory '{traj.label}'"
+            )
+            return
+
+        marker = Marker()
+        marker.header.frame_id = self.c.world_frame
+        marker.header.stamp = self._node.get_clock().now().to_msg()
+        marker.ns = 'pp_trajectories'
+        marker.id = self._next_marker_id
+        self._next_marker_id += 1
+
+        marker.type = Marker.LINE_STRIP
+        marker.action = Marker.ADD
+
+        marker.scale.x = 0.005
+        marker.color.r = 0.0
+        marker.color.g = 1.0
+        marker.color.b = 0.0
+        marker.color.a = 1.0
+
+        # add XYZ points
+        for wp in traj.data:
+            pt = Point()
+            pt.x = float(wp[0])
+            pt.y = float(wp[1])
+            pt.z = float(wp[2])
+            marker.points.append(pt)
+
+        self._marker_pub.publish(marker)
+        self._logger.debug(
+            f"Published marker id={marker.id} with {len(marker.points)} points "
+            f"on /pp_trajectories"
+        )
         pass
 
     async def configure(self) -> None:

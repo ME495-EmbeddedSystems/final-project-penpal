@@ -14,8 +14,11 @@ class PositionPPControl(PPControlBase):
         """Initialize the object."""
         super().__init__(node, cfg)
 
-    async def execute_trajectory(
-        self, traj: Trajectory, target_ee_velocity_m_s: float
+    async def _execute_trajectory(
+        self,
+        traj: Trajectory,
+        target_ee_velocity_m_s: float,
+        publish_markers: bool = False,
     ) -> None:
         """
         Move the EE through a trajectory.
@@ -26,7 +29,7 @@ class PositionPPControl(PPControlBase):
             execution
 
         """
-        self._logger.info(f"Executing trajectory '{traj.label}'")
+        pass
 
     async def grip(
         self, offset_m: float, grip_force_N: float | None = None
