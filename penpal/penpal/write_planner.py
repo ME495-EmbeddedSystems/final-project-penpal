@@ -63,6 +63,7 @@ class WritePlanner:
         """Max length of trajectory to write at a time."""
 
         ee_velocity_m_s: float = 0.02
+        max_force_N: float = 1.0
 
     def __init__(
         self, node: Node, controller: PPControlBase, cfg: Config | None = None
@@ -122,7 +123,23 @@ class WritePlanner:
                               each character.
 
         """
-        raise NotImplementedError
+        # todo actually implement this
+        # for now, to get the integration test running, just return
+        # the character trajectories unmodified
+
+        trajs = []
+        upright = R.from_euler('xyz', [0, np.pi / 2, 0])
+        up_q = upright.as_quat(True)
+
+        for char in cs:
+            data = np.zeros(shape=(char.trajectory.shape[0], 8))
+            data[:, 0:2] = char.trajectory[:, 0:2]
+            data[:, 3:7] = up_q[np.newaxis, :]
+            data[:, 7] = char.trajectory[:, 3] * self.c.max_force_N
+            traj = Trajectory(char.char, data)
+            trajs.append(traj)
+
+        return trajs
 
     def get_latest_board_info(self) -> BoardInfo:
         """Return the most recently update board location + dimensions."""
