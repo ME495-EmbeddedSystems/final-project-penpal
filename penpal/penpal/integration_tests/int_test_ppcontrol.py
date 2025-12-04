@@ -169,6 +169,27 @@ def get_demo_traj_sequence(start_pose: np.ndarray) -> list[Trajectory]:
 async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
     """Test move plan functions."""
     logger = node.get_logger()
+
+    # Spawn and grab pen
+    await ctl.add_fixed_pen()
+    pen_pose = np.array([0.5, 0.3, 0.191])
+    pen_rot = R.from_euler('xyz', [180, -90, 0], degrees=True)
+    pen_ori = pen_rot.as_quat()
+
+    approach_vector = pen_rot.apply([0, 0, -0.1])
+    pre_grasp_pos = pen_pose + approach_vector
+    await ctl.move_to_ee_pose(pre_grasp_pos, pen_ori)
+    await ctl.grip(0.03)
+
+    point_data = np.hstack([pen_pose, pen_ori, np.array([0])])
+    traj_approach = Trajectory('pen_grab', point_data.reshape(1, 8))
+    await ctl._execute_trajectory(traj_approach, 0.01)
+    await ctl.grip(0.01)
+    await ctl.attach_pen()
+
+    lift_pos = pen_pose + np.array([0, 0, 0.05])
+    await ctl.move_to_ee_pose(lift_pos, pen_ori)
+
     try:
         wait_t = 10.0
         logger.info(f'Waiting {wait_t} seconds...')
@@ -178,7 +199,7 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
 
         speed = 0.05
         rot = R.from_euler('xyz', [180, 0, 0], degrees=True)
-        start_pose = np.array([0.4, 0, 0.4, *rot.as_quat(True)])
+        start_pose = np.array([0.4, -0.025, 0.191, *rot.as_quat(True)])
         node.get_logger().info("Moving to start position...")
         goal_handle = await ctl.move_to_ee_pose(goal_ee_position=start_pose[:3],
                                                 goal_ee_orientation=start_pose[3:],
@@ -188,7 +209,7 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
             node.get_logger().error(f"CRITICAL: Failed to reach start position! Error: {res.result.error_code.val}")
             return
 
-        seq = get_demo_traj_sequence(np.array([0, 0, 0, 0, 0, 0, 1]))
+        seq = get_demo_traj_sequence(start_pose)
 
         # publish trajectories one by one
         # uncomment once no failure

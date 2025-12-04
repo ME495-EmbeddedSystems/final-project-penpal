@@ -13,7 +13,10 @@ from moveit_msgs.msg import (
     PlanningOptions,
     PositionConstraint,
     RobotState,
+    AttachedCollisionObject,
+    CollisionObject,
 )
+from moveit_msgs.msg import PlanningScene as PS
 from moveit_msgs.srv import GetCartesianPath
 
 import numpy as np
@@ -52,6 +55,7 @@ class MoveItPPControl(PPControlBase):
             'compute_cartesian_path',
             callback_group=self._cbgroup,
         )
+        self._scene_pub = self._node.create_publisher(PS, '/planning_scene', 10)
 
     async def _execute_trajectory(
         self,
@@ -302,6 +306,48 @@ class MoveItPPControl(PPControlBase):
             else:
                 self._logger.error('Failed to execute cartesian path.')
         return response
+
+    async def add_fixed_pen(self) -> None:
+        """Spawn a collision object pen at a hardcoded location."""
+        pen = CollisionObject()
+        pen.header.frame_id = 'base'
+        pen.id = 'pen'
+        cylinder = SolidPrimitive()
+        cylinder.type = SolidPrimitive.CYLINDER
+        cylinder.dimensions = [0.10, 0.01]  # [height, radius in meters]
+        # Hard coded pen location
+        pen_pose = Pose()
+        pen_pose.position.x = 0.5
+        pen_pose.position.y = 0.3
+        pen_pose.position.z = 0.191
+        pen_pose.orientation.w = 1.0
+        pen.primitives.append(cylinder)
+        pen.primitive_poses.append(pen_pose)
+        pen.operation = CollisionObject.ADD
+
+        # Publish the addition
+        scene_msg = PS()
+        scene_msg.world.collision_objects.append(pen)
+        scene_msg.is_diff = True
+        self._scene_pub.publish(scene_msg)
+        self._logger.info('Pen in planning scene.')
+
+    async def attach_pen(self) -> None:
+        """Attach the pen to the robot hand."""
+        attached_pen = AttachedCollisionObject()
+        attached_pen.link_name = 'fer_hand_tcp'
+        attached_pen.object.id = 'pen'
+        attached_pen.touch_links = ['fer_hand',
+                                    'fer_left_finger',
+                                    'fer_right_finger',
+                                    'fer_hand_tcp']
+        attached_pen.object.operation = CollisionObject.ADD
+
+        scene_msg = PS()
+        scene_msg.robot_state.attached_collision_objects.append(attached_pen)
+        scene_msg.is_diff = True
+        self._scene_pub.publish(scene_msg)
+        self._logger.info('Attached pen to gripper.')
 
     def start_state(self, joints):
         """Set start state."""
