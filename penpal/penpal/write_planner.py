@@ -1,6 +1,6 @@
 """Plans trajectories to write characters."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 from scipy.spatial.transform import Rotation as R
@@ -30,7 +30,7 @@ class Character:
     """
 
 
-@dataclass
+@dataclass()
 class BoardInfo:
     """Important info about the whiteboard for writing on it."""
 
@@ -48,8 +48,73 @@ class BoardInfo:
     """
     Rectangular region available for writing, relative to the board origin.
     [[x_tl, y_tl], [x_br, y_br]].
-    Note that in board coordinates, +x is to the right and +y is down.
+    Note that in board coordinates, +x is to the right and -y is down.
     """
+
+    T_sb: np.ndarray = field(init=False)
+    """Transformation matrix from world to board frame."""
+
+    T_bs: np.ndarray = field(init=False)
+    """Transformation matrix from board to world frame."""
+
+    def __post_init__(self) -> None:
+        """Post-initialization setup."""
+        if self.writeable_area.shape != (2, 2):
+            raise ValueError(
+                'Incorrect shape for writeable area: '
+                f'{self.writeable_area.shape}'
+            )
+        writeable_dims = self.writeable_area[1, :] - self.writeable_area[0, :]
+        if writeable_dims[0] <= 0 or writeable_dims[1] >= 0:
+            raise ValueError('Writeable area is negative.')
+
+        T_sb = np.empty((4, 4))
+        T_sb[0:3, 0:3] = self.ori.as_matrix()
+        T_sb[0:3, 3] = self.pos
+        T_sb[3, :] = [0, 0, 0, 1]
+        self.T_sb = T_sb
+        self.T_bs = np.linalg.inv(self.T_sb)
+
+    def get_board_corners_world_frame(self) -> np.ndarray:
+        """
+        Get the 4 corners of the board in world frame.
+
+        Returns:
+            np.ndarray: [[TL], [TR], [BR], [BL]] with each being [x,y,z]
+
+        """
+        # corners as homogenous coordinate column vectors
+        corners = np.array(
+            [
+                [0, 0, 0, 1],
+                [self.width_m, 0, 0, 1],
+                [self.width_m, -self.height_m, 0, 1],
+                [0, -self.height_m, 0, 1],
+            ]
+        ).T
+
+        corners_s = self.T_sb @ corners
+        # remove extra 1's and transpose to return R3 row vectors.
+        return corners_s[0:3, :].T
+
+    def get_writeable_area_corners_world_frame(self) -> np.ndarray:
+        """
+        Get the 4 corners of the writeable area in world frame.
+
+        Returns:
+            np.ndarray: [[TL], [TR], [BR], [BL]] with each being [x,y,z]
+
+        """
+        # corners as homogenous coordinate column vectors
+        TL = [*self.writeable_area[0, :], 0, 1]
+        TR = [self.writeable_area[1, 0], self.writeable_area[0, 1], 0, 1]
+        BR = [*self.writeable_area[1, :], 0, 1]
+        BL = [self.writeable_area[0, 0], self.writeable_area[1, 1], 0, 1]
+        corners = np.array([TL, TR, BR, BL]).T
+
+        corners_s = self.T_sb @ corners
+        # remove extra 1's and transpose to return R3 row vectors.
+        return corners_s[0:3, :].T
 
 
 class WritePlanner:

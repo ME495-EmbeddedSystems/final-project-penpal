@@ -41,17 +41,18 @@ class MockController(PPControlBase):
         pass
 
 
-async def test_static_board() -> list[Trajectory]:
+async def test_static_board() -> tuple[list[Trajectory], BoardInfo]:
     """Write some characters on a non-moving board."""
+    board = BoardInfo(
+        pos=np.array([0, 0, 0], dtype=float),
+        ori=R.identity(),
+        width_m=0.2,
+        height_m=0.2,
+        writeable_area=np.array([[0, 0], [0.2, -0.2]]),
+    )
 
     def mock_board_info(o: WritePlanner) -> BoardInfo:
-        return BoardInfo(
-            pos=np.array([0, 0, 0], dtype=float),
-            ori=R.identity(),
-            width_m=0.2,
-            height_m=0.2,
-            writeable_area=np.array([[0, 0], [0.2, 0.2]]),
-        )
+        return board
 
     node = MagicMock(Node)
     control = MockController(node)
@@ -72,13 +73,13 @@ async def test_static_board() -> list[Trajectory]:
         await writer.write_characters(chars)
 
     # now return the actual trajectories as written to the board in space.
-    return control.trajs
+    return control.trajs, board
 
 
 if __name__ == '__main__':
     try:
-        trajs = asyncio.run(test_static_board())
-        plot.plot_trajectory_sequence(trajs)
+        trajs, board = asyncio.run(test_static_board())
+        plot.plot_trajectories_and_board(trajs, board)
         plt.show()
     finally:
         print('Test complete.')

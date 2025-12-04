@@ -6,14 +6,19 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 from penpal.control.pp_control import Trajectory
+from penpal.write_planner import BoardInfo
 
 
 def plot_trajectory_sequence(
-    seq: list[Trajectory], plot_ori_arrows: bool = False
+    seq: list[Trajectory],
+    plot_ori_arrows: bool = False,
+    ax: Axes3D | None = None,  # type: ignore
 ) -> None:
     """Plot a sequence of trajectories on the same 3d plot."""
-    fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
+    if ax is None:
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='3d')
+    ax: Axes3D  # type: ignore
 
     last_point = None
     for traj in seq:
@@ -59,6 +64,28 @@ def plot_trajectory_sequence(
     ax.set_ylabel('y (m)')
     ax.set_zlabel('z (m)')
     ax.legend()
+
+
+def plot_trajectories_and_board(seq: list[Trajectory], b: BoardInfo) -> None:
+    """Plot a set of trajectories + the whiteboard area."""
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+    plot_trajectory_sequence(seq, False, ax)
+
+    b_corners = b.get_board_corners_world_frame()
+    ax.plot(
+        b_corners[:, 0],
+        b_corners[:, 1],
+        b_corners[:, 2],
+        label='Board Outline',
+    )
+    w_corners = b.get_writeable_area_corners_world_frame()
+    ax.plot(
+        w_corners[:, 0],
+        w_corners[:, 1],
+        w_corners[:, 2],
+        label='Writeable Area',
+    )
 
 
 ############### Begin_Citation[1] ####################
