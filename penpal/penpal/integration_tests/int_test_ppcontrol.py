@@ -202,6 +202,11 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
 
         lift_pos = pen_pose + np.array([0, 0, 0.05])
         await ctl.move_to_ee_pose(lift_pos, pen_ori)
+        await ctl.plan_to_named_config(
+            named_config='ready',
+            start_ee_pose=None,
+            execute_immediately=True,
+        )
 
         wait_t = 10.0
         logger.info(f'Waiting {wait_t} seconds...')
