@@ -13,6 +13,8 @@ def plot_trajectory_sequence(
     seq: list[Trajectory],
     plot_ori_arrows: bool = False,
     ax: Axes3D | None = None,  # type: ignore
+    label_trajs: bool = True,
+    equal_axes: bool = True,
 ) -> None:
     """Plot a sequence of trajectories on the same 3d plot."""
     if ax is None:
@@ -29,7 +31,7 @@ def plot_trajectory_sequence(
         X = traj.data[:, 0]
         Y = traj.data[:, 1]
         Z = traj.data[:, 2]
-        ax.plot(X, Y, Z, label=traj.label)
+        ax.plot(X, Y, Z, label=traj.label if label_trajs else None)
         last_point = traj.data[-1]
 
         if plot_ori_arrows:
@@ -58,7 +60,8 @@ def plot_trajectory_sequence(
             s=20,
         )
 
-    set_axes_equal(ax)
+    if equal_axes:
+        set_axes_equal(ax)
 
     ax.set_xlabel('x (m)')
     ax.set_ylabel('y (m)')
@@ -70,22 +73,28 @@ def plot_trajectories_and_board(seq: list[Trajectory], b: BoardInfo) -> None:
     """Plot a set of trajectories + the whiteboard area."""
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
-    plot_trajectory_sequence(seq, False, ax)
+    plot_trajectory_sequence(seq, False, ax, False, False)
 
     b_corners = b.get_board_corners_world_frame()
+    b_corners = np.array([*b_corners, b_corners[0]])
     ax.plot(
         b_corners[:, 0],
         b_corners[:, 1],
         b_corners[:, 2],
+        c='blue',
         label='Board Outline',
     )
     w_corners = b.get_writeable_area_corners_world_frame()
+    w_corners = np.array([*w_corners, w_corners[0]])
     ax.plot(
         w_corners[:, 0],
         w_corners[:, 1],
         w_corners[:, 2],
+        c='pink',
         label='Writeable Area',
     )
+    set_axes_equal(ax)
+    ax.legend()
 
 
 ############### Begin_Citation[1] ####################
