@@ -22,8 +22,8 @@ class Character:
 
     N points, each point in R3
     Nx3 array
-    each point is [x, y, z]
-    where x is position in virtual board
+    each point is [x_mm, y_mm, z_mm]
+    where x_mm, y_mm is position in virtual board in millimeters
     z in [0, 1] where:
         - 0 = off the board (no pressure)
         - (0, 1] = pressure, with 1 being hardest and epsilon being softest.
@@ -134,7 +134,7 @@ class WritePlanner:
 
         for char in cs:
             data = np.zeros(shape=(char.trajectory.shape[0], 8))
-            data[:, 0:2] = char.trajectory[:, 0:2]
+            data[:, 0:2] = char.trajectory[:, 0:2] / 1000.0
             data[:, 3:7] = up_q[np.newaxis, :]
             data[:, 7] = char.trajectory[:, 2] * self.c.max_force_N
             traj = Trajectory(char.char, data)
