@@ -170,31 +170,40 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
     """Test move plan functions."""
     logger = node.get_logger()
     try:
-        wait_t = 15.0
+        wait_t = 10.0
         logger.info(f'Waiting {wait_t} seconds...')
         await asyncio.sleep(wait_t)
         logger.info('Starting integration test...')
         await ctl.configure()
 
         speed = 0.05
-        rot = R.from_euler('xyz', [2, 3, -1])
-        start_pose = np.array([0.5, 0.5, 0.5, *rot.as_quat(True)])
-        seq = get_demo_traj_sequence(start_pose)
+        rot = R.from_euler('xyz', [180, 0, 0], degrees=True)
+        start_pose = np.array([0.4, 0, 0.4, *rot.as_quat(True)])
+        node.get_logger().info("Moving to start position...")
+        goal_handle = await ctl.move_to_ee_pose(goal_ee_position=start_pose[:3],
+                                                goal_ee_orientation=start_pose[3:],
+                                                execute_immediately=True)
+        res = await goal_handle.get_result_async()
+        if res.result.error_code.val != 1: # 1 is SUCCESS in MoveIt
+            node.get_logger().error(f"CRITICAL: Failed to reach start position! Error: {res.result.error_code.val}")
+            return
+
+        seq = get_demo_traj_sequence(np.array([0, 0, 0, 0, 0, 0, 1]))
 
         # publish trajectories one by one
         # uncomment once no failure
-        # for traj in seq:
-        #     logger.info(f'Executing trajectory {traj.label}...')
-        #     await ctl.execute_trajectory(traj, speed, publish_markers=True)
-
-        logger.info('Publishing all trajectory markers...')
-        for traj in seq:
-            await ctl.publish_marker(traj)
-
         for traj in seq:
             logger.info(f'Executing trajectory {traj.label}...')
-            # markers already published for now so no need to republish here
-            await ctl.execute_trajectory(traj, speed, publish_markers=False)
+            await ctl.execute_trajectory(traj, speed, publish_markers=True)
+
+        # logger.info('Publishing all trajectory markers...')
+        # for traj in seq:
+        #     await ctl.publish_marker(traj)
+
+        # for traj in seq:
+        #     logger.info(f'Executing trajectory {traj.label}...')
+        #     # markers already published for now so no need to republish here
+        #     await ctl.execute_trajectory(traj, speed, publish_markers=False)
 
     finally:
         node.get_logger().info('Integration test finished.')
@@ -205,7 +214,7 @@ def plot_shapes() -> None:
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
 
-    rot = R.from_euler('xyz', [np.pi / 2, 0, 0], False)
+    rot = R.from_euler('xyz', [0, 0, 0], False)
 
     c = np.array([1, 2, 3])
     traj1 = get_circle_trajectory(2.0, c, rot, 30)
@@ -224,7 +233,7 @@ def plot_shapes() -> None:
 def plot_demo_seq() -> None:
     """Plot the demo sequence on a 3d plot."""
     rot = R.from_euler('xyz', [2, 3, -1])
-    start_pose = np.array([0.2, 0.2, 0.2, *rot.as_quat(True)])
+    start_pose = np.array([0.4, 0, 0.2, *rot.as_quat(True)])
     seq = get_demo_traj_sequence(start_pose)
     plot.plot_trajectory_sequence(seq, True)
     plt.show()

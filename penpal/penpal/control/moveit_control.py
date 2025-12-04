@@ -217,6 +217,12 @@ class MoveItPPControl(PPControlBase):
             self._logger.info(
                 f'Received response goal handle: {goal_handle.accepted}'
             )
+        res_msg = await goal_handle.get_result_async()
+        result = res_msg.result
+        if result.error_code.val != MoveItErrorCodes.SUCCESS:
+            self._logger.error(f'Move failed with error code: {result.error_code.val}')
+        else:
+            self._logger.info('Move execution succeeded.')
         return goal_handle
 
     async def plan_cartesian_path(
@@ -287,7 +293,7 @@ class MoveItPPControl(PPControlBase):
             resp = await self._c_execute_trajectory.send_goal_async(request)
             if resp is not None and resp.accepted:
                 res = await resp.get_result_async()
-                if res.result.error_code != MoveItErrorCodes.SUCCESS:
+                if res.result.error_code.val != MoveItErrorCodes.SUCCESS:
                     self._logger.error(
                         f'Cartesian path execution failed: {res}'
                     )
