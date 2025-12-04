@@ -278,16 +278,6 @@ class WritePlanner:
             c_bounds = (char.get_bounding_box_mm() / 1000.0) + offset[
                 np.newaxis, :
             ]
-            if c_bounds[1, 1] <= board.writeable_area[1, 1]:
-                # we can't fit this line vertically. return
-                missing_chars = cs[:i]
-                charstr = ''.join([c.char for c in missing_chars])
-                self._logger.warning(
-                    "Some characters can't fit in the writeable area. Could"
-                    f'not write: {charstr}'
-                )
-                return trajs, missing_chars
-
             if c_bounds[1, 0] >= board.writeable_area[1, 0]:
                 # insert a newline before writing this character
                 added_offset = np.array(
@@ -298,6 +288,16 @@ class WritePlanner:
                 )
                 offset += added_offset
                 c_bounds += added_offset
+
+            if c_bounds[1, 1] <= board.writeable_area[1, 1]:
+                # we can't fit this line vertically. return
+                missing_chars = cs[i:]
+                charstr = ''.join([c.char for c in missing_chars])
+                self._logger.warning(
+                    "Some characters can't fit in the writeable area. Could"
+                    f'not write: {charstr}'
+                )
+                return trajs, missing_chars
 
             data = np.zeros(shape=(char.trajectory.shape[0], 8))
             data[:, 0:2] = (char.trajectory[:, 0:2] / 1000.0) + offset
