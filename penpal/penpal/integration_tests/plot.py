@@ -34,13 +34,11 @@ def plot_trajectory_sequence(
         X = traj.data[:, 0]
         Y = traj.data[:, 1]
         Z = traj.data[:, 2]
-        ax.plot(
-            X,
-            Y,
-            Z,
-            label=traj.label if not minimal else None,
-            c='green' if minimal else None,
-        )
+        if minimal:
+            c = 'orange' if traj.label.startswith('--') else 'green'
+        else:
+            c = None
+        ax.plot(X, Y, Z, label=traj.label if not minimal else None, c=c)
         last_point = traj.data[-1]
 
         if plot_ori_arrows:
