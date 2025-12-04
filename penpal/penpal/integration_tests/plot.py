@@ -27,7 +27,7 @@ def plot_trajectory_sequence(
 
     last_point = None
     for traj in seq:
-        print(f"Plotting '{traj.label}'")
+        # print(f"Plotting '{traj.label}'")
         if last_point is not None:
             points = np.array([last_point[:3], traj.data[0][:3]])
             ax.plot(points[:, 0], points[:, 1], points[:, 2], c='black')

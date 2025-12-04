@@ -31,3 +31,16 @@ def test_traj_basic(sample_trajectory):
     segs = traj.split_with_len(3)
     print(segs)
     assert len(segs) == 4
+
+
+def test_traj_transform(sample_trajectory):
+    """Test."""
+    traj = sample_trajectory
+
+    out = traj.transform(np.array([1, 2, 3]), R.identity())
+
+    expected = traj.data + np.array([1, 2, 3, 0, 0, 0, 0, 0])
+    np.testing.assert_almost_equal(out.data, expected)
+
+    out2 = traj.transform(np.zeros(3), R.from_euler('xyz', (1, 2, 3)))
+    assert not np.allclose(out2.data, traj.data)

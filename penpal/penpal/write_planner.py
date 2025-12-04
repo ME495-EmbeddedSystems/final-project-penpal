@@ -213,7 +213,7 @@ class WritePlanner:
         # transforming each into world frame as its time comes.
         for traj in short_trajs:
             board = self.get_latest_board_info()
-            world_traj = traj.transform(-board.pos, board.ori.inv())
+            world_traj = traj.transform(board.pos, board.ori)
             await self.control.execute_trajectory(
                 world_traj, self.c.ee_velocity_m_s
             )

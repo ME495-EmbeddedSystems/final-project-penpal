@@ -55,8 +55,10 @@ class Trajectory:
             Trajectory: a new Trajectory object.
 
         """
-        locs = self.data[:, 0:3] + p[np.newaxis, :]
+        # transform the points
+        locs = rot.apply(self.data[:, 0:3]) + p[np.newaxis, :]
 
+        # transform the force/EE orientations
         # can vectorize this if speed ends up a problem.
         oris = np.empty(shape=(self.data.shape[0], 4))
         for i in range(self.data.shape[0]):

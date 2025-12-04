@@ -31,7 +31,7 @@ class MockController(PPControlBase):
         target_ee_velocity_m_s: float,
         publish_markers: bool = False,
     ) -> None:
-        print(f'Received trajectory: {traj.label}')
+        # print(f'Received trajectory: {traj.label}')
         self.trajs.append(traj)
 
     async def grip(
@@ -44,10 +44,10 @@ class MockController(PPControlBase):
 async def test_static_board() -> tuple[list[Trajectory], BoardInfo]:
     """Write some characters on a non-moving board."""
     board = BoardInfo(
-        pos=np.array([0, 0, 0]),
-        ori=R.identity(),
-        # pos=np.array([1, 2, 3], dtype=float),
-        # ori=R.from_euler('xy', (30, 60), degrees=True),
+        # pos=np.array([0, 0, 0]),
+        # ori=R.identity(),
+        pos=np.array([0.1, 0.2, 0.3], dtype=float),
+        ori=R.from_euler('x', (30), degrees=True),
         width_m=0.2,
         height_m=0.2,
         writeable_area=np.array([[0.01, -0.1], [0.19, -0.2]]),
@@ -67,23 +67,33 @@ async def test_static_board() -> tuple[list[Trajectory], BoardInfo]:
     font.add_font(roboto_path)
     font_size = 20.0
     chars = font.write_text(
-        'Hello World! My name is PenPal. :)', 'Roboto-Regular', font_size, 1.0
+        # 'Hello World! My name is PenPal. :)\nI am unwriteable',
+        'Hello World! My name is PenPal. :)',
+        'Roboto-Regular',
+        font_size,
+        1.0,
     )
-    print(chars)
-
     with patch(
         'penpal.write_planner.WritePlanner.get_latest_board_info',
         mock_board_info,
     ):
-        await writer.write_characters(
+        leftovers = await writer.write_characters(
             chars, font.c.line_spacing_factor * font_size
         )
+
+        if leftovers:
+            print(
+                'Leftover characters: ' + ''.join([c.char for c in leftovers])
+            )
 
     # now return the actual trajectories as written to the board in space.
     return control.trajs, board
 
 
 if __name__ == '__main__':
+    import signal
+
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
     try:
         trajs, board = asyncio.run(test_static_board())
         plot.plot_trajectories_and_board(trajs, board)
