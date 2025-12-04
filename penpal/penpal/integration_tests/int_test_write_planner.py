@@ -65,7 +65,7 @@ async def test_static_board() -> tuple[list[Trajectory], BoardInfo]:
     roboto_path = fonts_dir / 'Roboto-Regular.ttf'
 
     font.add_font(roboto_path)
-    chars = font.write_text('helloworld', 'Roboto-Regular', 20.0, 1.0)
+    chars = font.write_text('hello world!', 'Roboto-Regular', 20.0, 1.0)
     print(chars)
 
     with patch(

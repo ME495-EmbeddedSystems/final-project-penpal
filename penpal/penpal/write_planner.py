@@ -29,6 +29,17 @@ class Character:
         - (0, 1] = pressure, with 1 being hardest and epsilon being softest.
     """
 
+    font_size_mm: float
+    """Font size (aka max character height) in mm"""
+
+    def __post_init__(self) -> None:
+        """Post-initialization for dataclass."""
+        # input checking
+        if self.trajectory.shape[1] != 3:
+            raise ValueError(
+                f'Invalid trajectory shape {self.trajectory.shape}'
+            )
+
 
 @dataclass()
 class BoardInfo:
@@ -178,7 +189,7 @@ class WritePlanner:
 
         This means:
         - placing the text correctly on the empty space in the board
-        - inserting connecting points in the spaces between characters
+        - inserting connecting paths in the spaces between characters
         - inserting newlines where appropriate
 
         Args:

@@ -199,6 +199,7 @@ class FontTrajectory:
         font_name: str,
         font_size_mm: float,
         pen_thickness_mm: float,
+        const_speed: bool = True,
     ) -> list[Character]:
         """
         Generate trajectories for a string of text.
@@ -212,6 +213,7 @@ class FontTrajectory:
                 using add_font()
             font_size_mm (float): Height of the tallest glyphs in mm
             pen_thickness_mm (float): thickness of the pen we're using to draw.
+            const_speed (bool): if true, even out the spacing of trajectory points.
 
         """
         characters = self._text_to_characters(
@@ -220,6 +222,12 @@ class FontTrajectory:
             font_size_mm=font_size_mm,
             pen_thickness_mm=pen_thickness_mm,
         )
+        if const_speed:
+            for c in characters:
+                const_traj = self.build_flat_path_constant_speed(
+                    [c], step_mm=self.c.target_step_mm
+                )
+                c.trajectory = const_traj
         return characters
 
     def write_text_flat(
@@ -388,6 +396,7 @@ class FontTrajectory:
                     paths_mm=shifted_paths,
                     target_step_mm=self.c.target_step_mm,
                     pressure=self.c.default_pressure,
+                    font_size_mm=font_size_mm,
                     closed_paths=False,
                 )
                 characters.append(char_obj)
@@ -468,6 +477,7 @@ class FontTrajectory:
                 paths_mm=shifted_paths,
                 target_step_mm=self.c.target_step_mm,
                 pressure=self.c.default_pressure,
+                font_size_mm=font_size_mm,
                 closed_paths=not self.c.use_skeleton,  # outline: closed, skeleton: open
             )
             characters.append(char_obj)
@@ -772,7 +782,8 @@ class FontTrajectory:
         target_step_mm: float,
         closed: bool = True,
     ) -> list[tuple[float, float]]:
-        """Resample a path so that distances between successive points
+        """
+        Resample a path so that distances between successive points
         are roughly <= target_step_mm.
 
         Path is assumed to be in physical units (mm).
@@ -813,9 +824,11 @@ class FontTrajectory:
         paths_mm: list[list[tuple[float, float]]],
         target_step_mm: float,
         pressure: float,
+        font_size_mm: float,
         closed_paths: bool = True,
     ) -> Character:
-        """Convert a list of 2D paths (in mm) into a Character with Nx3 trajectory.
+        """
+        Convert a list of 2D paths (in mm) into a Character with Nx3 trajectory.
 
         For each path, we:
           - Move pen (z=0) to the first point.
@@ -850,7 +863,7 @@ class FontTrajectory:
             # Optionally we could lift the pen at the end here.
 
         traj = np.array(points, dtype=float)  # shape (N, 3)
-        return Character(char=char, trajectory=traj)
+        return Character(char=char, trajectory=traj, font_size_mm=font_size_mm)
 
     # ------------------------------------------------------------------
     # Internal helper: build one continuous, constant-speed path
