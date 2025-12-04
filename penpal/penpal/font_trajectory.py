@@ -11,7 +11,7 @@ import numpy as np
 from fontTools.ttLib import TTFont
 from fontTools.pens.basePen import BasePen
 
-from penpal.write_planner import WritePlanner, Character
+from penpal.write_planner import Character
 
 
 class PathCollectorPen(BasePen):

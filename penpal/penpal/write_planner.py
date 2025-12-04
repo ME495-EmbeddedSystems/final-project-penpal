@@ -136,7 +136,7 @@ class WritePlanner:
             data = np.zeros(shape=(char.trajectory.shape[0], 8))
             data[:, 0:2] = char.trajectory[:, 0:2]
             data[:, 3:7] = up_q[np.newaxis, :]
-            data[:, 7] = char.trajectory[:, 3] * self.c.max_force_N
+            data[:, 7] = char.trajectory[:, 2] * self.c.max_force_N
             traj = Trajectory(char.char, data)
             trajs.append(traj)
 

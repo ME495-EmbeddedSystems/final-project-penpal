@@ -2,7 +2,7 @@
 
 import asyncio
 from pathlib import Path
-from mock import Mock, MagicMock
+from mock import Mock, MagicMock, patch
 
 from rclpy.node import Node
 from scipy.spatial.transform import Rotation as R
@@ -54,7 +54,13 @@ async def test_static_board():
 
     font.add_font(roboto_path)
     chars = font.write_text('helloworld', 'Roboto-Regular', 10.0, 1.0)
-    await writer.write_characters(chars)
+    print(chars)
+
+    with patch(
+        'penpal.write_planner.WritePlanner.get_latest_board_info',
+        mock_board_info,
+    ):
+        await writer.write_characters(chars)
 
 
 if __name__ == '__main__':
