@@ -1,9 +1,11 @@
 """Base class - executes trajectories in EE space."""
 
+from __future__ import annotations
 import abc
 from dataclasses import dataclass
 
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 
 from geometry_msgs.msg import Point
 from rclpy.node import Node
@@ -16,7 +18,7 @@ class PPControlError(Exception):
     pass
 
 
-@dataclass
+@dataclass(frozen=True)
 class Trajectory:
     """Represents a trajectory of the EE through space + wrench to apply."""
 
@@ -24,7 +26,7 @@ class Trajectory:
     """human-readable label for debugging purposes."""
     data: np.ndarray
     """
-    list of points to move the EE through. Nx12 array for N trajectory waypoints.
+    list of points to move the EE through. Nx8 array for N trajectory waypoints.
     Each waypoint provides [pose, force scalar in the orientation direction],
     pose being x,y,z and orientation qx, qy, qz, qw as quaternion
     like so:
@@ -37,6 +39,66 @@ class Trajectory:
             raise PPControlError(
                 f'Incorrect shape {self.data.shape} for Trajectory.data'
             )
+
+    def transform(self, p: np.ndarray, rot: R) -> Trajectory:
+        """
+        Transform this trajectory into a different frame.
+
+        (p is applied to xyz, then R is applyed to qx qy qz qw.
+        f stays the same.)
+
+        Args:
+            p (np.ndarray): [dx, dy, dz]
+            rot: rotation object
+
+        Returns:
+            Trajectory: a new Trajectory object.
+
+        """
+        locs = self.data[:, 0:3] + p[np.newaxis, :]
+
+        # can vectorize this if speed ends up a problem.
+        oris = np.empty(shape=(self.data.shape[0], 4))
+        for i in range(self.data.shape[0]):
+            r = R.from_quat(self.data[3:7])
+            oris[i, :] = (rot * r).as_quat(True)
+
+        data = np.hstack([locs, oris, self.data[:, 7]])
+
+        return Trajectory(self.label, data)
+
+    def split_with_len(self, n_points: int) -> list[Trajectory]:
+        """
+        Split into M trajectories, such that all are n_points long.
+
+        (except the last one, which may be less)
+
+        Args:
+            n_points (int): length of each subj-traj in points.
+
+        Returns:
+            list[Trajectory]: list of new sub-trajectories
+
+        """
+        n_segments = self.data.shape[0] // n_points
+        segs = []
+        for i in range(n_segments - 1):
+            # if this is too slow, can make updating the labels optional.
+            new_label = f'{self.label}_{i}'
+            traj = Trajectory(
+                label=new_label,
+                data=self.data[n_points * i : n_points * (i + 1), :],
+            )
+            segs.append(traj)
+
+        # handle the last traj separately
+        new_label = f'{self.label}_{n_segments - 1}'
+        traj = Trajectory(
+            label=new_label, data=self.data[n_points * n_segments :, :]
+        )
+        segs.append(traj)
+
+        return segs
 
 
 class PPControlBase(abc.ABC):
@@ -162,8 +224,8 @@ class PPControlBase(abc.ABC):
 
         self._marker_pub.publish(marker)
         self._logger.debug(
-            f"Published marker id={marker.id} with {len(marker.points)} points "
-            f"on /pp_trajectories"
+            f'Published marker id={marker.id} with {len(marker.points)} points '
+            f'on /pp_trajectories'
         )
         pass
 

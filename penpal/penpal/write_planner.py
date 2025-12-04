@@ -3,9 +3,10 @@
 from dataclasses import dataclass
 
 import numpy as np
-from penpal.board_detector import BoardDetector
-from penpal.control.pp_control import PPControlBase
+from scipy.spatial.transform import Rotation as R
 from rclpy.node import Node
+
+from penpal.control.pp_control import PPControlBase, Trajectory
 
 
 @dataclass
@@ -29,15 +30,51 @@ class Character:
     """
 
 
+@dataclass
+class BoardInfo:
+    """Important info about the whiteboard for writing on it."""
+
+    pos: np.ndarray
+    """Board origin (top left corner) position [x,y,z] in world frame"""
+
+    ori: R
+    """Board orientation in world frame."""
+
+    # these shouldn't change
+    width_m: float
+    height_m: float
+
+    writeable_area: np.ndarray
+    """
+    Rectangular region available for writing, relative to the board origin.
+    [[x_tl, y_tl], [x_br, y_br]].
+    Note that in board coordinates, +x is to the right and +y is down.
+    """
+
+
 class WritePlanner:
     """Compute trajectories to write on the real board."""
 
-    def __init__(self, node: Node, controller: PPControlBase) -> None:
+    @dataclass
+    class Config:
+        """Configuration for this class."""
+
+        traj_len: int = 10
+        """Max length of trajectory to write at a time."""
+
+        ee_velocity_m_s: float = 0.02
+
+    def __init__(
+        self, node: Node, controller: PPControlBase, cfg: Config | None = None
+    ) -> None:
         """Initialize the object."""
         self.control = controller
+        self._world_frame_name = 'base'  # todo correct this if needed
+        self.c = cfg if cfg is not None else WritePlanner.Config()
+
         # TODO - subscribe to BoardDetector topics
 
-    def write_characters(self, characters: list[Character]) -> None:
+    async def write_characters(self, characters: list[Character]) -> None:
         """
         Write a list of characters to the board.
 
@@ -47,4 +84,47 @@ class WritePlanner:
             characters (list[Character]): list of characters to write.
 
         """
-        pass
+        # create a 3D plan for writing the characters in board frame.
+        trajs = self._plan_path_in_board_frame(characters)
+
+        # in order to ensure responsiveness to board pose updates,
+        # each character's trajectory is split into several to be
+        # passed into the controller.
+        short_trajs: list[Trajectory] = []
+        for traj in trajs:
+            short_trajs.extend(traj.split_with_len(self.c.traj_len))
+
+        # write the trajectories to the board,
+        # transforming each into world frame as its time comes.
+        for traj in short_trajs:
+            board = self.get_latest_board_info()
+            world_traj = traj.transform(-board.pos, board.ori.inv())
+            await self.control.execute_trajectory(
+                world_traj, self.c.ee_velocity_m_s
+            )
+
+    def _plan_path_in_board_frame(
+        self, cs: list[Character]
+    ) -> list[Trajectory]:
+        """
+        Plan a complete trajectory for the pen tip expressed in board frame.
+
+        This means:
+        - placing the text correctly on the empty space in the board
+        - inserting connecting points in the spaces between characters
+        - inserting newlines where appropriate
+
+        Args:
+            cs: list of characters to write.
+
+        Returns:
+            list[Trajectory]: ordered list of trajectories, one for
+                              each character.
+
+        """
+        raise NotImplementedError
+
+    def get_latest_board_info(self) -> BoardInfo:
+        """Return the most recently update board location + dimensions."""
+        # todo - grab this from the BoardDetector topics.
+        raise NotImplementedError

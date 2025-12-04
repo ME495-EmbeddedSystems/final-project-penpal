@@ -493,7 +493,8 @@ class FontTrajectory:
         char: str,
         steps_per_curve: int = 20,
     ) -> list[list[tuple[float, float]]]:
-        """Return a list of polylines for one character.
+        """
+        Return a list of polylines for one character.
 
         Each polyline is a list of (x, y) in normalized font units
         (i.e., divided by unitsPerEm).
@@ -529,7 +530,8 @@ class FontTrajectory:
         char: str,
         steps_per_curve: int = 20,
     ) -> list[list[tuple[float, float]]]:
-        """Approximate single-stroke (skeleton) paths for a glyph.
+        """
+        Approximate single-stroke (skeleton) paths for a glyph.
 
         Strategy:
           - Get outline polylines in normalized coords.
@@ -540,7 +542,6 @@ class FontTrajectory:
               * map strokes back to normalized coords.
           - For all other characters, just return the outline paths.
         """
-
         # ---------- 0) Outline ----------
         outline_paths = self._glyph_to_paths(
             font, char, steps_per_curve=steps_per_curve
@@ -864,7 +865,8 @@ class FontTrajectory:
         characters: list[Character],
         step_mm: float | None = None,
     ) -> np.ndarray:
-        """Flatten a list of Character trajectories into a single path.
+        """
+        Flatten a list of Character trajectories into a single path.
 
         The returned array has shape (N, 3) with columns [x_mm, y_mm, z],
         where z = 0 means pen up and z > 0 means pen down. The spacing in
