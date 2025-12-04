@@ -213,7 +213,10 @@ class WritePlanner:
         return leftovers
 
     def _plan_path_in_board_frame(
-        self, cs: list[Character], line_spacing_mm: float
+        self,
+        cs: list[Character],
+        line_spacing_mm: float,
+        padding_mm: float = 2.0,
     ) -> tuple[list[Trajectory], list[Character]]:
         """
         Plan a complete trajectory for the pen tip expressed in board frame.
@@ -226,6 +229,7 @@ class WritePlanner:
         Args:
             cs: list of characters to write.
             line_spacing_mm: space to insert between each newline
+            padding_mm: padding within the bounding box, css style
 
         Returns:
             list[Trajectory]: ordered list of trajectories, one for
@@ -247,15 +251,20 @@ class WritePlanner:
         board = self.get_latest_board_info()
         font_height = max([c.font_size_mm for c in cs]) / 1000.0
         line_spacing = line_spacing_mm / 1000.0
+        padding = padding_mm / 1000.0
 
         # the pen points directly down into the board at all times.
         up_ori = R.from_euler('xyz', [0, np.pi / 2, 0])
         up_q = up_ori.as_quat(True)
 
-        # maintain an offset for if/when we run out of space
-        # so we can use it to create a newline
-        newline_offset = np.array([0.0, -(font_height + line_spacing)])
+        # maintain an offset for factoring in the writing area +
+        # if/when we run out of space so we can use it to create a newline
         c_bounds = cs[0].get_bounding_box_mm() / 1000.0
+        offset = (
+            np.array([padding, -(padding + font_height)])
+            + board.writeable_area[0, :]
+        )
+        newline_start_x = offset[0]
         add_newline = False
 
         for i, char in enumerate(cs):
@@ -263,18 +272,21 @@ class WritePlanner:
             # let's just calculate the bounding box for every character.
             # there's less expensive ways to do this but this is an
             # easy first pass.
-            c_bounds = (char.get_bounding_box_mm() / 1000.0) + newline_offset[
+            c_bounds = (char.get_bounding_box_mm() / 1000.0) + offset[
                 np.newaxis, :
             ]
             if add_newline:
                 added_offset = np.array(
-                    [-c_bounds[0, 0], -(font_height + line_spacing)]
+                    [
+                        -(c_bounds[0, 0] - newline_start_x),
+                        -(font_height + line_spacing),
+                    ]
                 )
-                newline_offset += added_offset
+                offset += added_offset
                 c_bounds += added_offset
                 add_newline = False
 
-            if c_bounds[1, 0] > board.writeable_area[1, 0]:
+            if c_bounds[1, 1] <= board.writeable_area[1, 1]:
                 # we can't fit this line vertically. return
                 missing_chars = cs[:i]
                 charstr = ''.join([c.char for c in missing_chars])
@@ -284,12 +296,12 @@ class WritePlanner:
                 )
                 return trajs, missing_chars
 
-            if c_bounds[1, 1] > board.writeable_area[1, 1]:
+            if c_bounds[1, 0] >= board.writeable_area[1, 0]:
                 # insert a newline before the next character
                 add_newline = True
 
             data = np.zeros(shape=(char.trajectory.shape[0], 8))
-            data[:, 0:2] = (char.trajectory[:, 0:2] / 1000.0) + newline_offset
+            data[:, 0:2] = (char.trajectory[:, 0:2] / 1000.0) + offset
             data[:, 3:7] = up_q[np.newaxis, :]
             data[:, 7] = char.trajectory[:, 2] * self.c.max_force_N
             traj = Trajectory(char.char, data)

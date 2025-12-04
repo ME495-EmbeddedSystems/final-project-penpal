@@ -5,7 +5,7 @@ from scipy.spatial.transform import Rotation as R
 from penpal.write_planner import BoardInfo, Character
 
 
-def test_board_info_simple() -> None:
+def test_board_info_basic() -> None:
     """Quick unit test for essential BoardInfo functionality."""
     board = BoardInfo(
         pos=np.array([0, 0, 0], dtype=float),
