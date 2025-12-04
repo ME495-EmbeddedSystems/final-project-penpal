@@ -40,6 +40,23 @@ class Character:
                 f'Invalid trajectory shape {self.trajectory.shape}'
             )
 
+    def get_bounding_box_mm(self) -> np.ndarray:
+        """
+        Return the bounding rectangle around the character in mm.
+
+        Note: somewhat expensive to calculate. get from font_trajectory if this is
+        too slow for you.
+
+        Returns:
+            np.ndarray: [TL, BR] where each is [x, y]
+
+        """
+        xmax, ymax = self.trajectory[:, :2].max(axis=0)
+        xmin, ymin = self.trajectory[:, :2].min(axis=0)
+        TL = [xmin, ymax]
+        BR = [xmax, ymin]
+        return np.array([TL, BR])
+
 
 @dataclass()
 class BoardInfo:
@@ -59,7 +76,7 @@ class BoardInfo:
     """
     Rectangular region available for writing, relative to the board origin.
     [[x_tl, y_tl], [x_br, y_br]].
-    Note that in board coordinates, +x is to the right and -y is down.
+    Note that board coordinates are in R2 with +x = right, -y = down
     """
 
     T_sb: np.ndarray = field(init=False)
@@ -149,10 +166,15 @@ class WritePlanner:
         self._world_frame_name = 'base'  # todo correct this if needed
         self.c = cfg if cfg is not None else WritePlanner.Config()
         self._node = node
+        self._logger = node.get_logger().get_child('WritePlanner')
 
         # TODO - subscribe to BoardDetector topics
 
-    async def write_characters(self, characters: list[Character]) -> None:
+    async def write_characters(
+        self,
+        characters: list[Character],
+        line_spacing_mm: float,
+    ) -> list[Character]:
         """
         Write a list of characters to the board.
 
@@ -160,10 +182,17 @@ class WritePlanner:
 
         Args:
             characters (list[Character]): list of characters to write.
+            line_spacing_mm (float): space to insert between lines in millimeters
+
+        Returns:
+            list[Character]: characters which did not get written due
+                to running out of room, if any.
 
         """
         # create a 3D plan for writing the characters in board frame.
-        trajs = self._plan_path_in_board_frame(characters)
+        trajs, leftovers = self._plan_path_in_board_frame(
+            characters, line_spacing_mm
+        )
 
         # in order to ensure responsiveness to board pose updates,
         # each character's trajectory is split into several to be
@@ -181,9 +210,11 @@ class WritePlanner:
                 world_traj, self.c.ee_velocity_m_s
             )
 
+        return leftovers
+
     def _plan_path_in_board_frame(
-        self, cs: list[Character]
-    ) -> list[Trajectory]:
+        self, cs: list[Character], line_spacing_mm: float
+    ) -> tuple[list[Trajectory], list[Character]]:
         """
         Plan a complete trajectory for the pen tip expressed in board frame.
 
@@ -194,29 +225,77 @@ class WritePlanner:
 
         Args:
             cs: list of characters to write.
+            line_spacing_mm: space to insert between each newline
 
         Returns:
             list[Trajectory]: ordered list of trajectories, one for
-                              each character.
+                each character.
+            list[Character]: list of characters that weren't written
+                due to running out of vertical room (if any).
 
         """
-        # todo actually implement this
-        # for now, to get the integration test running, just return
-        # the character trajectories unmodified
-
         trajs = []
-        upright = R.from_euler('xyz', [0, np.pi / 2, 0])
-        up_q = upright.as_quat(True)
 
-        for char in cs:
+        if len(cs) == 0:
+            return trajs, []
+
+        # Note: Character object trajectories are expressed in mm,
+        # so we must keep that unit conversion in mind here.
+
+        # we assume that the dimensions + writeable area of the
+        # board remain unchanged while we write.
+        board = self.get_latest_board_info()
+        font_height = max([c.font_size_mm for c in cs]) / 1000.0
+        line_spacing = line_spacing_mm / 1000.0
+
+        # the pen points directly down into the board at all times.
+        up_ori = R.from_euler('xyz', [0, np.pi / 2, 0])
+        up_q = up_ori.as_quat(True)
+
+        # maintain an offset for if/when we run out of space
+        # so we can use it to create a newline
+        newline_offset = np.array([0.0, -(font_height + line_spacing)])
+        c_bounds = cs[0].get_bounding_box_mm() / 1000.0
+        add_newline = False
+
+        for i, char in enumerate(cs):
+            # for now, until this is proven to be too slow,
+            # let's just calculate the bounding box for every character.
+            # there's less expensive ways to do this but this is an
+            # easy first pass.
+            c_bounds = (char.get_bounding_box_mm() / 1000.0) + newline_offset[
+                np.newaxis, :
+            ]
+            if add_newline:
+                added_offset = np.array(
+                    [-c_bounds[0, 0], -(font_height + line_spacing)]
+                )
+                newline_offset += added_offset
+                c_bounds += added_offset
+                add_newline = False
+
+            if c_bounds[1, 0] > board.writeable_area[1, 0]:
+                # we can't fit this line vertically. return
+                missing_chars = cs[:i]
+                charstr = ''.join([c.char for c in missing_chars])
+                self._logger.warning(
+                    "Some characters can't fit in the writeable area. Could"
+                    f'not write: {charstr}'
+                )
+                return trajs, missing_chars
+
+            if c_bounds[1, 1] > board.writeable_area[1, 1]:
+                # insert a newline before the next character
+                add_newline = True
+
             data = np.zeros(shape=(char.trajectory.shape[0], 8))
-            data[:, 0:2] = char.trajectory[:, 0:2] / 1000.0
+            data[:, 0:2] = (char.trajectory[:, 0:2] / 1000.0) + newline_offset
             data[:, 3:7] = up_q[np.newaxis, :]
             data[:, 7] = char.trajectory[:, 2] * self.c.max_force_N
             traj = Trajectory(char.char, data)
             trajs.append(traj)
 
-        return trajs
+        return trajs, []
 
     def get_latest_board_info(self) -> BoardInfo:
         """Return the most recently update board location + dimensions."""

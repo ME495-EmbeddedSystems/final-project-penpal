@@ -65,14 +65,17 @@ async def test_static_board() -> tuple[list[Trajectory], BoardInfo]:
     roboto_path = fonts_dir / 'Roboto-Regular.ttf'
 
     font.add_font(roboto_path)
-    chars = font.write_text('hello world!', 'Roboto-Regular', 20.0, 1.0)
+    font_size = 20.0
+    chars = font.write_text('hello world!', 'Roboto-Regular', font_size, 1.0)
     print(chars)
 
     with patch(
         'penpal.write_planner.WritePlanner.get_latest_board_info',
         mock_board_info,
     ):
-        await writer.write_characters(chars)
+        await writer.write_characters(
+            chars, font.c.line_spacing_factor * font_size
+        )
 
     # now return the actual trajectories as written to the board in space.
     return control.trajs, board
