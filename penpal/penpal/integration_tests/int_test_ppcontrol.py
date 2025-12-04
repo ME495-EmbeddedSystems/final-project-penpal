@@ -172,25 +172,38 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
 
     # Spawn and grab pen
     await ctl.add_fixed_pen()
+    logger.info('Robot approaching the pen.')
     pen_pose = np.array([0.5, 0.3, 0.191])
-    pen_rot = R.from_euler('xyz', [180, -90, 0], degrees=True)
+    pen_rot = R.from_euler('xyz', [180, 0, 0], degrees=True)
     pen_ori = pen_rot.as_quat()
-
-    approach_vector = pen_rot.apply([0, 0, -0.1])
-    pre_grasp_pos = pen_pose + approach_vector
-    await ctl.move_to_ee_pose(pre_grasp_pos, pen_ori)
-    await ctl.grip(0.03)
-
-    point_data = np.hstack([pen_pose, pen_ori, np.array([0])])
-    traj_approach = Trajectory('pen_grab', point_data.reshape(1, 8))
-    await ctl._execute_trajectory(traj_approach, 0.01)
-    await ctl.grip(0.01)
-    await ctl.attach_pen()
-
-    lift_pos = pen_pose + np.array([0, 0, 0.05])
-    await ctl.move_to_ee_pose(lift_pos, pen_ori)
+    pre_grasp_pos = pen_pose + np.array([0, 0, 0.10])
 
     try:
+        wait_t = 5.0
+        logger.info(f'Waiting {wait_t} seconds...')
+        await asyncio.sleep(wait_t)
+        logger.info('Starting pen grabbing...')
+        await ctl.configure()
+
+        logger.info('Robot moving to pre grasp position.')
+        goal = await ctl.move_to_ee_pose(pre_grasp_pos,
+                                         pen_ori,
+                                         execute_immediately=True)
+        res = await goal.get_result_async()
+        if res.result.error_code.val != 1:
+            return
+
+        await ctl.grip(0.03)
+
+        point_data = np.hstack([pen_pose, pen_ori, np.array([0])])
+        traj_approach = Trajectory('pen_grab', point_data.reshape(1, 8))
+        await ctl._execute_trajectory(traj_approach, 0.01)
+        await ctl.grip(0.01)
+        await ctl.attach_pen()
+
+        lift_pos = pen_pose + np.array([0, 0, 0.05])
+        await ctl.move_to_ee_pose(lift_pos, pen_ori)
+
         wait_t = 10.0
         logger.info(f'Waiting {wait_t} seconds...')
         await asyncio.sleep(wait_t)

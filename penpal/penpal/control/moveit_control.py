@@ -320,7 +320,10 @@ class MoveItPPControl(PPControlBase):
         pen_pose.position.x = 0.5
         pen_pose.position.y = 0.3
         pen_pose.position.z = 0.191
-        pen_pose.orientation.w = 1.0
+        pen_pose.orientation.x = 0.0
+        pen_pose.orientation.y = 0.7071068
+        pen_pose.orientation.z = 0.0
+        pen_pose.orientation.w = 0.7071068
         pen.primitives.append(cylinder)
         pen.primitive_poses.append(pen_pose)
         pen.operation = CollisionObject.ADD
@@ -364,12 +367,12 @@ class MoveItPPControl(PPControlBase):
         if joints is None:
             robotstate.joint_state.position = [
                 0.0,
+                -0.7853981633974483,
                 0.0,
+                -2.356194490192345,
                 0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
+                1.5707963267948966,
+                0.7853981633974483,
             ]
         else:
             robotstate.joint_state.position = [float(j) for j in joints]
