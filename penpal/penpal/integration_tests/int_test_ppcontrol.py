@@ -32,7 +32,8 @@ def traj_from_points(
 
     points = rot.apply(points) + center
     down = R.from_euler('xyz', [0, 0, -np.pi / 2])
-    ori = R.from_matrix(rot.as_matrix() @ down.as_matrix())
+    forward = R.from_euler('xyz', [np.pi / 2, 0, 0])
+    ori = R.from_matrix(rot.as_matrix() @ forward.as_matrix())
     ori_quat = ori.as_quat(True)
     # ori_quat = down.as_quat(True)
 
@@ -171,6 +172,7 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
 
     # Spawn and grab pen
     await ctl.add_fixed_pen()
+    #await ctl.add_demo_board()
     logger.info('Robot approaching the pen.')
     pen_pose = np.array([0.5, 0.3, 0.191])
     pen_rot = R.from_euler('xyz', [180, 0, 0], degrees=True)
