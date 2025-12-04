@@ -44,11 +44,13 @@ class MockController(PPControlBase):
 async def test_static_board() -> tuple[list[Trajectory], BoardInfo]:
     """Write some characters on a non-moving board."""
     board = BoardInfo(
-        pos=np.array([0, 0, 0], dtype=float),
+        pos=np.array([0, 0, 0]),
         ori=R.identity(),
+        # pos=np.array([1, 2, 3], dtype=float),
+        # ori=R.from_euler('xy', (30, 60), degrees=True),
         width_m=0.2,
         height_m=0.2,
-        writeable_area=np.array([[0, 0], [0.2, -0.2]]),
+        writeable_area=np.array([[0.01, -0.1], [0.19, -0.2]]),
     )
 
     def mock_board_info(o: WritePlanner) -> BoardInfo:
@@ -63,7 +65,7 @@ async def test_static_board() -> tuple[list[Trajectory], BoardInfo]:
     roboto_path = fonts_dir / 'Roboto-Regular.ttf'
 
     font.add_font(roboto_path)
-    chars = font.write_text('helloworld', 'Roboto-Regular', 10.0, 1.0)
+    chars = font.write_text('helloworld', 'Roboto-Regular', 20.0, 1.0)
     print(chars)
 
     with patch(
