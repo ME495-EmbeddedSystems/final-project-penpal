@@ -132,7 +132,6 @@ class PPControlBase(abc.ABC):
         self,
         traj: Trajectory,
         target_ee_velocity_m_s: float,
-        publish_markers: bool = False,
     ) -> None:
         """
         Move the EE through a trajectory.
@@ -164,9 +163,7 @@ class PPControlBase(abc.ABC):
         if publish_markers:
             self._logger.info('Publishing debug markers...')
             await self.publish_marker(traj)
-        return await self._execute_trajectory(
-            traj, target_ee_velocity_m_s, publish_markers
-        )
+        return await self._execute_trajectory(traj, target_ee_velocity_m_s)
 
     @abc.abstractmethod
     async def grip(

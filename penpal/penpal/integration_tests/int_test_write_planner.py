@@ -1,14 +1,64 @@
 """Integration tests for bringing up the write planner."""
 
+import asyncio
+from pathlib import Path
+from mock import Mock, MagicMock
+
+from rclpy.node import Node
+from scipy.spatial.transform import Rotation as R
+import numpy as np
+
 from penpal.integration_tests import plot
-from write_planner import WritePlanner, Character
-from font_trajectory import FontTrajectory
+from penpal.write_planner import BoardInfo, WritePlanner, Character
+from penpal.font_trajectory import FontTrajectory
+from penpal.control.pp_control import PPControlBase
 
 
-def test_static_board():
+class MockController(PPControlBase):
+    """Controller mock for testing purposes."""
+
+    async def _execute_trajectory(
+        self,
+        traj: plot.Trajectory,
+        target_ee_velocity_m_s: float,
+        publish_markers: bool = False,
+    ) -> None:
+        print(f'Received trajectory: {traj.label}')
+
+    async def grip(
+        self, offset_m: float, grip_force_N: float | None = None
+    ) -> None:
+        """Grip mock."""
+        pass
+
+
+async def test_static_board():
     """Write some characters on a non-moving board."""
-    pass
+
+    def mock_board_info(o: WritePlanner) -> BoardInfo:
+        return BoardInfo(
+            pos=np.array([0, 0, 0], dtype=float),
+            ori=R.identity(),
+            width_m=0.2,
+            height_m=0.2,
+            writeable_area=np.array([[0, 0], [0.2, 0.2]]),
+        )
+
+    node = MagicMock(Node)
+    control = MockController(node)
+    writer = WritePlanner(node, control)
+    font = FontTrajectory()
+
+    fonts_dir = Path(__file__).parents[3] / 'fonts/'
+    roboto_path = fonts_dir / 'Roboto-Regular.ttf'
+
+    font.add_font(roboto_path)
+    chars = font.write_text('helloworld', 'Roboto-Regular', 10.0, 1.0)
+    await writer.write_characters(chars)
 
 
 if __name__ == '__main__':
-    test_static_board()
+    try:
+        asyncio.run(test_static_board())
+    finally:
+        print('Test complete.')

@@ -77,7 +77,8 @@ class PathCollectorPen(BasePen):
 
 
 class FontTrajectory:
-    """Generates 2D trajectories + pressure given font & text.
+    """
+    Generates 2D trajectories + pressure given font & text.
 
     Supports two font types:
     - TTF/OTF fonts via add_font()
@@ -141,11 +142,8 @@ class FontTrajectory:
         # Rasterized image size used for skeletonization.
         skeleton_img_size: int = 256
 
-    def __init__(
-        self, writer: WritePlanner, cfg: Config | None = None
-    ) -> None:
+    def __init__(self, cfg: Config | None = None) -> None:
         """Initialize the object."""
-        self._writer = writer
         self.c = cfg if cfg is not None else self.Config()
         # Loaded fonts: key is font_name, value is TTFont object.
         self._fonts: Dict[str, TTFont] = {}
@@ -201,12 +199,12 @@ class FontTrajectory:
         font_name: str,
         font_size_mm: float,
         pen_thickness_mm: float,
-    ) -> None:
+    ) -> list[Character]:
         """
-        Generate trajectories for a string of text and send them to WritePlanner.
+        Generate trajectories for a string of text.
 
         This preserves the original public API: it creates a list of Character
-        objects and calls self._writer.write_characters(characters).
+        objects
 
         Args:
             text (str): text string to generate.
@@ -222,9 +220,7 @@ class FontTrajectory:
             font_size_mm=font_size_mm,
             pen_thickness_mm=pen_thickness_mm,
         )
-
-        if characters:
-            self._writer.write_characters(characters)
+        return characters
 
     def write_text_flat(
         self,

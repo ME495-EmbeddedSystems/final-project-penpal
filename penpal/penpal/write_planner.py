@@ -72,6 +72,7 @@ class WritePlanner:
         self.control = controller
         self._world_frame_name = 'base'  # todo correct this if needed
         self.c = cfg if cfg is not None else WritePlanner.Config()
+        self._node = node
 
         # TODO - subscribe to BoardDetector topics
 
