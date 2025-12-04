@@ -60,10 +60,11 @@ class Trajectory:
         # can vectorize this if speed ends up a problem.
         oris = np.empty(shape=(self.data.shape[0], 4))
         for i in range(self.data.shape[0]):
-            r = R.from_quat(self.data[3:7])
+            r = R.from_quat(self.data[i, 3:7])
             oris[i, :] = (rot * r).as_quat(True)
 
-        data = np.hstack([locs, oris, self.data[:, 7]])
+        fs = self.data[:, 7].reshape(-1, 1)
+        data = np.hstack([locs, oris, fs])
 
         return Trajectory(self.label, data)
 
@@ -82,7 +83,7 @@ class Trajectory:
         """
         n_segments = self.data.shape[0] // n_points
         segs = []
-        for i in range(n_segments - 1):
+        for i in range(n_segments):
             # if this is too slow, can make updating the labels optional.
             new_label = f'{self.label}_{i}'
             traj = Trajectory(
@@ -92,11 +93,12 @@ class Trajectory:
             segs.append(traj)
 
         # handle the last traj separately
-        new_label = f'{self.label}_{n_segments - 1}'
-        traj = Trajectory(
-            label=new_label, data=self.data[n_points * n_segments :, :]
-        )
-        segs.append(traj)
+        if self.data.shape[0] % n_points != 0:
+            new_label = f'{self.label}_{n_segments - 1}'
+            traj = Trajectory(
+                label=new_label, data=self.data[n_points * n_segments :, :]
+            )
+            segs.append(traj)
 
         return segs
 
