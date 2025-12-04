@@ -265,7 +265,6 @@ class WritePlanner:
             + board.writeable_area[0, :]
         )
         newline_start_x = offset[0]
-        add_newline = False
 
         for i, char in enumerate(cs):
             # for now, until this is proven to be too slow,
@@ -275,17 +274,6 @@ class WritePlanner:
             c_bounds = (char.get_bounding_box_mm() / 1000.0) + offset[
                 np.newaxis, :
             ]
-            if add_newline:
-                added_offset = np.array(
-                    [
-                        -(c_bounds[0, 0] - newline_start_x),
-                        -(font_height + line_spacing),
-                    ]
-                )
-                offset += added_offset
-                c_bounds += added_offset
-                add_newline = False
-
             if c_bounds[1, 1] <= board.writeable_area[1, 1]:
                 # we can't fit this line vertically. return
                 missing_chars = cs[:i]
@@ -297,8 +285,15 @@ class WritePlanner:
                 return trajs, missing_chars
 
             if c_bounds[1, 0] >= board.writeable_area[1, 0]:
-                # insert a newline before the next character
-                add_newline = True
+                # insert a newline before writing this character
+                added_offset = np.array(
+                    [
+                        -(c_bounds[0, 0] - newline_start_x),
+                        -(font_height + line_spacing),
+                    ]
+                )
+                offset += added_offset
+                c_bounds += added_offset
 
             data = np.zeros(shape=(char.trajectory.shape[0], 8))
             data[:, 0:2] = (char.trajectory[:, 0:2] / 1000.0) + offset
