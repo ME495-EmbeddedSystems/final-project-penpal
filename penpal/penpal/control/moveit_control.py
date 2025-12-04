@@ -1,4 +1,5 @@
 """Controller implementation using MoveIt. Lacks force control."""
+import asyncio
 
 from geometry_msgs.msg import Pose, Quaternion
 
@@ -15,9 +16,12 @@ from moveit_msgs.msg import (
     RobotState,
     AttachedCollisionObject,
     CollisionObject,
+    ObjectColor,
 )
 from moveit_msgs.msg import PlanningScene as PS
 from moveit_msgs.srv import GetCartesianPath
+
+from std_msgs.msg import ColorRGBA
 
 import numpy as np
 
@@ -332,6 +336,11 @@ class MoveItPPControl(PPControlBase):
         scene_msg = PS()
         scene_msg.world.collision_objects.append(pen)
         scene_msg.is_diff = True
+        color_msg = ObjectColor()
+        color_msg.id = 'pen'
+        color_msg.color = ColorRGBA(r=1.0, g=1.0, b=1.0, a=1.0)
+        scene_msg.object_colors.append(color_msg)
+        await asyncio.sleep(1.0)
         self._scene_pub.publish(scene_msg)
         self._logger.info('Pen in planning scene.')
 

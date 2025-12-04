@@ -1,23 +1,22 @@
-"""
-Integration test node for developing PP control.
-"""
+"""Integration test node for developing PP control."""
 
 import asyncio
-import threading
 import signal
+import threading
 
-import numpy as np
-from scipy.spatial.transform import Rotation as R
 import matplotlib.pyplot as plt
 
+import numpy as np
 
 import rclpy
-from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
+from rclpy.node import Node
 
-from penpal.control import position_control, moveit_control, pp_control
+from penpal.control import moveit_control, position_control, pp_control
 from penpal.control.pp_control import Trajectory
 from penpal.integration_tests import plot
+
+from scipy.spatial.transform import Rotation as R
 
 
 def traj_from_points(
@@ -213,13 +212,13 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
         speed = 0.05
         rot = R.from_euler('xyz', [180, 0, 0], degrees=True)
         start_pose = np.array([0.4, -0.025, 0.191, *rot.as_quat(True)])
-        node.get_logger().info("Moving to start position...")
+        node.get_logger().info('Moving to start position')
         goal_handle = await ctl.move_to_ee_pose(goal_ee_position=start_pose[:3],
                                                 goal_ee_orientation=start_pose[3:],
                                                 execute_immediately=True)
         res = await goal_handle.get_result_async()
-        if res.result.error_code.val != 1: # 1 is SUCCESS in MoveIt
-            node.get_logger().error(f"CRITICAL: Failed to reach start position! Error: {res.result.error_code.val}")
+        if res.result.error_code.val != 1:
+            node.get_logger().error(f'Failed, Error: {res.result.error_code.val}')
             return
 
         seq = get_demo_traj_sequence(start_pose)
