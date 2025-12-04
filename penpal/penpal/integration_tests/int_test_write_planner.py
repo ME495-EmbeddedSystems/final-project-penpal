@@ -2,6 +2,7 @@
 
 import asyncio
 from pathlib import Path
+from matplotlib import pyplot as plt
 from mock import Mock, MagicMock, patch
 
 from rclpy.node import Node
@@ -11,11 +12,18 @@ import numpy as np
 from penpal.integration_tests import plot
 from penpal.write_planner import BoardInfo, WritePlanner, Character
 from penpal.font_trajectory import FontTrajectory
-from penpal.control.pp_control import PPControlBase
+from penpal.control.pp_control import PPControlBase, Trajectory
 
 
 class MockController(PPControlBase):
     """Controller mock for testing purposes."""
+
+    def __init__(
+        self, node: Node, cfg: PPControlBase.Config | None = None
+    ) -> None:
+        super().__init__(node, cfg)
+
+        self.trajs = []
 
     async def _execute_trajectory(
         self,
@@ -24,6 +32,7 @@ class MockController(PPControlBase):
         publish_markers: bool = False,
     ) -> None:
         print(f'Received trajectory: {traj.label}')
+        self.trajs.append(traj)
 
     async def grip(
         self, offset_m: float, grip_force_N: float | None = None
@@ -32,7 +41,7 @@ class MockController(PPControlBase):
         pass
 
 
-async def test_static_board():
+async def test_static_board() -> list[Trajectory]:
     """Write some characters on a non-moving board."""
 
     def mock_board_info(o: WritePlanner) -> BoardInfo:
@@ -62,9 +71,14 @@ async def test_static_board():
     ):
         await writer.write_characters(chars)
 
+    # now return the actual trajectories as written to the board in space.
+    return control.trajs
+
 
 if __name__ == '__main__':
     try:
-        asyncio.run(test_static_board())
+        trajs = asyncio.run(test_static_board())
+        plot.plot_trajectory_sequence(trajs)
+        plt.show()
     finally:
         print('Test complete.')
