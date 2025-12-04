@@ -148,15 +148,23 @@ class BoardInfo:
 class WritePlanner:
     """Compute trajectories to write on the real board."""
 
+    DOWN_Q = R.from_euler('xyz', [0, np.pi / 2, 0]).as_quat(True)
+    """Quaternion orientation pointing straight down."""
+
     @dataclass
     class Config:
         """Configuration for this class."""
 
         traj_len: int = 10
         """Max length of trajectory to write at a time."""
-
         ee_velocity_m_s: float = 0.02
+        """End-effector forward velocity while writing."""
         max_force_N: float = 1.0
+        """Maximum pressure to apply into the board."""
+        off_board_height_m: float = 0.03
+        """Distance to lift the pen off the board when moving between chars."""
+        pen_lift_thresh_N: float = 1e-4
+        """Force threshold below which the pen is lifted off the board."""
 
     def __init__(
         self, node: Node, controller: PPControlBase, cfg: Config | None = None
@@ -253,10 +261,6 @@ class WritePlanner:
         line_spacing = line_spacing_mm / 1000.0
         padding = padding_mm / 1000.0
 
-        # the pen points directly down into the board at all times.
-        up_ori = R.from_euler('xyz', [0, np.pi / 2, 0])
-        up_q = up_ori.as_quat(True)
-
         # maintain an offset for factoring in the writing area +
         # if/when we run out of space so we can use it to create a newline
         c_bounds = cs[0].get_bounding_box_mm() / 1000.0
@@ -297,12 +301,58 @@ class WritePlanner:
 
             data = np.zeros(shape=(char.trajectory.shape[0], 8))
             data[:, 0:2] = (char.trajectory[:, 0:2] / 1000.0) + offset
-            data[:, 3:7] = up_q[np.newaxis, :]
+            data[:, 3:7] = self.DOWN_Q[np.newaxis, :]
             data[:, 7] = char.trajectory[:, 2] * self.c.max_force_N
             traj = Trajectory(char.char, data)
             trajs.append(traj)
 
-        return trajs, []
+        return self._insert_pen_lifts(trajs), []
+
+    def _insert_pen_lifts(self, trajs: list[Trajectory]) -> list[Trajectory]:
+        """
+        Handle lifting the pen off the board.
+
+        We do this by inserting filler trajectories between letters,
+        AND lifting any points inside of characters where force=0
+        off the board. (to handle unconnected characters like "i")
+        """
+        if len(trajs) == 0:
+            return []
+
+        # doing 2 separate loops for simplicity
+        # lift pen for any zero-force regions
+        for c_traj in trajs:
+            lift_start_i = 0
+            lifted = False
+            for i in range(c_traj.data.shape[0]):
+                if c_traj.data[i, 7] <= self.c.pen_lift_thresh_N:
+                    if not lifted:
+                        lift_start_i = i
+                        lifted = True
+                else:
+                    if lifted:
+                        # lift up the pen for this region
+                        c_traj.data[lift_start_i:i, 2] = (
+                            self.c.off_board_height_m
+                        )
+                        c_traj.data[lift_start_i:i, 7] = 0.0
+                        lifted = False
+
+        # add connecting trajectories
+        out = []
+        for i in range(len(trajs) - 1):
+            start = trajs[i].data[-1, :].copy()
+            end = trajs[i + 1].data[0, :].copy()
+            start[2] = self.c.off_board_height_m
+            end[2] = self.c.off_board_height_m
+
+            connector = Trajectory(label='--', data=np.array([start, end]))
+            out.append(trajs[i])
+            out.append(connector)
+
+        # add the last trajectory
+        out.append(trajs[-1])
+        return out
 
     def get_latest_board_info(self) -> BoardInfo:
         """Return the most recently update board location + dimensions."""
