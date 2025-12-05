@@ -6,25 +6,39 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 from penpal.control.pp_control import Trajectory
+from penpal.write_planner import BoardInfo
 
 
 def plot_trajectory_sequence(
-    seq: list[Trajectory], plot_ori_arrows: bool = False
+    seq: list[Trajectory],
+    plot_ori_arrows: bool = False,
+    ax: Axes3D | None = None,  # type: ignore
+    minimal: bool = False,
 ) -> None:
-    """Plot a sequence of trajectories on the same 3d plot."""
-    fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
+    """
+    Plot a sequence of trajectories on the same 3d plot.
+
+    If "minimal" is given, remove labels + extra dots + align axes.
+    """
+    if ax is None:
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='3d')
+    ax: Axes3D  # type: ignore
 
     last_point = None
     for traj in seq:
-        print(f"Plotting '{traj.label}'")
+        # print(f"Plotting '{traj.label}'")
         if last_point is not None:
             points = np.array([last_point[:3], traj.data[0][:3]])
             ax.plot(points[:, 0], points[:, 1], points[:, 2], c='black')
         X = traj.data[:, 0]
         Y = traj.data[:, 1]
         Z = traj.data[:, 2]
-        ax.plot(X, Y, Z, label=traj.label)
+        if minimal:
+            c = 'orange' if traj.label.startswith('--') else 'green'
+        else:
+            c = None
+        ax.plot(X, Y, Z, label=traj.label if not minimal else None, c=c)
         last_point = traj.data[-1]
 
         if plot_ori_arrows:
@@ -33,31 +47,70 @@ def plot_trajectory_sequence(
             U = euler[:, 0]
             V = euler[:, 1]
             W = euler[:, 2]
-            ax.quiver(X, Y, Z, U, V, W, length=0.01)
+            if minimal:
+                # only show 1 arrow
+                U = U[:1]
+                V = V[:1]
+                W = W[:1]
+            ax.quiver(X, Y, Z, U, V, W, length=0.01, linewidth=0.1)
 
         # plot green & red dots for start & end, respectively
-        ax.scatter(
-            [traj.data[0, 0]],
-            [traj.data[0, 1]],
-            [traj.data[0, 2]],
-            c='green',
-            marker='o',
-            s=20,
-        )
-        ax.scatter(
-            [traj.data[-1, 0]],
-            [traj.data[-1, 1]],
-            [traj.data[-1, 2]],
-            c='red',
-            marker='o',
-            s=20,
-        )
+        if not minimal:
+            ax.scatter(
+                [traj.data[0, 0]],
+                [traj.data[0, 1]],
+                [traj.data[0, 2]],
+                c='green',
+                marker='o',
+                s=20,
+            )
+            ax.scatter(
+                [traj.data[-1, 0]],
+                [traj.data[-1, 1]],
+                [traj.data[-1, 2]],
+                c='red',
+                marker='o',
+                s=20,
+            )
 
-    set_axes_equal(ax)
+    if not minimal:
+        set_axes_equal(ax)
 
     ax.set_xlabel('x (m)')
     ax.set_ylabel('y (m)')
     ax.set_zlabel('z (m)')
+    if not minimal:
+        ax.legend()
+
+
+def plot_trajectories_and_board(
+    seq: list[Trajectory], b: BoardInfo, show_ori: bool = False
+) -> None:
+    """Plot a set of trajectories + the whiteboard area."""
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+    plot_trajectory_sequence(seq, show_ori, ax, True)
+
+    b_corners = b.get_board_corners_world_frame()
+    b_corners = np.array([*b_corners, b_corners[0]])
+    ax.plot(
+        b_corners[:, 0],
+        b_corners[:, 1],
+        b_corners[:, 2],
+        c='blue',
+        label='Board Outline',
+    )
+    w_corners = b.get_writeable_area_corners_world_frame()
+    w_corners = np.array([*w_corners, w_corners[0]])
+    ax.plot(
+        w_corners[:, 0],
+        w_corners[:, 1],
+        w_corners[:, 2],
+        c='red',
+        lw=3,
+        label='Writeable Area',
+    )
+    set_axes_equal(ax)
     ax.legend()
 
 

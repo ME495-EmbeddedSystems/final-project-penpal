@@ -18,7 +18,6 @@ class PositionPPControl(PPControlBase):
         self,
         traj: Trajectory,
         target_ee_velocity_m_s: float,
-        publish_markers: bool = False,
     ) -> None:
         """
         Move the EE through a trajectory.
