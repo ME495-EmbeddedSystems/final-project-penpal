@@ -284,8 +284,22 @@ class WritePlanner:
                 # insert a newline before writing this character
                 added_offset = np.array(
                     [
-                        -(c_bounds[0, 0] - newline_start_x),
+                        -(c_bounds[0, 0] - newline_start_x) + padding,
                         -(line_spacing),
+                    ]
+                )
+                offset += added_offset
+                c_bounds += added_offset
+
+            if c_bounds[0, 0] < board.writeable_area[0, 0]:
+                # this is a strange case that occurs when a newline character
+                # is given to font_trajectory. it inserts its own newline,
+                # which we have to handle here by fixing our own offset.
+
+                added_offset = np.array(
+                    [
+                        newline_start_x - c_bounds[0, 0] + padding,
+                        0,
                     ]
                 )
                 offset += added_offset
