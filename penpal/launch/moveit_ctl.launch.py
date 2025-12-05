@@ -2,13 +2,14 @@
 
 from launch import LaunchDescription
 from launch.actions import (
+    IncludeLaunchDescription,
     RegisterEventHandler,
     Shutdown,
-    IncludeLaunchDescription,
 )
-from launch.launch_description_sources import AnyLaunchDescriptionSource
 from launch.event_handlers import OnProcessExit
+from launch.launch_description_sources import AnyLaunchDescriptionSource
 from launch.substitutions import PathJoinSubstitution
+
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
@@ -21,6 +22,7 @@ def generate_launch_description():
         'fer', package_name='franka_fer_moveit_config'
     ).to_moveit_configs()
 
+    """
     # this needs the demo to run
     demo_ld = IncludeLaunchDescription(
         AnyLaunchDescriptionSource(
@@ -33,6 +35,7 @@ def generate_launch_description():
             )
         )
     )
+    """
 
     int_test_node = Node(
         package='penpal',
@@ -40,9 +43,31 @@ def generate_launch_description():
         arguments=['--ros-args', '--log-level', 'test_moveit_ctl:=DEBUG'],
     )
 
+    return LaunchDescription([
+        Node(
+            package='rviz2',
+            executable='rviz2',
+            output='log',
+            arguments=[
+                '-d',
+                PathJoinSubstitution(
+                    [
+                        FindPackageShare('franka_fer_moveit_config'),
+                        'config',
+                        'moveit.rviz',
+                    ]
+                ),
+            ],
+            parameters=[
+                moveit_config.planning_pipelines,
+                moveit_config.robot_description_kinematics,
+            ],
+            remappings=[('/move_action', '/viz/move_action')]),
+        int_test_node,])
+    """
+
     return LaunchDescription(
         [
-            demo_ld,
             Node(
                 package='moveit_ros_move_group',
                 executable='move_group',
@@ -81,3 +106,4 @@ def generate_launch_description():
             int_test_node,
         ]
     )
+"""
