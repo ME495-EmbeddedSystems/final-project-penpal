@@ -3,7 +3,7 @@
 # text to write to the board
 string text
 # font name. must have been added to the font writer.
-string font_name
+string font_name "Roboto-Regular"
 # height of the largest character in mm
 float32 font_size_mm 30.0
 # thickness of the actual marker used to write.

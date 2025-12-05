@@ -1,11 +1,9 @@
 """Grabs the pen."""
 
 from dataclasses import dataclass
-from typing import Type
 
 import numpy as np
-from penpal.penpal.pen_detector import PenDetector
-from penpal.penpal.control.pp_control import PPControlBase
+from penpal.control.pp_control import PPControlBase
 from rclpy.node import Node
 
 
@@ -33,12 +31,9 @@ class Character:
 class GrabPlanner:
     """Compute trajectories to write on the real board."""
 
-    def __init__(
-        self, node: Node, controller: PPControlBase, pen: PenDetector
-    ) -> None:
+    def __init__(self, node: Node, controller: PPControlBase) -> None:
         """Initialize the object."""
         self.control = controller
-        self.pen = pen
 
     def grab_pen(self) -> None:
         """Grab the pen (must be visible to camera)."""

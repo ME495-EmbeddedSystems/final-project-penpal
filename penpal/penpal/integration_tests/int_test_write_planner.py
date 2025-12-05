@@ -21,6 +21,7 @@ class MockController(PPControlBase):
     def __init__(
         self, node: Node, cfg: PPControlBase.Config | None = None
     ) -> None:
+        """Initialize the object."""
         super().__init__(node, cfg)
 
         self.trajs = []
@@ -31,7 +32,7 @@ class MockController(PPControlBase):
         target_ee_velocity_m_s: float,
         publish_markers: bool = False,
     ) -> None:
-        # print(f'Received trajectory: {traj.label}')
+        self._logger.debug(f'Received trajectory: {traj.label}')
         self.trajs.append(traj)
 
     async def grip(
