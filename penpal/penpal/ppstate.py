@@ -132,6 +132,11 @@ class ConvoFSM:
                 case _:
                     raise NotImplementedError(f'Unrecognized state {self._s}')
 
+            # we are currently allowed to sleep from any state.
+            # the robot always stops what it's doing when sleep is called.
+            if e == E.SLEEP:
+                new_s = S.ASLEEP
+
             if self._logger is not None:
                 self._logger.info(f'STATE TRANSITION: {sestr} -> {new_s}')
 
