@@ -5,6 +5,7 @@ TODO better docs.
 """
 
 import asyncio
+from dataclasses import dataclass
 from pathlib import Path
 import traceback
 from typing import Any, List, Literal
@@ -35,10 +36,6 @@ class PenPal(Node):
     """
     Controls a 7DoF FER arm to write conversational responses to a whiteboard.
 
-    Publishers
-    ---------
-    move_group: motion & planning commands to MoveIt
-
     Actions
     -------
     WriteMessage: write a message to the whiteboard.
@@ -58,6 +55,10 @@ class PenPal(Node):
     ----------
     write_control_type: type of controller to use for writing
 
+    Publishers
+    ---------
+    move_group: motion & planning commands to MoveIt
+
     Subscribers
     ----------
     whiteboard_pose: 6dof pose of the whiteboard
@@ -69,24 +70,60 @@ class PenPal(Node):
 
     """
 
+    @dataclass
+    class Config:
+        """Node configuration."""
+
+        board_visibility_thresh_s: float = 1.0
+        board_visibility_tags_thresh: int = 2
+        write_control_type: str = 'mock'
+        timer_freq_hz: float = 20.0
+
     def __init__(self) -> None:
         """Initialize the node."""
         super().__init__('PenPal')
+        self.c = self.Config()
 
         self.declare_parameter(
             'write_control_type',
-            'mock',
+            self.c.write_control_type,
             ParameterDescriptor(
                 description='Type of controller to use for writing. [moveit, hybrid, mock]'  # noqa: E501
             ),
         )
-        write_control_type = (
+        self.c.write_control_type = (
             self.get_parameter('write_control_type')
             .get_parameter_value()
             .string_value
         )
+        self.declare_parameter(
+            'board_visibility_thresh_s',
+            self.c.board_visibility_thresh_s,
+            ParameterDescriptor(
+                description='Duration of continuous board pose readings after '
+                'which the board is declared to be visible'
+            ),
+        )
+        self.c.board_visibility_thresh_s = (
+            self.get_parameter('board_visibility_thresh_s')
+            .get_parameter_value()
+            .double_value
+        )
+        self.declare_parameter(
+            'board_visibility_tags_thresh',
+            self.c.board_visibility_tags_thresh,
+            ParameterDescriptor(
+                description='Number of apriltags that must be detected'
+                'in order to qualify as visible '
+            ),
+        )
+        self.c.board_visibility_tags_thresh = (
+            self.get_parameter('board_visibility_tags_thresh')
+            .get_parameter_value()
+            .integer_value
+        )
 
-        match write_control_type:
+        match self.c.write_control_type:
             case 'moveit':
                 ctl = moveit_control.MoveItPPControl(self)
             case 'hybrid':
@@ -124,13 +161,36 @@ class PenPal(Node):
         )
         self._srv_wake = self.create_service(Trigger, 'wake', self._cb_wake)
         self._srv_sleep = self.create_service(Trigger, 'sleep', self._cb_sleep)
-        timer_freq_hz = 20
-        self._tick = self.create_timer(1.0 / timer_freq_hz, self._cb_tick)
+        self._tick = self.create_timer(
+            1.0 / self.c.timer_freq_hz, self._cb_tick
+        )
 
         self.get_logger().info('PenPal node started.')
 
     def _cb_tick(self, info: TimerInfo) -> None:
-        pass
+        """Handle periodic tasks. Timer callback."""
+        s = self._fsm.get_state()
+        match s:
+            case ppstate.S.ASLEEP:
+                # do nothing.
+                pass
+            case ppstate.S.ASLEEP_IN_USE:
+                # do nothing.
+                pass
+            case ppstate.S.READY_TO_READ:
+                # TODO check if the board's been visible for more
+                # than the visibility threshold
+                pass
+            case ppstate.S.READING:
+                pass
+            case ppstate.S.READY_TO_WRITE:
+                pass
+            case ppstate.S.WRITING:
+                pass
+            case ppstate.S.WRITE_COMPLETE:
+                pass
+            case _:
+                raise NotImplementedError(f'Unrecognized state {self._s}')
 
     def _load_fonts(self, fonts_dir: Path) -> None:
         """Load fonts from a directory."""
