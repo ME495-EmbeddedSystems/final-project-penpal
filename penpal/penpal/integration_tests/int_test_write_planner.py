@@ -67,8 +67,8 @@ async def test_static_board() -> tuple[list[Trajectory], BoardInfo]:
     font.add_font(roboto_path)
     font_size = 20.0
     chars = font.write_text(
-        # 'Hello World! My name is PenPal. :)\nI am unwriteable',
-        'Hello World! My name is PenPal. :) I am unwriteable',
+        'Hello World! My name is PenPal. :)\nI am unwriteable',
+        # 'Hello World! My name is PenPal. :) I am unwriteable',
         # 'Hello World! My name is PenPal. :)',
         'Roboto-Regular',
         font_size,
@@ -79,7 +79,7 @@ async def test_static_board() -> tuple[list[Trajectory], BoardInfo]:
         mock_board_info,
     ):
         leftovers = await writer.write_characters(
-            chars, font.c.line_spacing_factor * font_size
+            chars, font.c.line_spacing_factor
         )
 
         if leftovers:

@@ -181,7 +181,7 @@ class WritePlanner:
     async def write_characters(
         self,
         characters: list[Character],
-        line_spacing_mm: float,
+        line_spacing_factor: float,
     ) -> list[Character]:
         """
         Write a list of characters to the board.
@@ -190,7 +190,8 @@ class WritePlanner:
 
         Args:
             characters (list[Character]): list of characters to write.
-            line_spacing_mm (float): space to insert between lines in millimeters
+            line_spacing_factor (float): space between lines
+                represented as a fraction of line height
 
         Returns:
             list[Character]: characters which did not get written due
@@ -199,7 +200,7 @@ class WritePlanner:
         """
         # create a 3D plan for writing the characters in board frame.
         trajs, leftovers = self._plan_path_in_board_frame(
-            characters, line_spacing_mm
+            characters, line_spacing_factor
         )
 
         # in order to ensure responsiveness to board pose updates,
@@ -223,7 +224,7 @@ class WritePlanner:
     def _plan_path_in_board_frame(
         self,
         cs: list[Character],
-        line_spacing_mm: float,
+        line_spacing_factor: float,
         padding_mm: float = 2.0,
     ) -> tuple[list[Trajectory], list[Character]]:
         """
@@ -236,7 +237,7 @@ class WritePlanner:
 
         Args:
             cs: list of characters to write.
-            line_spacing_mm: space to insert between each newline
+            line_spacing_factor: space between lines as a fraction of line height
             padding_mm: padding within the bounding box, css style
 
         Returns:
@@ -258,7 +259,8 @@ class WritePlanner:
         # board remain unchanged while we write.
         board = self.get_latest_board_info()
         font_height = max([c.font_size_mm for c in cs]) / 1000.0
-        line_spacing = line_spacing_mm / 1000.0
+        line_spacing = line_spacing_factor * font_height
+        print(line_spacing)
         padding = padding_mm / 1000.0
 
         # maintain an offset for factoring in the writing area +
@@ -283,7 +285,7 @@ class WritePlanner:
                 added_offset = np.array(
                     [
                         -(c_bounds[0, 0] - newline_start_x),
-                        -(font_height + line_spacing),
+                        -(line_spacing),
                     ]
                 )
                 offset += added_offset
