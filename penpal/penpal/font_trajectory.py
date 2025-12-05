@@ -11,7 +11,7 @@ import numpy as np
 from fontTools.ttLib import TTFont
 from fontTools.pens.basePen import BasePen
 
-from penpal.write_planner import WritePlanner, Character
+from penpal.write_planner import Character
 
 
 class PathCollectorPen(BasePen):
@@ -77,7 +77,8 @@ class PathCollectorPen(BasePen):
 
 
 class FontTrajectory:
-    """Generates 2D trajectories + pressure given font & text.
+    """
+    Generates 2D trajectories + pressure given font & text.
 
     Supports two font types:
     - TTF/OTF fonts via add_font()
@@ -141,11 +142,8 @@ class FontTrajectory:
         # Rasterized image size used for skeletonization.
         skeleton_img_size: int = 256
 
-    def __init__(
-        self, writer: WritePlanner, cfg: Config | None = None
-    ) -> None:
+    def __init__(self, cfg: Config | None = None) -> None:
         """Initialize the object."""
-        self._writer = writer
         self.c = cfg if cfg is not None else self.Config()
         # Loaded fonts: key is font_name, value is TTFont object.
         self._fonts: Dict[str, TTFont] = {}
@@ -201,12 +199,13 @@ class FontTrajectory:
         font_name: str,
         font_size_mm: float,
         pen_thickness_mm: float,
-    ) -> None:
+        const_speed: bool = True,
+    ) -> list[Character]:
         """
-        Generate trajectories for a string of text and send them to WritePlanner.
+        Generate trajectories for a string of text.
 
         This preserves the original public API: it creates a list of Character
-        objects and calls self._writer.write_characters(characters).
+        objects
 
         Args:
             text (str): text string to generate.
@@ -214,6 +213,7 @@ class FontTrajectory:
                 using add_font()
             font_size_mm (float): Height of the tallest glyphs in mm
             pen_thickness_mm (float): thickness of the pen we're using to draw.
+            const_speed (bool): if true, even out the spacing of trajectory points.
 
         """
         characters = self._text_to_characters(
@@ -222,9 +222,13 @@ class FontTrajectory:
             font_size_mm=font_size_mm,
             pen_thickness_mm=pen_thickness_mm,
         )
-
-        if characters:
-            self._writer.write_characters(characters)
+        if const_speed:
+            for c in characters:
+                const_traj = self.build_flat_path_constant_speed(
+                    [c], step_mm=self.c.target_step_mm
+                )
+                c.trajectory = const_traj
+        return characters
 
     def write_text_flat(
         self,
@@ -392,6 +396,7 @@ class FontTrajectory:
                     paths_mm=shifted_paths,
                     target_step_mm=self.c.target_step_mm,
                     pressure=self.c.default_pressure,
+                    font_size_mm=font_size_mm,
                     closed_paths=False,
                 )
                 characters.append(char_obj)
@@ -472,6 +477,7 @@ class FontTrajectory:
                 paths_mm=shifted_paths,
                 target_step_mm=self.c.target_step_mm,
                 pressure=self.c.default_pressure,
+                font_size_mm=font_size_mm,
                 closed_paths=not self.c.use_skeleton,  # outline: closed, skeleton: open
             )
             characters.append(char_obj)
@@ -493,7 +499,8 @@ class FontTrajectory:
         char: str,
         steps_per_curve: int = 20,
     ) -> list[list[tuple[float, float]]]:
-        """Return a list of polylines for one character.
+        """
+        Return a list of polylines for one character.
 
         Each polyline is a list of (x, y) in normalized font units
         (i.e., divided by unitsPerEm).
@@ -529,7 +536,8 @@ class FontTrajectory:
         char: str,
         steps_per_curve: int = 20,
     ) -> list[list[tuple[float, float]]]:
-        """Approximate single-stroke (skeleton) paths for a glyph.
+        """
+        Approximate single-stroke (skeleton) paths for a glyph.
 
         Strategy:
           - Get outline polylines in normalized coords.
@@ -540,7 +548,6 @@ class FontTrajectory:
               * map strokes back to normalized coords.
           - For all other characters, just return the outline paths.
         """
-
         # ---------- 0) Outline ----------
         outline_paths = self._glyph_to_paths(
             font, char, steps_per_curve=steps_per_curve
@@ -775,7 +782,8 @@ class FontTrajectory:
         target_step_mm: float,
         closed: bool = True,
     ) -> list[tuple[float, float]]:
-        """Resample a path so that distances between successive points
+        """
+        Resample a path so that distances between successive points
         are roughly <= target_step_mm.
 
         Path is assumed to be in physical units (mm).
@@ -816,9 +824,11 @@ class FontTrajectory:
         paths_mm: list[list[tuple[float, float]]],
         target_step_mm: float,
         pressure: float,
+        font_size_mm: float,
         closed_paths: bool = True,
     ) -> Character:
-        """Convert a list of 2D paths (in mm) into a Character with Nx3 trajectory.
+        """
+        Convert a list of 2D paths (in mm) into a Character with Nx3 trajectory.
 
         For each path, we:
           - Move pen (z=0) to the first point.
@@ -853,7 +863,7 @@ class FontTrajectory:
             # Optionally we could lift the pen at the end here.
 
         traj = np.array(points, dtype=float)  # shape (N, 3)
-        return Character(char=char, trajectory=traj)
+        return Character(char=char, trajectory=traj, font_size_mm=font_size_mm)
 
     # ------------------------------------------------------------------
     # Internal helper: build one continuous, constant-speed path
@@ -864,7 +874,8 @@ class FontTrajectory:
         characters: list[Character],
         step_mm: float | None = None,
     ) -> np.ndarray:
-        """Flatten a list of Character trajectories into a single path.
+        """
+        Flatten a list of Character trajectories into a single path.
 
         The returned array has shape (N, 3) with columns [x_mm, y_mm, z],
         where z = 0 means pen up and z > 0 means pen down. The spacing in
