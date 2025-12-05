@@ -53,7 +53,13 @@ async def test_static_board() -> tuple[list[Trajectory], BoardInfo]:
         writeable_area=np.array([[0.01, -0.1], [0.19, -0.2]]),
     )
 
+    dr = R.from_euler('x', (0.1), True)
+
     def mock_board_info(o: WritePlanner) -> BoardInfo:
+        # move the board a little bit every time
+        # this is called to simulate the real motion
+        board.pos[2] -= 0.001
+        board.ori *= dr
         return board
 
     node = MagicMock(Node)
