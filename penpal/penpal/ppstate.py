@@ -11,6 +11,8 @@ class S(Enum):
 
     ASLEEP = auto()
     """Not in conversational mode."""
+    ASLEEP_IN_USE = auto()
+    """In use, cannot be awoken (i.e. due to WriteMessage)."""
     READY_TO_READ = auto()
     """Ready to read new user text on the board."""
     READING = auto()
@@ -28,6 +30,8 @@ class E(Enum):
 
     WAKE = auto()
     """Wake command received."""
+    WRITEMESSAGE_CALLED = auto()
+    """WriteMessage command used while asleep."""
     SLEEP = auto()
     """Sleep command received."""
     BOARD_VISIBLE = auto()
@@ -56,8 +60,8 @@ class E(Enum):
     """Successfully wrote all characters."""
 
 
-class PPFSM:
-    """Concurrency-safe state machine for PenPal node."""
+class ConvoFSM:
+    """Concurrency-safe state machine for PenPal conversation mode."""
 
     def __init__(
         self, transition_lock: Lock, logger: RcutilsLogger | None = None
@@ -67,14 +71,12 @@ class PPFSM:
         self._lock = transition_lock
         self._logger = logger
 
-    @property
     def is_awake(self) -> bool:
         """Return true if we are in the live conversation loop."""
-        return self._s != S.ASLEEP
+        return self._s not in [S.ASLEEP, S.ASLEEP_IN_USE]
 
-    @property
-    def state(self) -> S:
-        """Current state of the FSM."""
+    def get_state(self) -> S:
+        """Get current state of the FSM."""
         return self._s
 
     def transition(self, e: E) -> S:
@@ -91,6 +93,15 @@ class PPFSM:
                 case S.ASLEEP:
                     if e == E.WAKE:
                         new_s = S.READY_TO_READ
+                    if e == E.WRITEMESSAGE_CALLED:
+                        new_s = S.ASLEEP_IN_USE
+                case S.ASLEEP_IN_USE:
+                    if e in [
+                        E.WRITE_FAILED,
+                        E.WRITE_INCOMPLETE,
+                        E.WRITE_SUCCEEDED,
+                    ]:
+                        new_s = S.ASLEEP
                 case S.READY_TO_READ:
                     if e == E.BOARD_VISIBLE:
                         new_s = S.READING

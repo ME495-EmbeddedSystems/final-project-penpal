@@ -19,6 +19,8 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.action.server import ServerGoalHandle
 from ament_index_python.packages import get_package_share_directory
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from example_interfaces.srv import Trigger
+from rclpy.timer import TimerInfo
 
 from penpal_interfaces.action import WriteMessage
 
@@ -104,24 +106,31 @@ class PenPal(Node):
 
         self._loop = asyncio.get_event_loop()
         self._package_share = Path(get_package_share_directory('penpal'))
-        self._cbgroup = MutuallyExclusiveCallbackGroup()
+        self._cbgroup_arm_users = MutuallyExclusiveCallbackGroup()
+        """Callback group for anything that synchronously uses the arm."""
 
         state_lock = Lock()
-        self._fsm = ppstate.PPFSM(
+        self._fsm = ppstate.ConvoFSM(
             state_lock, self.get_logger().get_child('FSM')
         )
+        self._load_fonts(self._package_share / 'fonts')
 
         self._asrv_write_message = ActionServer(
             self,
             WriteMessage,
             'write_message',
             self._cb_execute_writemessage,
-            callback_group=self._cbgroup,
+            callback_group=self._cbgroup_arm_users,
         )
-
-        self._load_fonts(self._package_share / 'fonts')
+        self._srv_wake = self.create_service(Trigger, 'wake', self._cb_wake)
+        self._srv_sleep = self.create_service(Trigger, 'sleep', self._cb_sleep)
+        timer_freq_hz = 20
+        self._tick = self.create_timer(1.0 / timer_freq_hz, self._cb_tick)
 
         self.get_logger().info('PenPal node started.')
+
+    def _cb_tick(self, info: TimerInfo) -> None:
+        pass
 
     def _load_fonts(self, fonts_dir: Path) -> None:
         """Load fonts from a directory."""
@@ -131,11 +140,46 @@ class PenPal(Node):
                 self._fonts.add_font(p)
                 self.get_logger().info(f'-- Added {p}.')
 
+    def _cb_wake(
+        self, request: Trigger.Request, response: Trigger.Response
+    ) -> Trigger.Response:
+        """Handle wake service call."""
+        if self._fsm.get_state() == ppstate.S.ASLEEP_IN_USE:
+            self.get_logger().error('Cannot enter convo mode; arm is in use.')
+            response.success = False
+            return response
+        self._fsm.transition(ppstate.E.WAKE)
+        return response
+
+    def _cb_sleep(
+        self, request: Trigger.Request, response: Trigger.Response
+    ) -> Trigger.Response:
+        """Handle sleep service call."""
+        self._fsm.transition(ppstate.E.SLEEP)
+        # TODO end the loop
+        return response
+
     def _cb_execute_writemessage(
         self, goal_handle: ServerGoalHandle
     ) -> WriteMessage.Result:
+        """Handle WriteMessage action execute callback."""
         req: WriteMessage.Goal = goal_handle.request
-        self.get_logger().info('Writing message to board: ' + req.text)
+
+        self.get_logger().debug(f'WriteMessage called with text: {req.text}')
+
+        # transition must be called first for concurrency
+        self._fsm.transition(ppstate.E.WRITEMESSAGE_CALLED)
+        if self._fsm.is_awake():
+            self.get_logger().error(
+                'Call to WriteMessage not permitted while PenPal '
+                'is awake (conversational mode active).'
+            )
+            goal_handle.abort()
+            res = WriteMessage.Result()
+            res.unwritten_characters = req.text
+            return res
+
+        self.get_logger().info('Writing message to board...')
 
         chars = self._fonts.write_text(
             req.text, req.font_name, req.font_size_mm, req.pen_thickness_mm
@@ -155,6 +199,9 @@ class PenPal(Node):
                 self.get_logger().warning(
                     f'Unable to write the end of the message: {cstr}'
                 )
+                self._fsm.transition(ppstate.E.WRITE_INCOMPLETE)
+            else:
+                self._fsm.transition(ppstate.E.WRITE_SUCCEEDED)
 
             goal_handle.succeed()
             res = WriteMessage.Result()
@@ -165,6 +212,7 @@ class PenPal(Node):
             self.get_logger().error(
                 f'{type(err).__name__} during async tasks: {err}\n\nTraceback:\n{tb}'
             )
+            self._fsm.transition(ppstate.E.WRITE_FAILED)
             goal_handle.abort()
             res = WriteMessage.Result()
             res.unwritten_characters = req.text
