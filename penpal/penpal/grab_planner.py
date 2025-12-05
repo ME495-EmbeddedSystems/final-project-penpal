@@ -1,6 +1,7 @@
 """Grabs the pen."""
 
 from dataclasses import dataclass
+from typing import Type
 
 import numpy as np
 from penpal.penpal.pen_detector import PenDetector

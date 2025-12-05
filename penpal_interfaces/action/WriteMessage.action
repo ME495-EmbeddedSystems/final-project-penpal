@@ -1,0 +1,19 @@
+# Write a message to the board
+
+# text to write to the board
+string text
+# font name. must have been added to the font writer.
+string font_name
+# height of the largest character in mm
+float32 font_size_mm 30.0
+# thickness of the actual marker used to write.
+float32 pen_thickness_mm 2.0
+
+---
+# Result
+# characters that couldn't be written, if any
+string unwritten_characters
+
+---
+# Feedback
+float32 percent_complete 
