@@ -235,7 +235,6 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
         for traj in seq:
             logger.info(f'Executing trajectory {traj.label}...')
             await ctl.execute_trajectory(traj, speed, publish_markers=True)
-
         # logger.info('Publishing all trajectory markers...')
         # for traj in seq:
         #     await ctl.publish_marker(traj)

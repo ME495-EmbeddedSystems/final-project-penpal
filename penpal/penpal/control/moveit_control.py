@@ -86,7 +86,7 @@ class MoveItPPControl(PPControlBase):
 
         """
         pose_only = traj.data[:, :7]
-        await self.plan_cartesian_path(pose_only, None, True)
+        await self.plan_cartesian_path(pose_only, None, True, 0.1, 0.1)
 
     async def grip(
         self, offset_m: float, grip_force_N: float | None = None
@@ -247,6 +247,8 @@ class MoveItPPControl(PPControlBase):
         waypoints: np.ndarray,
         start_ee_pose: np.ndarray | None = None,
         execute_immediately: bool = False,
+        velocity_scale: float = 0.5,
+        accel_scale: float = 0.5
     ) -> GetCartesianPath.Response:
         """
         Plan a Cartesian path from any valid starting pose to a goal pose.
@@ -270,6 +272,8 @@ class MoveItPPControl(PPControlBase):
         request.link_name = 'fer_hand_tcp'
         request.waypoints = []
         request.max_step = 0.01
+        request.max_velocity_scaling_factor = velocity_scale
+        request.max_acceleration_scaling_factor = accel_scale
 
         for goal_ee_pose in waypoints:
             goal_pose = Pose()
