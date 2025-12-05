@@ -8,12 +8,14 @@ import asyncio
 from pathlib import Path
 import traceback
 from typing import Any, List, Literal
+from threading import Lock
 
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.qos import QoSProfile, qos_profile_rosout_default
 from rclpy.action import ActionServer
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.action.server import ServerGoalHandle
 from ament_index_python.packages import get_package_share_directory
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -24,6 +26,7 @@ from penpal import font_trajectory
 from penpal import grab_planner
 from penpal import write_planner
 from penpal.control import moveit_control, position_control
+from penpal import ppstate
 
 
 class PenPal(Node):
@@ -98,9 +101,15 @@ class PenPal(Node):
         self._writer = write_planner.WritePlanner(self, ctl)
         self._fonts = font_trajectory.FontTrajectory()
         self._grabber = grab_planner.GrabPlanner(self, ctl)
+
         self._loop = asyncio.get_event_loop()
         self._package_share = Path(get_package_share_directory('penpal'))
         self._cbgroup = MutuallyExclusiveCallbackGroup()
+
+        state_lock = Lock()
+        self._fsm = ppstate.PPFSM(
+            state_lock, self.get_logger().get_child('FSM')
+        )
 
         self._asrv_write_message = ActionServer(
             self,
@@ -167,11 +176,15 @@ def main():
     import rclpy
 
     rclpy.init()
-    node = PenPal()
+    penpal = PenPal()
+    # need >=2 threads so we can still receive subscription
+    # callbacks while in synchronous writing code.
+    ex = MultiThreadedExecutor(num_threads=2)
     try:
-        rclpy.spin(node)
+        ex.add_node(penpal)
+        ex.spin()
     finally:
-        node.destroy_node()
+        penpal.destroy_node()
         rclpy.shutdown()
 
 
