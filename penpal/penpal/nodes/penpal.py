@@ -101,11 +101,17 @@ class PenPal(Node):
         try:
             unwritten_chars = self._loop.run_until_complete(write_task)
 
+            self.get_logger().info('Finished writing message!')
+            cstr = ''.join([c.char for c in unwritten_chars])
+
+            if len(unwritten_chars) > 0:
+                self.get_logger().warning(
+                    f'Unable to write the end of the message: {cstr}'
+                )
+
             goal_handle.succeed()
             res = WriteMessage.Result()
-            res.unwritten_characters = ''.join(
-                [c.char for c in unwritten_chars]
-            )
+            res.unwritten_characters = cstr
             return res
         except Exception as err:
             tb = traceback.format_exc()

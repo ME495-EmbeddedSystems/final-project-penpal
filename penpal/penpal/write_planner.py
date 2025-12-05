@@ -373,4 +373,11 @@ class WritePlanner:
     def get_latest_board_info(self) -> BoardInfo:
         """Return the most recently update board location + dimensions."""
         # todo - grab this from the BoardDetector topics.
-        raise NotImplementedError
+        self._logger.warning('get_latest_board_info() not implemented yet!!')
+        return BoardInfo(
+            np.array([0.5, 0.5, 0.5]),
+            R.identity(),
+            0.5,
+            0.3,
+            np.array([[0, 0], [0.5, -0.3]]),
+        )
