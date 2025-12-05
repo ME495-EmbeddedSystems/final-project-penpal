@@ -67,7 +67,8 @@ async def test_static_board() -> tuple[list[Trajectory], BoardInfo]:
     font.add_font(roboto_path)
     font_size = 20.0
     chars = font.write_text(
-        'Hello World! My name is PenPal. :)\nI am unwriteable',
+        'Hello World! My name is PenPal. :)\nI can write many '
+        'things but eventually, I run out of room. ',
         # 'Hello World! My name is PenPal. :) I am unwriteable',
         # 'Hello World! My name is PenPal. :)',
         'Roboto-Regular',
