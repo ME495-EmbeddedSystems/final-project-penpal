@@ -6,6 +6,7 @@ TODO better docs.
 
 import asyncio
 from pathlib import Path
+import traceback
 from typing import Any, List, Literal
 
 from rclpy.node import Node
@@ -107,8 +108,9 @@ class PenPal(Node):
             )
             return res
         except Exception as err:
+            tb = traceback.format_exc()
             self.get_logger().error(
-                f'{type(err).__name__} during async tasks: {err}'
+                f'{type(err).__name__} during async tasks: {err}\n\nTraceback:\n{tb}'
             )
             goal_handle.abort()
             res = WriteMessage.Result()
