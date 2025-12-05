@@ -104,7 +104,7 @@ if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     try:
         trajs, board = asyncio.run(test_static_board())
-        plot.plot_trajectories_and_board(trajs, board)
+        plot.plot_trajectories_and_board(trajs, board, show_ori=True)
         plt.show()
     finally:
         print('Test complete.')

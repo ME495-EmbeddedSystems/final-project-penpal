@@ -148,7 +148,7 @@ class BoardInfo:
 class WritePlanner:
     """Compute trajectories to write on the real board."""
 
-    DOWN_Q = R.from_euler('xyz', [0, np.pi / 2, 0]).as_quat(True)
+    DOWN_Q = R.from_rotvec([0, 0, -np.pi / 2]).as_quat(True)
     """Quaternion orientation pointing straight down."""
 
     @dataclass

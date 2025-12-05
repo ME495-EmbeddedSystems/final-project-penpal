@@ -47,7 +47,12 @@ def plot_trajectory_sequence(
             U = euler[:, 0]
             V = euler[:, 1]
             W = euler[:, 2]
-            ax.quiver(X, Y, Z, U, V, W, length=0.01)
+            if minimal:
+                # only show 1 arrow
+                U = U[:1]
+                V = V[:1]
+                W = W[:1]
+            ax.quiver(X, Y, Z, U, V, W, length=0.01, linewidth=0.1)
 
         # plot green & red dots for start & end, respectively
         if not minimal:
@@ -78,11 +83,13 @@ def plot_trajectory_sequence(
         ax.legend()
 
 
-def plot_trajectories_and_board(seq: list[Trajectory], b: BoardInfo) -> None:
+def plot_trajectories_and_board(
+    seq: list[Trajectory], b: BoardInfo, show_ori: bool = False
+) -> None:
     """Plot a set of trajectories + the whiteboard area."""
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
-    plot_trajectory_sequence(seq, False, ax, True)
+    plot_trajectory_sequence(seq, show_ori, ax, True)
 
     b_corners = b.get_board_corners_world_frame()
     b_corners = np.array([*b_corners, b_corners[0]])
