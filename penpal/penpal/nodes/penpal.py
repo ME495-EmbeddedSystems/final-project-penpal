@@ -16,6 +16,7 @@ from rclpy.qos import QoSProfile, qos_profile_rosout_default
 from rclpy.action import ActionServer
 from rclpy.action.server import ServerGoalHandle
 from ament_index_python.packages import get_package_share_directory
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 
 from penpal_interfaces.action import WriteMessage
 
@@ -27,21 +28,51 @@ from penpal.control import moveit_control, position_control
 
 class PenPal(Node):
     """
-    PenPal node.
+    Controls a 7DoF FER arm to write conversational responses to a whiteboard.
 
-    TODO better docs.
+    Publishers
+    ---------
+    move_group: motion & planning commands to MoveIt
+
+    Actions
+    -------
+    WriteMessage: write a message to the whiteboard.
+        Can only handle one of these requests at a time, and will reject
+        them if awake.
+
+    Services
+    --------
+    Wake: Start the live conversation feature. When the whiteboard is
+        clearly visible, read what's written on it and get a response to it
+        using the chatbot node, then write the response to the board.
+        Then wait for the board to be taken away & repeat the process.
+    Sleep: Stop the live conversation feature, making the node available for
+        explicit WriteMessage requests.
+
+    Parameters
+    ----------
+    write_control_type: type of controller to use for writing
+
+    Subscribers
+    ----------
+    whiteboard_pose: 6dof pose of the whiteboard
+    whiteboard_outline: markers for the whiteboard boundary
+
+    Clients
+    -------
+    read_and_answer_board (QwenOCRNode): used to get chatbot responses to images.
+
     """
 
     def __init__(self) -> None:
         """Initialize the node."""
         super().__init__('PenPal')
 
-        # todo get this from a parameter
         self.declare_parameter(
             'write_control_type',
             'mock',
             ParameterDescriptor(
-                description='Type of controller to use for writing.'
+                description='Type of controller to use for writing. [moveit, hybrid, mock]'  # noqa: E501
             ),
         )
         write_control_type = (
@@ -69,12 +100,19 @@ class PenPal(Node):
         self._grabber = grab_planner.GrabPlanner(self, ctl)
         self._loop = asyncio.get_event_loop()
         self._package_share = Path(get_package_share_directory('penpal'))
+        self._cbgroup = MutuallyExclusiveCallbackGroup()
 
         self._asrv_write_message = ActionServer(
-            self, WriteMessage, 'write_message', self._cb_execute_writemessage
+            self,
+            WriteMessage,
+            'write_message',
+            self._cb_execute_writemessage,
+            callback_group=self._cbgroup,
         )
 
         self._load_fonts(self._package_share / 'fonts')
+
+        self.get_logger().info('PenPal node started.')
 
     def _load_fonts(self, fonts_dir: Path) -> None:
         """Load fonts from a directory."""
