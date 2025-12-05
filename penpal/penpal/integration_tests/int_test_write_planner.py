@@ -68,7 +68,7 @@ async def test_static_board() -> tuple[list[Trajectory], BoardInfo]:
     writer = WritePlanner(node, control)
     font = FontTrajectory()
 
-    fonts_dir = Path(__file__).parents[3] / 'fonts/'
+    fonts_dir = Path(__file__).parents[2] / 'fonts/'
     roboto_path = fonts_dir / 'Roboto-Regular.ttf'
 
     font.add_font(roboto_path)
