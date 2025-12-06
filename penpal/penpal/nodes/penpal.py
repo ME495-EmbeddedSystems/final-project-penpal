@@ -10,6 +10,7 @@ from pathlib import Path
 import traceback
 from typing import Any, List, Literal
 from threading import Lock
+import json
 
 import numpy as np
 from scipy.spatial.transform import Rotation as R
@@ -35,6 +36,7 @@ from penpal import grab_planner
 from penpal import write_planner
 from penpal.control import moveit_control, position_control
 from penpal import ppstate
+from penpal.utils import LockedString
 
 
 class PenPal(Node):
@@ -84,6 +86,10 @@ class PenPal(Node):
         write_control_type: str = 'mock'
         timer_freq_hz: float = 20.0
 
+        convo_font_size_mm: float = 30.0
+        convo_pen_thickness_mm: float = 2.0
+        convo_font_name: str = 'Roboto-Regular'
+
     def __init__(self) -> None:
         """Initialize the node."""
         super().__init__('PenPal')
@@ -96,6 +102,19 @@ class PenPal(Node):
                 description='Type of controller to use for writing. [moveit, impedance, mock]'  # noqa: E501
             ),
         )
+        self.declare_parameter(
+            'convo_font_name',
+            self.c.convo_font_name,
+            ParameterDescriptor(
+                description='Font used in conversational mode.'
+            ),
+        )
+        self.c.convo_font_name = (
+            self.get_parameter('convo_font_name')
+            .get_parameter_value()
+            .string_value
+        )
+
         self.c.write_control_type = (
             self.get_parameter('write_control_type')
             .get_parameter_value()
@@ -185,6 +204,7 @@ class PenPal(Node):
         self._board_sequence_start_t = None
         self._board_last_reading_t = None
         self._prev_state = self._fsm.get_state()
+        self._text_to_write = LockedString()
 
         self.get_logger().info('PenPal node started.')
 
@@ -259,6 +279,86 @@ class PenPal(Node):
 
         return False
 
+    def worker_home(self) -> None:
+        """Send the robot to the home position in the worker thread."""
+        task = self._loop.create_task(self._grabber.home_arm())
+        try:
+            self._loop.run_until_complete(task)
+        except Exception as err:
+            tb = traceback.format_exc()
+            self.get_logger().error(
+                f'{type(err).__name__} while homing: {err}\n\nTraceback:\n{tb}'
+            )
+            self._fsm.transition(ppstate.E.WRITE_FAILED)
+
+    def worker_write(
+        self,
+        text: str,
+        font_name: str,
+        font_size_mm: float,
+        pen_thickness_mm: float,
+    ) -> list[write_planner.Character]:
+        """Use the worker thread to write with the robot."""
+        self.get_logger().info('Writing message to board...')
+        self._fsm.transition(ppstate.E.WRITE_STARTED)
+        chars = self._fonts.write_text(
+            text, font_name, font_size_mm, pen_thickness_mm
+        )
+        write_task = self._loop.create_task(
+            self._write_planner.write_characters(
+                chars, self._fonts.c.line_spacing_factor
+            )
+        )
+
+        try:
+            unwritten_chars = self._loop.run_until_complete(write_task)
+
+            self.get_logger().info('Finished writing message!')
+            cstr = ''.join([c.char for c in unwritten_chars])
+
+            if len(unwritten_chars) > 0:
+                self.get_logger().warning(
+                    f'Unable to write the end of the message: {cstr}'
+                )
+                self._fsm.transition(ppstate.E.WRITE_INCOMPLETE)
+            else:
+                self._fsm.transition(ppstate.E.WRITE_SUCCEEDED)
+
+            return unwritten_chars
+
+        except Exception as err:
+            tb = traceback.format_exc()
+            self.get_logger().error(
+                f'{type(err).__name__} in write worker: {err}\n\nTraceback:\n{tb}'
+            )
+            self._fsm.transition(ppstate.E.WRITE_FAILED)
+            raise err
+
+    async def _async_trigger_vlm(self) -> None:
+        """Actual async function to trigger the vlm and wait for the response."""
+        resp: Trigger.Response = await self._c_ocr.call_async(
+            Trigger.Request()
+        )  # type: ignore
+        self._logger.debug(f'Received payload from VLM: {resp.message}')
+        payload = json.loads(resp.message)
+
+        self._text_to_write.text = payload['answer']
+        self._fsm.transition(ppstate.E.OCR_VLM_TEXT_RECEIVED)
+
+    def worker_trigger_vlm(self) -> None:
+        """Use the worker thread to get text to write from the VLM."""
+        task = self._loop.create_task(self._async_trigger_vlm())
+        self._fsm.transition(ppstate.E.OCR_VLM_TRIGGERED)
+
+        try:
+            self._loop.run_until_complete(task)
+        except Exception as err:
+            tb = traceback.format_exc()
+            self.get_logger().error(
+                f'{type(err).__name__} while homing: {err}\n\nTraceback:\n{tb}'
+            )
+            self._fsm.transition(ppstate.E.WRITE_FAILED)
+
     def _cb_tick(self, info: TimerInfo) -> None:
         """Handle periodic tasks. Timer callback."""
         # non-state specific logic
@@ -276,9 +376,8 @@ class PenPal(Node):
         match s:
             case ppstate.S.ASLEEP:
                 if enter:
-                    # cancel any currently ongoing actions
                     self._loop.stop()
-                    # TODO home the robot
+                    self.worker_home()
                 # wait to be woken up
                 pass
             case ppstate.S.ASLEEP_IN_USE:
@@ -288,22 +387,28 @@ class PenPal(Node):
                 # nothing to do; we just wait for visibility
                 pass
             case ppstate.S.READING:
-                if enter:
-                    # TODO trigger OCR with VLM in the worker thread.
-                    self._fsm.transition(ppstate.E.OCR_VLM_TRIGGERED)
-                # otherwise we just wait around for the VLM to get back to us
+                self.worker_trigger_vlm()
+            # otherwise we just wait around for the VLM to get back to us
             case ppstate.S.READY_TO_WRITE:
                 # nothing to do; wait for board to enter workspace
                 pass
             case ppstate.S.WRITING:
                 if enter:
-                    # TODO write text returned by VLM in the worker thread
-                    self._fsm.transition(ppstate.E.WRITE_STARTED)
+                    text = self._text_to_write.text
+                    if text is None:
+                        raise ValueError(
+                            'No text available to write. This should be unreachable!'
+                        )
+                    self.worker_write(
+                        text,
+                        self.c.convo_font_name,
+                        self.c.convo_font_size_mm,
+                        self.c.convo_pen_thickness_mm,
+                    )
                 # wait around for writing to finish
             case ppstate.S.WRITE_COMPLETE:
                 if enter:
-                    # TODO home the robot.
-                    pass
+                    self.worker_home()
                 # wait around for the board to be hidden & arm to be homed
                 # again.
                 pass
@@ -366,41 +471,20 @@ class PenPal(Node):
             res.unwritten_characters = req.text
             return res
 
-        self.get_logger().info('Writing message to board...')
-
-        chars = self._fonts.write_text(
-            req.text, req.font_name, req.font_size_mm, req.pen_thickness_mm
-        )
-        write_task = self._loop.create_task(
-            self._write_planner.write_characters(
-                chars, self._fonts.c.line_spacing_factor
-            )
-        )
         try:
-            unwritten_chars = self._loop.run_until_complete(write_task)
-
-            self.get_logger().info('Finished writing message!')
+            unwritten_chars = self.worker_write(
+                req.text, req.font_name, req.font_size_mm, req.pen_thickness_mm
+            )
             cstr = ''.join([c.char for c in unwritten_chars])
-
-            if len(unwritten_chars) > 0:
-                self.get_logger().warning(
-                    f'Unable to write the end of the message: {cstr}'
-                )
-                self._fsm.transition(ppstate.E.WRITE_INCOMPLETE)
-            else:
-                self._fsm.transition(ppstate.E.WRITE_SUCCEEDED)
 
             goal_handle.succeed()
             res = WriteMessage.Result()
             res.unwritten_characters = cstr
             return res
 
-        except Exception as err:
-            tb = traceback.format_exc()
-            self.get_logger().error(
-                f'{type(err).__name__} during async tasks: {err}\n\nTraceback:\n{tb}'
-            )
-            self._fsm.transition(ppstate.E.WRITE_FAILED)
+        except Exception:
+            # we already make a fuss about this in the worker_write function.
+            # we can just swallow this.
             goal_handle.abort()
             res = WriteMessage.Result()
             res.unwritten_characters = req.text
