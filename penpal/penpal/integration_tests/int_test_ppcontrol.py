@@ -172,7 +172,7 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
 
     # Spawn and grab pen
     await ctl.add_fixed_pen()
-    #await ctl.add_demo_board()
+    await ctl.add_demo_board()
     logger.info('Robot approaching the pen.')
     pen_pose = np.array([0.5, 0.3, 0.191])
     pen_rot = R.from_euler('xyz', [180, 0, 0], degrees=True)
@@ -217,8 +217,8 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
         await ctl.configure()
 
         speed = 0.05
-        rot = R.from_euler('xyz', [180, 0, 0], degrees=True)
-        start_pose = np.array([0.4, -0.025, 0.191, *rot.as_quat(True)])
+        rot = R.from_euler('xyz', [180, -90, 0], degrees=True)
+        start_pose = np.array([0.53, 0.0, 0.4, *rot.as_quat(True)])
         node.get_logger().info('Moving to start position')
         goal_handle = await ctl.move_to_ee_pose(goal_ee_position=start_pose[:3],
                                                 goal_ee_orientation=start_pose[3:],
