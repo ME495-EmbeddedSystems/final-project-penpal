@@ -10,10 +10,11 @@ import rclpy
 from rclpy.node import Node
 
 from sensor_msgs.msg import CameraInfo
-from geometry_msgs.msg import PoseStamped, Point
+from geometry_msgs.msg import PoseStamped, Point, TransformStamped
 from visualization_msgs.msg import Marker
 from apriltag_msgs.msg import AprilTagDetectionArray, AprilTagDetection
 from std_msgs.msg import Header
+from tf2_ros import StaticTransformBroadcaster
 
 
 class BoardDetector(Node):
@@ -21,22 +22,60 @@ class BoardDetector(Node):
 
     def __init__(self) -> None:
         """Initialize board detector."""
-        super().__init__("board_detector")
+        super().__init__('board_detector')
+
+        self.T_base_camera: Optional[np.ndarray] = None
 
         # board + tag geometry
-        self.width: float = self.declare_parameter("board_width_m", 0.8).value
-        self.height: float = self.declare_parameter("board_height_m", 0.61).value
-        self.tag_size: float = self.declare_parameter("tag_size_m", 0.07).value
+        self.width: float = self.declare_parameter('board_width_m', 0.8).value
+        self.height: float = self.declare_parameter('board_height_m', 0.61).value
+        self.tag_size: float = self.declare_parameter('tag_size_m', 0.07).value
 
-        # tag IDs at known board corners
-        self.tag_tl: int = self.declare_parameter("top_left_id", 0).value
-        self.tag_br: int = self.declare_parameter("bottom_right_id", 1).value
+        # tag ids at known board corners
+        self.tag_tl: int = self.declare_parameter('top_left_id', 0).value
+        self.tag_br: int = self.declare_parameter('bottom_right_id', 1).value
 
         # detection topic
-        self.tag_topic: str = self.declare_parameter(
-            "tag_topic",
-            "/detections"
+        self.tag_topic: str = self.declare_parameter('tag_topic', '/detections').value
+
+        # ---- Frames + calibration tag info ----
+        self.base_frame_id: str = self.declare_parameter(
+            'base_frame_id', 'base'
         ).value
+        self.camera_frame_id: str = self.declare_parameter(
+            'camera_frame_id', 'camera_color_optical_frame'
+        ).value
+
+        # id of the calibration tag (on the table)
+        self.calib_tag_id: int = self.declare_parameter(
+            'calib_tag_id', 2
+        ).value
+
+        # known pose of calib tag in base frame: [x, y, z]
+        base_calib_xyz = self.declare_parameter(
+            'base_calib_tag_xyz',
+            [-0.3, 0.0, 0.0],
+        ).value
+
+        # known orientation of calib tag in base frame, [qx, qy, qz, qw]
+        base_calib_quat = self.declare_parameter(
+            'base_calib_tag_quat',
+            [0.0, 0.0, np.sin(np.pi / 4), np.cos(np.pi / 4)],
+        ).value
+
+        # homogeneous transform T_base_calib_tag
+        self.T_base_calib = np.eye(4)
+        # transforms3d expects (w, x, y, z)
+        qw = float(base_calib_quat[3])
+        qx = float(base_calib_quat[0])
+        qy = float(base_calib_quat[1])
+        qz = float(base_calib_quat[2])
+        self.T_base_calib[:3, :3] = tquat.quat2mat([qw, qx, qy, qz])
+        self.T_base_calib[:3, 3] = np.array(base_calib_xyz, dtype=float)
+
+        # only need to publish base -> camera once
+        self.camera_calibrated: bool = False
+        self._static_tf_broadcaster = StaticTransformBroadcaster(self)
 
         # camera intrinsics
         self.K: Optional[np.ndarray] = None
@@ -50,7 +89,7 @@ class BoardDetector(Node):
         # ---------------- Subscriptions ----------------
         self.caminfo_sub = self.create_subscription(
             CameraInfo,
-            "/camera/camera/color/camera_info",
+            '/camera/camera/color/camera_info',
             self.cam_info_cb,
             1,
         )
@@ -65,13 +104,20 @@ class BoardDetector(Node):
         # ------------------ Publishers ------------------
         self.pose_pub = self.create_publisher(
             PoseStamped,
-            "whiteboard_pose",
-            10,
+            'whiteboard_pose',
+            10
         )
 
         self.marker_pub = self.create_publisher(
             Marker,
-            "whiteboard_outline",
+            'whiteboard_outline',
+            10
+        )
+
+        # debug line from base -> calibration tag
+        self._debug_pub = self.create_publisher(
+            Marker,
+            'calib_link',
             10,
         )
 
@@ -153,6 +199,109 @@ class BoardDetector(Node):
 
         return R, t
 
+    def _publish_base_camera_tf(self, T_base_camera: np.ndarray) -> None:
+        """Publish base -> camera transform as a static TF."""
+        tf = TransformStamped()
+        tf.header.stamp = self.get_clock().now().to_msg()
+        tf.header.frame_id = self.base_frame_id
+        tf.child_frame_id = self.camera_frame_id
+
+        # translation
+        tf.transform.translation.x = float(T_base_camera[0, 3])
+        tf.transform.translation.y = float(T_base_camera[1, 3])
+        tf.transform.translation.z = float(T_base_camera[2, 3])
+
+        # rotation: convert R to quaternion
+        R_bc = T_base_camera[:3, :3]
+        qw, qx, qy, qz = tquat.mat2quat(R_bc)
+        tf.transform.rotation.w = float(qw)
+        tf.transform.rotation.x = float(qx)
+        tf.transform.rotation.y = float(qy)
+        tf.transform.rotation.z = float(qz)
+
+        self._static_tf_broadcaster.sendTransform(tf)
+        self.get_logger().info(
+            f"Published static TF {self.base_frame_id} -> {self.camera_frame_id}"
+        )
+
+    # def publish_calibration_link(self) -> None:
+    #     """Publish a line in base frame from base -> calibration tag center."""
+    #     m = Marker()
+    #     m.header.frame_id = self.base_frame_id
+    #     m.header.stamp = self.get_clock().now().to_msg()
+    #     m.ns = 'calibration'
+    #     m.id = 0
+    #     m.type = Marker.LINE_STRIP
+    #     m.action = Marker.ADD
+
+    #     m.scale.x = 0.01
+    #     m.color.r = 1.0
+    #     m.color.g = 0.0
+    #     m.color.b = 1.0
+    #     m.color.a = 1.0
+
+    #     # base at origin
+    #     p0 = Point()
+    #     p0.x = 0.0
+    #     p0.y = 0.0
+    #     p0.z = 0.0
+
+    #     # calibration tag center in base frame (from T_base_calib)
+    #     p1 = Point()
+    #     p1.x = float(self.T_base_calib[0, 3])
+    #     p1.y = float(self.T_base_calib[1, 3])
+    #     p1.z = float(self.T_base_calib[2, 3])
+
+    #     m.points = [p0, p1]
+    #     self._debug_pub.publish(m)
+
+    def publish_calibration_link(
+        self,
+        header,
+        t_cam_calib: np.ndarray,
+    ) -> None:
+        """
+        Publish a line marker from the robot base to the calibration tag.
+
+        Express in the camera frame so it shows in both 3D and Camera views.
+        """
+        if self.T_base_camera is None:
+            return
+
+        # invert to get T_camera_base
+        T_cam_base = np.linalg.inv(self.T_base_camera)
+        # base origin in camera frame
+        p_base_cam = T_cam_base @ np.array([0.0, 0.0, 0.0, 1.0])
+
+        marker = Marker()
+        # same frame as the board outline/camera image
+        marker.header = header
+        marker.ns = "calibration_link"
+        marker.id = 0
+        marker.type = Marker.LINE_LIST
+        marker.action = Marker.ADD
+
+        marker.scale.x = 0.01
+        marker.color.r = 1.0
+        marker.color.g = 0.0
+        marker.color.b = 0.0
+        marker.color.a = 1.0
+
+        # endpoints in *camera* frame
+        p0 = Point()
+        p0.x = float(p_base_cam[0])
+        p0.y = float(p_base_cam[1])
+        p0.z = float(p_base_cam[2])
+
+        p1 = Point()
+        p1.x = float(t_cam_calib[0])
+        p1.y = float(t_cam_calib[1])
+        p1.z = float(t_cam_calib[2])
+
+        marker.points = [p0, p1]
+
+        self.marker_pub.publish(marker)
+
     # ---------------- Main callback --------------------
     def tag_cb(self, msg: AprilTagDetectionArray) -> None:
         """Use TL + BR tags to compute board pose and outline."""
@@ -161,6 +310,36 @@ class BoardDetector(Node):
 
         # map id -> detection
         dets: Dict[int, AprilTagDetection] = {d.id: d for d in msg.detections}
+
+        # ---------- camera calibration using calibration tag ----------
+        if (
+            not self.camera_calibrated
+            and self.calib_tag_id in dets
+        ):
+            calib = self.estimate_tag_pose(dets[self.calib_tag_id])
+            if calib is not None:
+                R_cam_calib, t_cam_calib = calib
+
+                # build T_camera_calib_tag as 4x4 homogeneous
+                T_camera_calib = np.eye(4)
+                T_camera_calib[:3, :3] = R_cam_calib
+                T_camera_calib[:3, 3] = t_cam_calib
+
+                # T_base_camera = T_base_calib_tag * (T_camera_calib_tag)^-1
+                T_base_camera = self.T_base_calib @ np.linalg.inv(T_camera_calib)
+
+                self.T_base_camera = T_base_camera
+                self._publish_base_camera_tf(T_base_camera)
+                self.camera_calibrated = True
+                self.get_logger().info(
+                    f"Camera calibrated using tag id={self.calib_tag_id}"
+                )
+
+                # draw a line in rviz from base -> calib tag center
+                self.publish_calibration_link(
+                    msg.header,
+                    t_cam_calib,
+                )
 
         tl_pose = self.estimate_tag_pose(dets[self.tag_tl]) if self.tag_tl in dets else None
         br_pose = self.estimate_tag_pose(dets[self.tag_br]) if self.tag_br in dets else None
@@ -278,7 +457,7 @@ class BoardDetector(Node):
 
         m = Marker()
         m.header = header
-        m.ns = "whiteboard"
+        m.ns = 'whiteboard'
         m.id = 0
         m.type = Marker.LINE_STRIP
         m.action = Marker.ADD
