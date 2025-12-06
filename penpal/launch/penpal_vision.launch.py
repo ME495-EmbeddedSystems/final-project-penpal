@@ -99,6 +99,32 @@ def generate_launch_description():
                 ],
             ),
             Node(
+                package='penpal',
+                executable='pen_detector',
+                name='pen_detector',
+                parameters=[
+                    {
+                        'tag_id': 3,
+                        'tag_frame_id': 'tag_pen',
+                        'tag_size_m': 0.032,
+                        'tag_topic': '/detections',
+
+                        # If board_detector is already running calibration,
+                        # keep this false to avoid duplicate base->camera TF.
+                        'calibrate_camera': False,
+
+                        # If you want pen_detector to do calibration alone, set true and provide:
+                        # 'calib_tag_id': 2,
+                        # 'calib_tag_size_m': 0.07,
+                        # 'base_frame_id': 'base',
+                        # 'camera_frame_id': 'camera_color_optical_frame',
+                        # 'base_calib_tag_xyz': [0.30, 0.0, 0.0],
+                        # 'base_calib_tag_quat': [1.0, 0.0, 0.0, 0.0],
+                    }
+                ],
+                output='screen',
+            ),
+            Node(
                 package='rviz2',
                 executable='rviz2',
                 name='rviz2',

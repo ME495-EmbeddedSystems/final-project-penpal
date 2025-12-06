@@ -19,6 +19,6 @@ apriltag:
     publish_tf: true
 
     tag:
-      ids: [0, 1, 2]
-      frames: ["tag0", "tag1", "tag_calib"]
-      sizes: [0.07, 0.07, 0.07]
+      ids: [0, 1, 2, 3]
+      frames: ["tag0", "tag1", "tag_calib", "tag_pen"]
+      sizes: [0.07, 0.07, 0.07, 0.032]
