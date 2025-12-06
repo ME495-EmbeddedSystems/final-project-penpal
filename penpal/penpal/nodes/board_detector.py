@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 import transforms3d.quaternions as tquat
 
+from penpal_interfaces.msg import BoardInfo
 import rclpy
 from rclpy.node import Node
 
@@ -51,13 +52,13 @@ class BoardDetector(Node):
             'calib_tag_id', 2
         ).value
 
-        # known pose of calib tag in base frame: [x, y, z]
+        # known pose of calib tag in BASE frame: [x, y, z]
         base_calib_xyz = self.declare_parameter(
             'base_calib_tag_xyz',
             [-0.3, 0.0, 0.0],
         ).value
 
-        # known orientation of calib tag in base frame, [qx, qy, qz, qw]
+        # known orientation of calib tag in BASE frame, [qx, qy, qz, qw]
         base_calib_quat = self.declare_parameter(
             'base_calib_tag_quat',
             [0.0, 0.0, np.sin(np.pi / 4), np.cos(np.pi / 4)],
@@ -73,7 +74,7 @@ class BoardDetector(Node):
         self.T_base_calib[:3, :3] = tquat.quat2mat([qw, qx, qy, qz])
         self.T_base_calib[:3, 3] = np.array(base_calib_xyz, dtype=float)
 
-        # only need to publish base -> camera once
+        # only need to publish BASE -> CAMERA once
         self.camera_calibrated: bool = False
         self._static_tf_broadcaster = StaticTransformBroadcaster(self)
 
@@ -108,6 +109,14 @@ class BoardDetector(Node):
             10
         )
 
+        self.board_info_pub = self.create_publisher(
+            BoardInfo,
+            'board_info',
+            10
+        )
+        self.sequence_number: int = 0
+
+        # --------------- Marker Publishers ---------------
         self.marker_pub = self.create_publisher(
             Marker,
             'whiteboard_outline',
@@ -121,7 +130,7 @@ class BoardDetector(Node):
             10,
         )
 
-        # debug line from base -> calibration tag
+        # debug line from BASE -> CALIB_TAG
         self._debug_pub = self.create_publisher(
             Marker,
             'calib_link',
@@ -150,13 +159,13 @@ class BoardDetector(Node):
         detection: AprilTagDetection,
     ) -> Optional[Tuple[np.ndarray, np.ndarray]]:
         """
-        Estimate tag pose (R, t) in camera frame from 4 corners using IPPE_SQUARE.
+        Estimate tag pose (R, t) in CAMERA frame from 4 corners using IPPE_SQUARE.
 
         Returns
         -------
         (R, t): if successful
-            R: 3x3 rotation matrix (tag frame -> camera frame)
-            t: shape (3,) translation vector (tag origin in camera frame)
+            R: 3x3 rotation matrix (TAG frame -> CAMERA frame)
+            t: shape (3,) translation vector (tag origin in CAMERA frame)
         None:
             if intrinsics missing or PnP fails
 
@@ -173,7 +182,7 @@ class BoardDetector(Node):
         # pixel corners -> shape (4, 2)
         uv = np.array([[c.x, c.y] for c in detection.corners], dtype=float)
 
-        # tag-frame 3D corners (square in z = 0 plane, centered at origin)
+        # TAG frame 3D corners (square in z = 0 plane, centered at origin)
         s: float = self.tag_size / 2.0
         XYZ = np.array(
             [
@@ -186,8 +195,8 @@ class BoardDetector(Node):
         )
 
         success, rvec, tvec = cv2.solvePnP(
-            XYZ,          # real-world coordinates of tag corners
-            uv,           # pixel coordinates of corners
+            XYZ,  # real-world coordinates of tag corners
+            uv,  # pixel coordinates of corners
             self.K,
             self.D,
             flags=cv2.SOLVEPNP_IPPE_SQUARE,
@@ -199,15 +208,15 @@ class BoardDetector(Node):
             )
             return None
 
-        # rotation matrix from tag frame -> camera frame
+        # rotation matrix from TAG frame -> CAMERA frame
         R, _ = cv2.Rodrigues(rvec)
-        # translation vector from tag origin -> camera frame
+        # translation vector from tag origin -> CAMERA frame
         t = tvec.reshape(3)
 
         return R, t
 
     def _publish_base_camera_tf(self, T_base_camera: np.ndarray) -> None:
-        """Publish base -> camera transform as a static TF."""
+        """Publish BASE -> CAMERA transform as a static TF."""
         tf = TransformStamped()
         tf.header.stamp = self.get_clock().now().to_msg()
         tf.header.frame_id = self.base_frame_id
@@ -239,7 +248,7 @@ class BoardDetector(Node):
         """
         Publish a line marker from the robot base to the calibration tag.
 
-        Express in the camera frame so it shows in both 3D and Camera views.
+        Express in the CAMERA frame so it shows in both 3D and camera views.
         """
         if self.T_base_camera is None:
             return
@@ -263,7 +272,7 @@ class BoardDetector(Node):
         marker.color.b = 0.0
         marker.color.a = 1.0
 
-        # endpoints in *camera* frame
+        # endpoints in CAMERA frame
         p0 = Point()
         p0.x = float(p_base_cam[0])
         p0.y = float(p_base_cam[1])
@@ -287,7 +296,7 @@ class BoardDetector(Node):
         # map id -> detection
         dets: Dict[int, AprilTagDetection] = {d.id: d for d in msg.detections}
 
-        # ---------- camera calibration using calibration tag ----------
+        # ---------- Camera calibration ----------
         if (
             not self.camera_calibrated
             and self.calib_tag_id in dets
@@ -311,7 +320,7 @@ class BoardDetector(Node):
                     f"Camera calibrated using tag id={self.calib_tag_id}"
                 )
 
-                # draw a line in rviz from base -> calib tag center
+                # draw a line in rviz from BASE -> CALIB_TAG
                 self.publish_calibration_link(
                     msg.header,
                     t_cam_calib,
@@ -322,6 +331,9 @@ class BoardDetector(Node):
 
         # --- No tags visible: mark board as not visible and delete marker ---
         if tl_pose is None and br_pose is None:
+            # reset sequence number
+            self.sequence_number = 0
+
             if getattr(self, "board_visible", False):
                 self.get_logger().info("Board not visible (no tags).")
                 self.board_visible = False
@@ -341,7 +353,7 @@ class BoardDetector(Node):
         S: float = self.tag_size
         hw, hh, hs = W / 2.0, H / 2.0, S / 2.0
 
-        # board frame convention: origin at center, +x right, +y down
+        # BOARD frame convention: origin at center, +x right, +y down
         P_tag_tl_b = np.array([-hw + hs, -hh + hs, 0.0])  # TL tag center
         P_tag_br_b = np.array([hw - hs, hh - hs, 0.0])  # BR tag center
 
@@ -361,6 +373,9 @@ class BoardDetector(Node):
             U, _, Vt = np.linalg.svd(R_sum)
             R = U @ Vt
 
+            # count number of visible tags
+            n_tags = 2
+
             if not getattr(self, "board_visible", False):
                 self.get_logger().info("Board visible (both TL + BR).")
             self.board_visible = True
@@ -371,6 +386,9 @@ class BoardDetector(Node):
             R = R_tl
             center = t_tl - R @ P_tag_tl_b
 
+            # count number of visible tags
+            n_tags = 1
+
             if not getattr(self, "board_visible", False):
                 self.get_logger().info("Board visible (TL only).")
             self.board_visible = True
@@ -380,6 +398,9 @@ class BoardDetector(Node):
             R_br, t_br = br_pose
             R = R_br
             center = t_br - R @ P_tag_br_b
+
+            # count number of visible tags
+            n_tags = 1
 
             if not getattr(self, "board_visible", False):
                 self.get_logger().info("Board visible (BR only).")
@@ -404,9 +425,82 @@ class BoardDetector(Node):
 
         self.pose_pub.publish(pose)
 
+        # ---- Publish BoardInfo ----
+        self.publish_board_info(
+            msg.header,
+            R,
+            center,
+            n_tags,
+        )
+
         # ---- Publish outline markers ----
         self.publish_outline(msg.header, R, center)
         self.publish_write_space(msg.header, R, center)
+
+    # ---------------- Publish BoardInfo ----------------
+    def publish_board_info(
+        self,
+        header: Header,
+        R: np.ndarray,
+        center: np.ndarray,
+        n_tags: int,
+    ) -> None:
+        """
+        Publish BoardInfo message.
+
+        pose:
+            Pose of the TOP-LEFT corner of the board in the CAMERA frame.
+            Orientation = board orientation (R).
+
+        writeable_area:
+            Bottom half of the board, in board-plane coordinates with:
+            - origin at board center
+        """
+        hw = self.width / 2.0
+        hh = self.height / 2.0
+
+        # top-left corner in CAMERA frame
+        P_tl_b = np.array([-hw, hh, 0.0])
+        top_left_c = R @ P_tl_b + center
+
+        # fill board info message
+        msg = BoardInfo()
+
+        # pose of top-left corner
+        msg.pose = PoseStamped()
+        msg.pose.header = header
+        msg.pose.pose.position.x = float(top_left_c[0])
+        msg.pose.pose.position.y = float(top_left_c[1])
+        msg.pose.pose.position.z = float(top_left_c[2])
+
+        q = tquat.mat2quat(R)  # (w, x, y, z)
+        msg.pose.pose.orientation.w = float(q[0])
+        msg.pose.pose.orientation.x = float(q[1])
+        msg.pose.pose.orientation.y = float(q[2])
+        msg.pose.pose.orientation.z = float(q[3])
+
+        # board dimensions
+        msg.width_m = float(self.width)
+        msg.height_m = float(self.height)
+
+        # writespace in board coordinates:
+        # origin at center: +x right, +y up -> down is -y
+        # bottom edge: y = -hh, midline: y = 0
+        x_tl = -hw
+        y_tl = 0.0  # top of writeable strip
+        x_br = hw
+        y_br = -hh  # bottom of board
+
+        msg.writeable_area = [float(x_tl), float(y_tl),
+                              float(x_br), float(y_br)]
+
+        # tag + sequence info
+        msg.n_tags = int(n_tags)
+
+        self.sequence_number += 1
+        msg.sequence_number = int(self.sequence_number)
+
+        self.board_info_pub.publish(msg)
 
     # --------------- Visualization ---------------------
     def publish_outline(
@@ -415,10 +509,10 @@ class BoardDetector(Node):
         R: np.ndarray,
         center: np.ndarray,
     ) -> None:
-        """Draw board rectangle in camera frame using board pose (R, center)."""
+        """Draw board rectangle in CAMERA frame using board pose (R, center)."""
         hw, hh = self.width / 2.0, self.height / 2.0
 
-        # board corners in board frame with origin at center
+        # board corners in BOARD frame with origin at center
         corners_b = np.array(
             [
                 [-hw, -hh, 0.0],  # bottom-left
@@ -429,7 +523,7 @@ class BoardDetector(Node):
             dtype=float,
         ).T
 
-        # transform to camera frame: corners_c = R * corners_b + center
+        # transform to CAMERA frame: corners_c = R * corners_b + center
         corners_c = R @ corners_b + center.reshape(3, 1)
 
         m = Marker()
@@ -464,13 +558,13 @@ class BoardDetector(Node):
         """
         Draw the penpal write space = bottom half of the board.
 
-        Board frame convention matches publish_outline: origin at center,
+        BOARD frame convention matches publish_outline: origin at center,
         width along x, height along y. We take y from -hh (bottom edge)
         up to 0 (midline) as the write-space.
         """
         hw, hh = self.width / 2.0, self.height / 2.0
 
-        # bottom half in board frame
+        # bottom half in BOARD frame
         corners_b = np.array(
             [
                 [-hw, -hh, 0.0],  # bottom-left
@@ -481,7 +575,7 @@ class BoardDetector(Node):
             dtype=float,
         ).T
 
-        # transform to camera frame
+        # transform to CAMERA frame
         corners_c = R @ corners_b + center.reshape(3, 1)
 
         m = Marker()
