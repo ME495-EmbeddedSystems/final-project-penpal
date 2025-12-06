@@ -7,11 +7,13 @@ Authors: Conor
 import asyncio
 from dataclasses import dataclass
 from pathlib import Path
+import threading
 import traceback
 from typing import Any, List, Literal
 from threading import Lock
 import json
 
+import concurrent.futures
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
@@ -171,7 +173,8 @@ class PenPal(Node):
         grab_ctl = moveit_control.MoveItPPControl(self)
         self._grabber = grab_planner.GrabPlanner(self, grab_ctl)
 
-        self._loop = asyncio.get_event_loop()
+        # thread pool executor for long running arm tasks
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         self._package_share = Path(get_package_share_directory('penpal'))
         self._cbgroup_arm_users = MutuallyExclusiveCallbackGroup()
         """Callback group for anything that synchronously uses the arm."""
@@ -279,17 +282,27 @@ class PenPal(Node):
 
         return False
 
-    def worker_home(self) -> None:
-        """Send the robot to the home position in the worker thread."""
-        task = self._loop.create_task(self._grabber.home_arm())
+    def _run_async_worker_in_thread(self, coroutine_func):
+        """Run an async function using a new event loop. Intended for use in worker thread."""
         try:
-            self._loop.run_until_complete(task)
+            result = asyncio.run(coroutine_func)
+            return result
         except Exception as err:
             tb = traceback.format_exc()
             self.get_logger().error(
-                f'{type(err).__name__} while homing: {err}\n\nTraceback:\n{tb}'
+                f'{type(err).__name__} while running event loop'
+                f': {err}\n\nTraceback:\n{tb}'
             )
-            self._fsm.transition(ppstate.E.WRITE_FAILED)
+
+    def run_in_worker(self, coroutine_func) -> concurrent.futures.Future:
+        """Schedule an async function into the worker thread."""
+        return self._executor.submit(
+            self._run_async_worker_in_thread, coroutine_func
+        )
+
+    def worker_home(self) -> None:
+        """Send the robot to the home position in the worker thread."""
+        self.run_in_worker(self._grabber.home_arm())
 
     def worker_write(
         self,
@@ -304,14 +317,16 @@ class PenPal(Node):
         chars = self._fonts.write_text(
             text, font_name, font_size_mm, pen_thickness_mm
         )
-        write_task = self._loop.create_task(
+        future = self.run_in_worker(
             self._write_planner.write_characters(
                 chars, self._fonts.c.line_spacing_factor
             )
         )
 
         try:
-            unwritten_chars = self._loop.run_until_complete(write_task)
+            # block here for now.
+            # TODO figure out how to not need to block.
+            unwritten_chars: list[write_planner.Character] = future.result()  # type: ignore
 
             self.get_logger().info('Finished writing message!')
             cstr = ''.join([c.char for c in unwritten_chars])
@@ -347,17 +362,8 @@ class PenPal(Node):
 
     def worker_trigger_vlm(self) -> None:
         """Use the worker thread to get text to write from the VLM."""
-        task = self._loop.create_task(self._async_trigger_vlm())
+        self.run_in_worker(self._async_trigger_vlm)
         self._fsm.transition(ppstate.E.OCR_VLM_TRIGGERED)
-
-        try:
-            self._loop.run_until_complete(task)
-        except Exception as err:
-            tb = traceback.format_exc()
-            self.get_logger().error(
-                f'{type(err).__name__} while homing: {err}\n\nTraceback:\n{tb}'
-            )
-            self._fsm.transition(ppstate.E.WRITE_FAILED)
 
     def _cb_tick(self, info: TimerInfo) -> None:
         """Handle periodic tasks. Timer callback."""
@@ -376,7 +382,6 @@ class PenPal(Node):
         match s:
             case ppstate.S.ASLEEP:
                 if enter:
-                    self._loop.stop()
                     self.worker_home()
                 # wait to be woken up
                 pass
