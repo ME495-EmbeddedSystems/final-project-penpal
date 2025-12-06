@@ -25,6 +25,10 @@ from moveit_configs_utils import MoveItConfigsBuilder
 
 def generate_launch_description():
     """ROS2 launch description generator."""
+    moveit_config = MoveItConfigsBuilder(
+        'fer', package_name='franka_fer_moveit_config'
+    ).to_moveit_configs()
+
     return LaunchDescription(
         [
             DeclareLaunchArgument(
@@ -88,17 +92,22 @@ def generate_launch_description():
             Node(
                 package='rviz2',
                 executable='rviz2',
-                name='rviz2',
+                output='log',
                 arguments=[
                     '-d',
                     PathJoinSubstitution(
                         [
-                            FindPackageShare('penpal'),
+                            FindPackageShare('franka_fer_moveit_config'),
                             'config',
-                            'robot_view.rviz',
+                            'moveit.rviz',
                         ]
                     ),
                 ],
+                parameters=[
+                    moveit_config.planning_pipelines,
+                    moveit_config.robot_description_kinematics,
+                ],
+                remappings=[('/move_action', '/viz/move_action')],
             ),
         ]
     )

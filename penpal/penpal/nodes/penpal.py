@@ -480,7 +480,11 @@ class PenPal(Node):
             unwritten_chars = self.worker_write(
                 req.text, req.font_name, req.font_size_mm, req.pen_thickness_mm
             )
-            cstr = ''.join([c.char for c in unwritten_chars])
+            cstr = (
+                ''.join([c.char for c in unwritten_chars])
+                if unwritten_chars is not None
+                else None
+            )
 
             goal_handle.succeed()
             res = WriteMessage.Result()
