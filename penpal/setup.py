@@ -41,6 +41,7 @@ setup(
         *recursive_files('share/' + package_name, 'launch'),
         *recursive_files('share/' + package_name, 'config'),
         *recursive_files('share/' + package_name, 'rviz'),
+        *recursive_files('share/' + package_name, 'fonts'),
     ],
     install_requires=[
         'setuptools',
@@ -63,6 +64,7 @@ setup(
             'board_detector = penpal.nodes.board_detector:main',
             'moveit_ctl = penpal.integration_tests.int_test_ppcontrol:main_moveit',
             'ocr_node = penpal.nodes.ocr_node:main',
+            'penpal = penpal.nodes.penpal:main',
         ],
     },
 )
