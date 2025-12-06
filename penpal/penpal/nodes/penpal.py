@@ -144,7 +144,13 @@ class PenPal(Node):
 
         self._write_planner = write_planner.WritePlanner(self, ctl)
         self._fonts = font_trajectory.FontTrajectory()
-        self._grabber = grab_planner.GrabPlanner(self, ctl)
+
+        # grab planner will always use a moveit controller instance
+        # it _cannot_ be used at the same time as the other one, and this
+        # isn't hard-enforced in the controller code, so we must take care
+        # to enforce this in our logic here. We use the FSM formalism for this.
+        grab_ctl = moveit_control.MoveItPPControl(self)
+        self._grabber = grab_planner.GrabPlanner(self, grab_ctl)
 
         self._loop = asyncio.get_event_loop()
         self._package_share = Path(get_package_share_directory('penpal'))
