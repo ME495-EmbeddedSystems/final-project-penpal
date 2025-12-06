@@ -1,23 +1,22 @@
-"""
-Integration test node for developing PP control.
-"""
+"""Integration test node for developing PP control."""
 
 import asyncio
-import threading
 import signal
+import threading
 
-import numpy as np
-from scipy.spatial.transform import Rotation as R
 import matplotlib.pyplot as plt
 
+import numpy as np
 
 import rclpy
-from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
+from rclpy.node import Node
 
-from penpal.control import position_control, moveit_control, pp_control
+from penpal.control import moveit_control, position_control, pp_control
 from penpal.control.pp_control import Trajectory
 from penpal.integration_tests import plot
+
+from scipy.spatial.transform import Rotation as R
 
 
 def traj_from_points(
@@ -33,7 +32,8 @@ def traj_from_points(
 
     points = rot.apply(points) + center
     down = R.from_euler('xyz', [0, 0, -np.pi / 2])
-    ori = R.from_matrix(rot.as_matrix() @ down.as_matrix())
+    forward = R.from_euler('xyz', [np.pi / 2, 0, 0])
+    ori = R.from_matrix(rot.as_matrix() @ forward.as_matrix())
     ori_quat = ori.as_quat(True)
     # ori_quat = down.as_quat(True)
 
@@ -169,32 +169,81 @@ def get_demo_traj_sequence(start_pose: np.ndarray) -> list[Trajectory]:
 async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
     """Test move plan functions."""
     logger = node.get_logger()
+
+    # Spawn and grab pen
+    await ctl.add_fixed_pen()
+    #await ctl.add_demo_board()
+    logger.info('Robot approaching the pen.')
+    pen_pose = np.array([0.5, 0.3, 0.191])
+    pen_rot = R.from_euler('xyz', [180, 0, 0], degrees=True)
+    pen_ori = pen_rot.as_quat()
+    pre_grasp_pos = pen_pose + np.array([0, 0, 0.10])
+
     try:
-        wait_t = 15.0
+        wait_t = 5.0
+        logger.info(f'Waiting {wait_t} seconds...')
+        await asyncio.sleep(wait_t)
+        logger.info('Starting pen grabbing...')
+        await ctl.configure()
+
+        logger.info('Robot moving to pre grasp position.')
+        goal = await ctl.move_to_ee_pose(pre_grasp_pos,
+                                         pen_ori,
+                                         execute_immediately=True)
+        res = await goal.get_result_async()
+        if res.result.error_code.val != 1:
+            return
+
+        await ctl.grip(0.03)
+
+        point_data = np.hstack([pen_pose, pen_ori, np.array([0])])
+        traj_approach = Trajectory('pen_grab', point_data.reshape(1, 8))
+        await ctl._execute_trajectory(traj_approach, 0.01)
+        await ctl.grip(0.01)
+        await ctl.attach_pen()
+
+        lift_pos = pen_pose + np.array([0, 0, 0.05])
+        await ctl.move_to_ee_pose(lift_pos, pen_ori)
+        await ctl.plan_to_named_config(
+            named_config='ready',
+            start_ee_pose=None,
+            execute_immediately=True,
+        )
+
+        wait_t = 10.0
         logger.info(f'Waiting {wait_t} seconds...')
         await asyncio.sleep(wait_t)
         logger.info('Starting integration test...')
         await ctl.configure()
 
         speed = 0.05
-        rot = R.from_euler('xyz', [2, 3, -1])
-        start_pose = np.array([0.5, 0.5, 0.5, *rot.as_quat(True)])
+        rot = R.from_euler('xyz', [180, 0, 0], degrees=True)
+        start_pose = np.array([0.4, -0.025, 0.191, *rot.as_quat(True)])
+        node.get_logger().info('Moving to start position')
+        goal_handle = await ctl.move_to_ee_pose(goal_ee_position=start_pose[:3],
+                                                goal_ee_orientation=start_pose[3:],
+                                                execute_immediately=True)
+        res = await goal_handle.get_result_async()
+        if res.result.error_code.val != 1:
+            node.get_logger().error(f'Failed, Error: {res.result.error_code.val}')
+            return
+
         seq = get_demo_traj_sequence(start_pose)
 
         # publish trajectories one by one
         # uncomment once no failure
-        # for traj in seq:
-        #     logger.info(f'Executing trajectory {traj.label}...')
-        #     await ctl.execute_trajectory(traj, speed, publish_markers=True)
-
-        logger.info('Publishing all trajectory markers...')
-        for traj in seq:
-            await ctl.publish_marker(traj)
-
         for traj in seq:
             logger.info(f'Executing trajectory {traj.label}...')
-            # markers already published for now so no need to republish here
-            await ctl.execute_trajectory(traj, speed, publish_markers=False)
+            await ctl.execute_trajectory(traj, speed, publish_markers=True)
+
+        # logger.info('Publishing all trajectory markers...')
+        # for traj in seq:
+        #     await ctl.publish_marker(traj)
+
+        # for traj in seq:
+        #     logger.info(f'Executing trajectory {traj.label}...')
+        #     # markers already published for now so no need to republish here
+        #     await ctl.execute_trajectory(traj, speed, publish_markers=False)
 
     finally:
         node.get_logger().info('Integration test finished.')
@@ -205,7 +254,7 @@ def plot_shapes() -> None:
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
 
-    rot = R.from_euler('xyz', [np.pi / 2, 0, 0], False)
+    rot = R.from_euler('xyz', [0, 0, 0], False)
 
     c = np.array([1, 2, 3])
     traj1 = get_circle_trajectory(2.0, c, rot, 30)
@@ -224,7 +273,7 @@ def plot_shapes() -> None:
 def plot_demo_seq() -> None:
     """Plot the demo sequence on a 3d plot."""
     rot = R.from_euler('xyz', [2, 3, -1])
-    start_pose = np.array([0.2, 0.2, 0.2, *rot.as_quat(True)])
+    start_pose = np.array([0.4, 0, 0.2, *rot.as_quat(True)])
     seq = get_demo_traj_sequence(start_pose)
     plot.plot_trajectory_sequence(seq, True)
     plt.show()

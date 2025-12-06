@@ -1,6 +1,7 @@
 """Controller implementation using MoveIt. Lacks force control."""
+import asyncio
 
-from geometry_msgs.msg import Pose, Quaternion
+from geometry_msgs.msg import Pose, Quaternion, PoseStamped
 
 from moveit_msgs.action import ExecuteTrajectory, MoveGroup
 from moveit_msgs.msg import (
@@ -13,8 +14,14 @@ from moveit_msgs.msg import (
     PlanningOptions,
     PositionConstraint,
     RobotState,
+    AttachedCollisionObject,
+    CollisionObject,
+    ObjectColor,
 )
+from moveit_msgs.msg import PlanningScene as PS
 from moveit_msgs.srv import GetCartesianPath
+
+from std_msgs.msg import ColorRGBA
 
 import numpy as np
 
@@ -52,6 +59,16 @@ class MoveItPPControl(PPControlBase):
             'compute_cartesian_path',
             callback_group=self._cbgroup,
         )
+        self._scene_pub = self._node.create_publisher(PS, '/planning_scene', 10)
+        self._board_sub = self._node.create_subscription(PoseStamped,
+                                                         'whiteboard_pose',
+                                                         self.board_cb,
+                                                         10)
+        self._board_pose = None
+
+    def board_cb(self, msg) -> None:
+        """Execute board callback."""
+        self._board_pose = msg
 
     async def _execute_trajectory(
         self,
@@ -216,6 +233,12 @@ class MoveItPPControl(PPControlBase):
             self._logger.info(
                 f'Received response goal handle: {goal_handle.accepted}'
             )
+        res_msg = await goal_handle.get_result_async()
+        result = res_msg.result
+        if result.error_code.val != MoveItErrorCodes.SUCCESS:
+            self._logger.error(f'Move failed with error code: {result.error_code.val}')
+        else:
+            self._logger.info('Move execution succeeded.')
         return goal_handle
 
     async def plan_cartesian_path(
@@ -286,7 +309,7 @@ class MoveItPPControl(PPControlBase):
             resp = await self._c_execute_trajectory.send_goal_async(request)
             if resp is not None and resp.accepted:
                 res = await resp.get_result_async()
-                if res.result.error_code != MoveItErrorCodes.SUCCESS:
+                if res.result.error_code.val != MoveItErrorCodes.SUCCESS:
                     self._logger.error(
                         f'Cartesian path execution failed: {res}'
                     )
@@ -295,6 +318,231 @@ class MoveItPPControl(PPControlBase):
             else:
                 self._logger.error('Failed to execute cartesian path.')
         return response
+
+    def joint_constraints(self, joints):
+        """Set goal state."""
+        constraints = Constraints()
+        joint_names = [
+            'fer_joint1',
+            'fer_joint2',
+            'fer_joint3',
+            'fer_joint4',
+            'fer_joint5',
+            'fer_joint6',
+            'fer_joint7',
+        ]
+        for i, joint_value in enumerate(joints):
+            jointconstraint = JointConstraint()
+            jointconstraint.joint_name = joint_names[i]
+            jointconstraint.position = float(joint_value)
+            jointconstraint.tolerance_above = 0.01
+            jointconstraint.tolerance_below = 0.01
+            constraints.joint_constraints.append(jointconstraint)  # type: ignore
+        return [constraints]
+
+    async def plan_to_named_config(
+        self,
+        named_config: str,
+        start_ee_pose: np.ndarray | None = None,
+        execute_immediately: bool = False,
+    ) -> MoveGroup.Result | None:
+        """
+        Plan a path from any valid starting pose to a named configuration.
+
+        This "named configuration" can be defined in an SRDF or a remembered
+        from a previous call to moveit python library's remember_joint_values()
+        method, per docs here:
+        https://docs.ros.org/en/jade/api/moveit_commander/html/classmoveit__commander_1_1move__group_1_1MoveGroupCommander.html#af9c9fc79be7fee5c366102db427fb28b
+
+        Args:
+        ----
+        named_config (str): Named configuration.
+        start_ee_pose (np.ndarray, optional): start pose;
+            if None, use current robot pose.
+        execute_immediately (bool): immediately execute the path.
+
+        Return:
+        ------
+            MoveGroup.Result: Result of the move action.
+
+        """
+        goal_msg = MoveGroup.Goal()
+        request = MotionPlanRequest()
+        request.group_name = 'fer_manipulator'
+        request.num_planning_attempts = 5
+        request.allowed_planning_time = 10.0
+        request.max_velocity_scaling_factor = 0.1
+        request.max_acceleration_scaling_factor = 0.1
+
+        named_states = {
+            'ready': np.array(
+                [
+                    0.0,
+                    -0.7853981633974483,
+                    0.0,
+                    -2.356194490192345,
+                    0.0,
+                    1.5707963267948966,
+                    0.7853981633974483,
+                ]
+            ),
+            'extended': np.array(
+                [
+                    0.0,
+                    0.0,
+                    0.0,
+                    -0.1,
+                    0.0,
+                    1.5707963267948966,
+                    0.7853981633974483,
+                ]
+            ),
+        }
+        if named_config not in named_states:
+            raise ValueError('No such named configuration.')
+
+        goal_joints = named_states[named_config]
+
+        if start_ee_pose is not None:
+            msg = PoseStamped()
+            msg.header.frame_id = 'base'
+            msg.pose.position.x = start_ee_pose[0]
+            msg.pose.position.y = start_ee_pose[1]
+            msg.pose.position.z = start_ee_pose[2]
+            msg.pose.orientation.x = start_ee_pose[3]
+            msg.pose.orientation.y = start_ee_pose[4]
+            msg.pose.orientation.z = start_ee_pose[5]
+            msg.pose.orientation.w = start_ee_pose[6]
+            start_joint_state = self._robot_state.inverse_kinematics(msg)
+            if start_joint_state is None:
+                return None
+
+            start_state = RobotState()
+            start_state.joint_state = start_joint_state
+            request.start_state = start_state
+        request.goal_constraints = self.joint_constraints(goal_joints)
+
+        goal_msg.request = request
+        planning_options = PlanningOptions()
+        planning_options.plan_only = not execute_immediately
+        goal_msg.planning_options = planning_options
+        self._logger.info('Sending goal')
+        response_goal = await self._c_move_group.send_goal_async(goal_msg)
+        if response_goal is None:
+            self._logger.error('response_goal=None')
+            return
+        self._logger.info(
+            f'Received response goal handle: {response_goal.accepted}'
+        )
+        response = await response_goal.get_result_async()
+        if response is None:
+            self._logger.error('response=None')
+            return None
+        return response.result
+
+    async def add_demo_board(self) -> None:
+        """Spawn a board from board_detector at hard_coded location."""
+        board = CollisionObject()
+        board.header.frame_id = 'base'
+        board.id = 'board'
+        box = SolidPrimitive()
+        box.type = SolidPrimitive.BOX
+        box.dimensions = [0.8, 0.61, 0.02]
+        board_pose = Pose()
+        board_pose.position.x = 0.6
+        board_pose.position.y = 0.0
+        board_pose.position.z = 0.4
+        board_pose.orientation.w = 1.0
+
+        board.primitive_poses.append(board_pose)
+        board.operation = CollisionObject.ADD
+
+        # Publihs the addition
+        scene_msg = PS()
+        scene_msg.world.collision_objects.append(board)
+        scene_msg.is_diff = True
+        color_msg = ObjectColor()
+        color_msg.id = 'demo_board'
+        color_msg.color = ColorRGBA(r=0.0, g=0.0, b=1.0, a=0.5)
+        scene_msg.object_colors.append(color_msg)
+        await asyncio.sleep(1.0)
+        self._scene_pub.publish(scene_msg)
+        self._logger.info('Board in planning scene.')
+
+    async def add_board(self) -> None:
+        """Spawn a board from board_detector provided location."""
+        board = CollisionObject()
+        board.header.frame_id = 'base'
+        board.id = 'board'
+        box = SolidPrimitive()
+        box.type = SolidPrimitive.Box
+        box.dimensions = [0.8, 0.61, 0.02]
+
+        board_pose = self._board_pose.pose
+        board.primitive_poses.append(board_pose)
+        board.operation = CollisionObject.ADD
+
+        # Publihs the addition
+        scene_msg = PS()
+        scene_msg.world.collision_objects.append(board)
+        scene_msg.is_diff = True
+        color_msg = ObjectColor()
+        color_msg.id = 'board'
+        color_msg.color = ColorRGBA(r=0.0, g=0.0, b=1.0, a=0.5)
+        scene_msg.object_colors.append(color_msg)
+        await asyncio.sleep(1.0)
+        self._scene_pub.publihs(scene_msg)
+        self._logger.info('Demo board in planning scene.')
+
+    async def add_fixed_pen(self) -> None:
+        """Spawn a collision object pen at a hardcoded location."""
+        pen = CollisionObject()
+        pen.header.frame_id = 'base'
+        pen.id = 'pen'
+        cylinder = SolidPrimitive()
+        cylinder.type = SolidPrimitive.CYLINDER
+        cylinder.dimensions = [0.10, 0.01]  # [height, radius in meters]
+        # Hard coded pen location
+        pen_pose = Pose()
+        pen_pose.position.x = 0.5
+        pen_pose.position.y = 0.3
+        pen_pose.position.z = 0.191
+        pen_pose.orientation.x = 0.0
+        pen_pose.orientation.y = 0.7071068
+        pen_pose.orientation.z = 0.0
+        pen_pose.orientation.w = 0.7071068
+        pen.primitives.append(cylinder)
+        pen.primitive_poses.append(pen_pose)
+        pen.operation = CollisionObject.ADD
+
+        # Publish the addition
+        scene_msg = PS()
+        scene_msg.world.collision_objects.append(pen)
+        scene_msg.is_diff = True
+        color_msg = ObjectColor()
+        color_msg.id = 'pen'
+        color_msg.color = ColorRGBA(r=1.0, g=1.0, b=1.0, a=1.0)
+        scene_msg.object_colors.append(color_msg)
+        await asyncio.sleep(1.0)
+        self._scene_pub.publish(scene_msg)
+        self._logger.info('Pen in planning scene.')
+
+    async def attach_pen(self) -> None:
+        """Attach the pen to the robot hand."""
+        attached_pen = AttachedCollisionObject()
+        attached_pen.link_name = 'fer_hand_tcp'
+        attached_pen.object.id = 'pen'
+        attached_pen.touch_links = ['fer_hand',
+                                    'fer_left_finger',
+                                    'fer_right_finger',
+                                    'fer_hand_tcp']
+        attached_pen.object.operation = CollisionObject.ADD
+
+        scene_msg = PS()
+        scene_msg.robot_state.attached_collision_objects.append(attached_pen)
+        scene_msg.is_diff = True
+        self._scene_pub.publish(scene_msg)
+        self._logger.info('Attached pen to gripper.')
 
     def start_state(self, joints):
         """Set start state."""
@@ -311,12 +559,12 @@ class MoveItPPControl(PPControlBase):
         if joints is None:
             robotstate.joint_state.position = [
                 0.0,
+                -0.7853981633974483,
                 0.0,
+                -2.356194490192345,
                 0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
+                1.5707963267948966,
+                0.7853981633974483,
             ]
         else:
             robotstate.joint_state.position = [float(j) for j in joints]
