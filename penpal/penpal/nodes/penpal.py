@@ -93,7 +93,7 @@ class PenPal(Node):
             'write_control_type',
             self.c.write_control_type,
             ParameterDescriptor(
-                description='Type of controller to use for writing. [moveit, hybrid, mock]'  # noqa: E501
+                description='Type of controller to use for writing. [moveit, impedance, mock]'  # noqa: E501
             ),
         )
         self.c.write_control_type = (
@@ -131,8 +131,8 @@ class PenPal(Node):
         match self.c.write_control_type:
             case 'moveit':
                 ctl = moveit_control.MoveItPPControl(self)
-            case 'hybrid':
-                ctl = position_control.PositionPPControl(self)
+            case 'impedance':
+                ctl = position_control.ImpedancePPControl(self)
             case 'mock':
                 from penpal.integration_tests.int_test_write_planner import (
                     MockController,
