@@ -1,9 +1,11 @@
 """Plans trajectories to write characters."""
 
 from dataclasses import dataclass, field
+from threading import Lock
 
 import numpy as np
 from scipy.spatial.transform import Rotation as R
+
 from rclpy.node import Node
 
 from penpal.control.pp_control import PPControlBase, Trajectory
@@ -175,6 +177,7 @@ class WritePlanner:
         self.c = cfg if cfg is not None else WritePlanner.Config()
         self._logger = node.get_logger().get_child('WritePlanner')
         self._board: BoardInfo | None = None
+        self._boardinfo_write_lock = Lock()
 
     async def write_characters(
         self,
@@ -376,5 +379,6 @@ class WritePlanner:
             return self._board
 
     def set_board_info(self, board: BoardInfo) -> None:
-        """Set new board info for the planner to use."""
-        self._board = board
+        """Set new board info for the planner to use. Thread safe."""
+        with self._boardinfo_write_lock:
+            self._board = board

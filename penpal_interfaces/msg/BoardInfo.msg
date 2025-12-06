@@ -14,3 +14,7 @@ float32[] writeable_area
 
 int8 n_tags
 # number of AprilTags on which this pose estimate is based
+
+int32 sequence_number
+# sequence number indicating number of continuous valid pose estimates.
+# resets to 0 if a board pose cannot be generated.

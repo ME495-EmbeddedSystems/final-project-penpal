@@ -15,6 +15,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 from rclpy.node import Node
+from rclpy.time import Time
 from rclpy.parameter import Parameter
 from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.qos import QoSProfile, qos_profile_rosout_default
@@ -141,7 +142,7 @@ class PenPal(Node):
             case _:
                 raise NotImplementedError
 
-        self._writer = write_planner.WritePlanner(self, ctl)
+        self._write_planner = write_planner.WritePlanner(self, ctl)
         self._fonts = font_trajectory.FontTrajectory()
         self._grabber = grab_planner.GrabPlanner(self, ctl)
 
@@ -173,11 +174,17 @@ class PenPal(Node):
             BoardInfoMsg, 'whiteboard_info', self._cb_wbinfo, 10
         )
 
+        # bookkeeping vars
+        self._board_sequence_no = 0
+        self._board_sequence_start_t = None
+        self._board_last_reading_t = None
+        self._prev_state = self._fsm.get_state()
+
         self.get_logger().info('PenPal node started.')
 
     def _cb_wbinfo(self, msg: BoardInfoMsg) -> None:
         """Handle BoardInfo callback."""
-        # translate BoardInfoMsg to writeplanner's BoardInfo struct
+        # translate BoardInfoMsg's data to the WritePlanner
         msg_pos = msg.pose.pose.position
         msg_ori = msg.pose.pose.orientation
         tl_pos = np.array([msg_pos.x, msg_pos.y, msg_pos.z])
@@ -193,32 +200,102 @@ class PenPal(Node):
             height_m=msg.height_m,
             writeable_area=wa,
         )
-        self._writer.set_board_info(board)
+        self._write_planner.set_board_info(board)
+
+        # bookkeep variables to help with determination of last valid reading
+        now = self.get_clock().now()
+        if msg.sequence_number < self._board_sequence_no:
+            # we've restarted the sequence due to a bad reading.
+            # (or somehow the messages arrived out of order--is that
+            # possible in ros2? unsure. if it's a big issue i'll deal w/ it)
+            self._board_sequence_start_t = now
+        else:
+            if msg.n_tags <= self.c.board_visibility_tags_thresh:
+                # this counds as a bad reading cuz the number of tags
+                # is too low.
+                self._board_sequence_start_t = now
+            else:
+                # valid reading
+                self._board_last_reading_t = now
+
+        self._board_sequence_no = msg.sequence_number
+
+    def board_is_visible(self) -> bool:
+        """
+        Return true if board is visible.
+
+        Applies the relevant thresholds to evaluate this.
+        """
+        now_s = self.get_clock().now().seconds_nanoseconds()[0]
+
+        first_info_received = (
+            self._board_last_reading_t is not None
+            and self._board_sequence_start_t is not None
+        )
+        if first_info_received:
+            last_valid_s = self._board_last_reading_t.seconds_nanoseconds()[0]  # type: ignore
+            seq_start_s = self._board_sequence_start_t.seconds_nanoseconds()[0]  # type: ignore
+            t_since_valid = now_s - last_valid_s
+            t_since_invalid = now_s - seq_start_s
+            if (
+                t_since_invalid > self.c.board_visibility_thresh_s
+                and t_since_valid <= self.c.board_visibility_thresh_s
+            ):
+                return True
+
+        return False
+
+    def board_is_in_workspace(self) -> bool:
+        """Return true if the board is in range of the arm."""
+        # TODO assess this heuristically. for now just using visibility
+        if self.board_is_visible():
+            return True
+
+        return False
 
     def _cb_tick(self, info: TimerInfo) -> None:
         """Handle periodic tasks. Timer callback."""
+        # non-state specific logic
+        if self.board_is_visible():
+            self._fsm.transition(ppstate.E.BOARD_VISIBLE)
+        else:
+            self._fsm.transition(ppstate.E.BOARD_NOT_VISIBLE)
+
+        if self.board_is_in_workspace():
+            self._fsm.transition(ppstate.E.BOARD_IN_WORKSPACE)
+
+        # state-specific logic & on-transition functions
         s = self._fsm.get_state()
         match s:
             case ppstate.S.ASLEEP:
-                # do nothing.
+                # wait to be woken up
                 pass
             case ppstate.S.ASLEEP_IN_USE:
-                # do nothing.
+                # wait to be woken up
                 pass
             case ppstate.S.READY_TO_READ:
-                # TODO check if the board's been visible for more
-                # than the visibility threshold
+                # nothing to do; we just wait for visibility
                 pass
             case ppstate.S.READING:
-                pass
+                if s != self._prev_state:
+                    # TODO trigger OCR with VLM in the worker thread.
+                    pass
+                # otherwise we just wait around for the VLM to get back to us
             case ppstate.S.READY_TO_WRITE:
+                # nothing to do; wait for board to enter workspace
                 pass
             case ppstate.S.WRITING:
-                pass
+                if s != self._prev_state:
+                    # TODO write text returned by VLM in the worker thread
+                    pass
+                # wait around for writing to finish
             case ppstate.S.WRITE_COMPLETE:
+                # wait around for the board to be hidden again.
                 pass
             case _:
                 raise NotImplementedError(f'Unrecognized state {self._s}')
+
+        self._prev_state = s
 
     def _load_fonts(self, fonts_dir: Path) -> None:
         """Load fonts from a directory."""
@@ -273,7 +350,7 @@ class PenPal(Node):
             req.text, req.font_name, req.font_size_mm, req.pen_thickness_mm
         )
         write_task = self._loop.create_task(
-            self._writer.write_characters(
+            self._write_planner.write_characters(
                 chars, self._fonts.c.line_spacing_factor
             )
         )
