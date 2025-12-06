@@ -90,6 +90,7 @@ def generate_launch_description():
                 package='penpal',
                 executable='pen_detector',
                 name='pen_detector',
+                output='screen',
                 parameters=[
                     {
                         'tag_id': 3,
@@ -97,21 +98,21 @@ def generate_launch_description():
                         'tag_size_m': 0.032,
                         'tag_topic': '/detections',
 
-                        # If board_detector is already running calibration,
-                        # keep this false to avoid duplicate base->camera TF.
-                        'calibrate_camera': False,
+                        # Measured offset from tag center to desired grasp point
+                        'pen_offset_xyz': [-0.042, 0.003, -0.018],
+                        'pen_offset_quat': [0.0, 0.0, 0.0, 1.0],
 
-                        # If you want pen_detector to do calibration alone, set true and provide:
-                        # 'calib_tag_id': 2,
-                        # 'calib_tag_size_m': 0.07,
-                        # 'base_frame_id': 'base',
-                        # 'camera_frame_id': 'camera_color_optical_frame',
-                        # 'base_calib_tag_xyz': [0.30, 0.0, 0.0],
-                        # 'base_calib_tag_quat': [1.0, 0.0, 0.0, 0.0],
+                        # Marker visual size (meters)
+                        'publish_marker': True,
+                        'marker_scale': 0.02,
+
+                        # Keep False if another node already handles base->camera calibration.
+                        'calibrate_camera': False,
+                        'base_frame_id': 'base',
+                        'camera_frame_id': 'camera_color_optical_frame',
                     }
                 ],
-                output='screen',
-            ),                   
+            ),
             Node(
                 package='penpal',
                 executable='ocr_node',
