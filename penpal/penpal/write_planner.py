@@ -1,9 +1,15 @@
-"""Plans trajectories to write characters."""
+"""
+Plans trajectories to write characters.
+
+Authors: Conor
+"""
 
 from dataclasses import dataclass, field
+from threading import Lock
 
 import numpy as np
 from scipy.spatial.transform import Rotation as R
+
 from rclpy.node import Node
 
 from penpal.control.pp_control import PPControlBase, Trajectory
@@ -173,10 +179,9 @@ class WritePlanner:
         self.control = controller
         self._world_frame_name = 'base'  # todo correct this if needed
         self.c = cfg if cfg is not None else WritePlanner.Config()
-        self._node = node
         self._logger = node.get_logger().get_child('WritePlanner')
-
-        # TODO - subscribe to BoardDetector topics
+        self._board: BoardInfo | None = None
+        self._boardinfo_write_lock = Lock()
 
     async def write_characters(
         self,
@@ -372,5 +377,12 @@ class WritePlanner:
 
     def get_latest_board_info(self) -> BoardInfo:
         """Return the most recently update board location + dimensions."""
-        # todo - grab this from the BoardDetector topics.
-        raise NotImplementedError
+        if self._board is None:
+            raise ValueError('No BoardInfo has been received by WritePlanner.')
+        else:
+            return self._board
+
+    def set_board_info(self, board: BoardInfo) -> None:
+        """Set new board info for the planner to use. Thread safe."""
+        with self._boardinfo_write_lock:
+            self._board = board
