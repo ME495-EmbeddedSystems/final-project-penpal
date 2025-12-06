@@ -319,10 +319,16 @@ class PenPal(Node):
     ) -> Trigger.Response:
         """Handle wake service call."""
         if self._fsm.get_state() == ppstate.S.ASLEEP_IN_USE:
-            self.get_logger().error('Cannot enter convo mode; arm is in use.')
+            errstr = 'Cannot enter convo mode; arm is in use.'
+            self.get_logger().error(errstr)
             response.success = False
+            response.message = errstr
             return response
         self._fsm.transition(ppstate.E.WAKE)
+        response.success = True
+        response.message = (
+            'Awake. Display board with writing to begin conversation'
+        )
         return response
 
     def _cb_sleep(
@@ -330,7 +336,8 @@ class PenPal(Node):
     ) -> Trigger.Response:
         """Handle sleep service call."""
         self._fsm.transition(ppstate.E.SLEEP)
-        # TODO end the loop
+        response.success = True
+        response.message = 'Sleeping.'
         return response
 
     def _cb_execute_writemessage(

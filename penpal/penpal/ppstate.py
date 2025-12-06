@@ -137,7 +137,7 @@ class ConvoFSM:
             if e == E.SLEEP:
                 new_s = S.ASLEEP
 
-            if self._logger is not None:
+            if self._logger is not None and new_s != self._s:
                 self._logger.info(f'STATE TRANSITION: {sestr} -> {new_s}')
 
             self._s = new_s
