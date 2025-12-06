@@ -173,10 +173,8 @@ class WritePlanner:
         self.control = controller
         self._world_frame_name = 'base'  # todo correct this if needed
         self.c = cfg if cfg is not None else WritePlanner.Config()
-        self._node = node
         self._logger = node.get_logger().get_child('WritePlanner')
-
-        # TODO - subscribe to BoardDetector topics
+        self._board: BoardInfo | None = None
 
     async def write_characters(
         self,
@@ -372,12 +370,11 @@ class WritePlanner:
 
     def get_latest_board_info(self) -> BoardInfo:
         """Return the most recently update board location + dimensions."""
-        # todo - grab this from the BoardDetector topics.
-        self._logger.warning('get_latest_board_info() not implemented yet!!')
-        return BoardInfo(
-            np.array([0.5, 0.5, 0.5]),
-            R.identity(),
-            0.5,
-            0.3,
-            np.array([[0, 0], [0.5, -0.3]]),
-        )
+        if self._board is None:
+            raise ValueError('No BoardInfo has been received by WritePlanner.')
+        else:
+            return self._board
+
+    def set_board_info(self, board: BoardInfo) -> None:
+        """Set new board info for the planner to use."""
+        self._board = board

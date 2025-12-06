@@ -8,12 +8,17 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
+find_package(geometry_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "action/WriteMessage.action"
+  "msg/BoardInfo.msg"
+  DEPENDENCIES
+  geometry_msgs
 )
 
 ament_export_dependencies(rosidl_default_runtime)
+ament_export_dependencies(geometry_msgs)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

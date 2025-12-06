@@ -11,6 +11,9 @@ import traceback
 from typing import Any, List, Literal
 from threading import Lock
 
+import numpy as np
+from scipy.spatial.transform import Rotation as R
+
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rcl_interfaces.msg import ParameterDescriptor
@@ -24,6 +27,7 @@ from example_interfaces.srv import Trigger
 from rclpy.timer import TimerInfo
 
 from penpal_interfaces.action import WriteMessage
+from penpal_interfaces.msg import BoardInfo as BoardInfoMsg
 
 from penpal import font_trajectory
 from penpal import grab_planner
@@ -164,8 +168,32 @@ class PenPal(Node):
         self._tick = self.create_timer(
             1.0 / self.c.timer_freq_hz, self._cb_tick
         )
+        self._c_ocr = self.create_client(Trigger, 'read_and_answer_board')
+        self._sub_wbinfo = self.create_subscription(
+            BoardInfoMsg, 'whiteboard_info', self._cb_wbinfo, 10
+        )
 
         self.get_logger().info('PenPal node started.')
+
+    def _cb_wbinfo(self, msg: BoardInfoMsg) -> None:
+        """Handle BoardInfo callback."""
+        # translate BoardInfoMsg to writeplanner's BoardInfo struct
+        msg_pos = msg.pose.pose.position
+        msg_ori = msg.pose.pose.orientation
+        tl_pos = np.array([msg_pos.x, msg_pos.y, msg_pos.z])
+        ori = R.from_quat([msg_ori.x, msg_ori.y, msg_ori.z, msg_ori.w])
+        wa = np.array(
+            [msg.writeable_area[0], msg.writeable_area[1]],
+            [msg.writeable_area[2], msg.writeable_area[3]],
+        )
+        board = write_planner.BoardInfo(
+            pos=tl_pos,
+            ori=ori,
+            width_m=msg.width_m,
+            height_m=msg.height_m,
+            writeable_area=wa,
+        )
+        self._writer.set_board_info(board)
 
     def _cb_tick(self, info: TimerInfo) -> None:
         """Handle periodic tasks. Timer callback."""
