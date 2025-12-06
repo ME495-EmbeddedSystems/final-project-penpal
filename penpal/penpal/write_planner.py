@@ -1,4 +1,8 @@
-"""Plans trajectories to write characters."""
+"""
+Plans trajectories to write characters.
+
+Authors: Conor
+"""
 
 from dataclasses import dataclass, field
 from threading import Lock

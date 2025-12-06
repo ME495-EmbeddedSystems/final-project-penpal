@@ -1,7 +1,7 @@
 """
 PenPal node.
 
-TODO better docs.
+Authors: Conor
 """
 
 import asyncio
@@ -266,8 +266,13 @@ class PenPal(Node):
 
         # state-specific logic & on-transition functions
         s = self._fsm.get_state()
+        enter = s != self._prev_state
         match s:
             case ppstate.S.ASLEEP:
+                if enter:
+                    # cancel any currently ongoing actions
+                    self._loop.stop()
+                    # TODO home the robot
                 # wait to be woken up
                 pass
             case ppstate.S.ASLEEP_IN_USE:
@@ -277,7 +282,7 @@ class PenPal(Node):
                 # nothing to do; we just wait for visibility
                 pass
             case ppstate.S.READING:
-                if s != self._prev_state:
+                if enter:
                     # TODO trigger OCR with VLM in the worker thread.
                     self._fsm.transition(ppstate.E.OCR_VLM_TRIGGERED)
                 # otherwise we just wait around for the VLM to get back to us
@@ -285,12 +290,16 @@ class PenPal(Node):
                 # nothing to do; wait for board to enter workspace
                 pass
             case ppstate.S.WRITING:
-                if s != self._prev_state:
+                if enter:
                     # TODO write text returned by VLM in the worker thread
                     self._fsm.transition(ppstate.E.WRITE_STARTED)
                 # wait around for writing to finish
             case ppstate.S.WRITE_COMPLETE:
-                # wait around for the board to be hidden again.
+                if enter:
+                    # TODO home the robot.
+                    pass
+                # wait around for the board to be hidden & arm to be homed
+                # again.
                 pass
             case _:
                 raise NotImplementedError(f'Unrecognized state {self._s}')
@@ -372,6 +381,7 @@ class PenPal(Node):
             res = WriteMessage.Result()
             res.unwritten_characters = cstr
             return res
+
         except Exception as err:
             tb = traceback.format_exc()
             self.get_logger().error(
