@@ -88,18 +88,6 @@ def generate_launch_description():
             ),
             Node(
                 package='penpal',
-                executable='ocr_node',
-                name='ocr_node',
-                output='screen',
-                parameters=[
-                    {
-                        'image_topic': '/camera/camera/color/image_raw',
-                        'service_name': 'read_and_answer_board',
-                    }
-                ],
-            ),
-            Node(
-                package='penpal',
                 executable='pen_detector',
                 name='pen_detector',
                 parameters=[
@@ -123,6 +111,18 @@ def generate_launch_description():
                     }
                 ],
                 output='screen',
+            ),                   
+            Node(
+                package='penpal',
+                executable='ocr_node',
+                name='ocr_node',
+                output='screen',
+                parameters=[
+                    {
+                        'image_topic': '/camera/camera/color/image_raw',
+                        'service_name': 'read_and_answer_board',
+                    }
+                ],
             ),
             Node(
                 package='rviz2',
