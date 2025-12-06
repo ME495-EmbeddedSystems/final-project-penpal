@@ -66,7 +66,7 @@ def generate_launch_description():
                     '--yaw',
                     '0',
                     '--frame-id',
-                    'world',
+                    'base',  # robot base frame
                     '--child-frame-id',
                     'pen',
                 ],
