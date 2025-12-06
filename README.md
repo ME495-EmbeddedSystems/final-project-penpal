@@ -19,3 +19,22 @@ pre-commit install
 
 All done! Now every time you commit, it will run lint checks + do some autoformatting to make sure that we 
 stick to the ROS2 style guidelines (mostly. it doesn't do everything for us/check everything).
+
+## Run Setup
+Requires ros2 kilted kaiju and Ubuntu 24.04.
+May work on other distros, but not tested on them.
+
+```bash
+# run the following from your ROS2 workspace where
+# this repo is in the src folder:
+
+# install dependencies
+rosdep install --from-paths src --ignore-src --rosdistro kilted 
+
+# WARNING - the below worked fine on our computers, BUT
+# there are warnings not to do this from Ubuntu. Move forward
+# at your own risk...
+pip install --break-system-packages transformers torch
+
+colcon build
+```
