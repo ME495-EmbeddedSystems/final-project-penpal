@@ -2,10 +2,16 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>penpal</name>
-  <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <version>1.0.0</version>
+  <description>PenPal: conversational robot arm.</description>
   <maintainer email="cwoodhayes@gmail.com">conorbot</maintainer>
-  <license>TODO: License declaration</license>
+  <license>MIT</license>
+
+  <depend>sensor_msgs</depend>
+  <depend>apriltag_msgs</depend>
+  <depend>apriltag</depend>
+  <depend>image_transport</depend>
+  <depend>cv_bridge</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
@@ -22,7 +28,6 @@
   <exec_depend>rclpy</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>shape_msgs</exec_depend>
-  <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>moveit_msgs</exec_depend>
   <exec_depend>moveit_configs_utils</exec_depend>
   <exec_depend>rviz2</exec_depend>
@@ -32,9 +37,16 @@
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>tf_transformations</exec_depend>
   <exec_depend>rosidl_runtime_py</exec_depend>
-  <exec_depend>apriltag_msgs</exec_depend>
-  <exec_depend>visualization_msgs</exec_depend>
 
+  <exec_depend>camera_ros</exec_depend>
+  <exec_depend condition="$ROS_DISTRO != 'humble'">image_proc</exec_depend>
+  <exec_depend>image_transport_plugins</exec_depend>
+
+  <!-- IMPORTANT NOTE -->
+  <!-- This project additionally requires pytorch and transformers,
+   which do not have apt packages. they must be installed to system python
+   directly (what we did) or ros2 must be run in a virtualenv. (complicated)
+    -->
 
   <export>
     <build_type>ament_python</build_type>
