@@ -279,7 +279,7 @@ class PenPal(Node):
             case ppstate.S.READING:
                 if s != self._prev_state:
                     # TODO trigger OCR with VLM in the worker thread.
-                    pass
+                    self._fsm.transition(ppstate.E.OCR_VLM_TRIGGERED)
                 # otherwise we just wait around for the VLM to get back to us
             case ppstate.S.READY_TO_WRITE:
                 # nothing to do; wait for board to enter workspace
@@ -287,7 +287,7 @@ class PenPal(Node):
             case ppstate.S.WRITING:
                 if s != self._prev_state:
                     # TODO write text returned by VLM in the worker thread
-                    pass
+                    self._fsm.transition(ppstate.E.WRITE_STARTED)
                 # wait around for writing to finish
             case ppstate.S.WRITE_COMPLETE:
                 # wait around for the board to be hidden again.
