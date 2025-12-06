@@ -54,7 +54,7 @@ class MoveItPPControl(PPControlBase):
             '/execute_trajectory',
             callback_group=self._cbgroup,
         )
-        self._logger = node.get_logger()
+        self._logger = node.get_logger().get_child('MoveItPPControl')
         self._c_cartesian_path = self._node.create_client(
             GetCartesianPath,
             'compute_cartesian_path',

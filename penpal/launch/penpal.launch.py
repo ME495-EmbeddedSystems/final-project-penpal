@@ -5,14 +5,20 @@ from launch.actions import (
     RegisterEventHandler,
     Shutdown,
     IncludeLaunchDescription,
+    DeclareLaunchArgument,
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from ament_index_python.packages import get_package_share_directory
 from launch.launch_description_sources import AnyLaunchDescriptionSource
 from launch.event_handlers import OnProcessExit
-from launch.substitutions import PathJoinSubstitution
+from launch.substitutions import (
+    PathJoinSubstitution,
+    EqualsSubstitution,
+    LaunchConfiguration,
+)
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
+from launch.conditions import IfCondition
 
 from moveit_configs_utils import MoveItConfigsBuilder
 
@@ -21,6 +27,11 @@ def generate_launch_description():
     """ROS2 launch description generator."""
     return LaunchDescription(
         [
+            DeclareLaunchArgument(
+                'vision',
+                default_value='true',
+                description='If true, launch with vision nodes running.',
+            ),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
                     [
@@ -36,6 +47,9 @@ def generate_launch_description():
                 launch_arguments={
                     'run_rviz': 'false',
                 }.items(),
+                condition=IfCondition(
+                    EqualsSubstitution(LaunchConfiguration('vision'), 'true')
+                ),
             ),
             Node(
                 package='penpal',

@@ -5,7 +5,7 @@ from rclpy.node import Node
 from penpal.control.pp_control import PPControlBase, Trajectory
 
 
-class PositionPPControl(PPControlBase):
+class ImpedancePPControl(PPControlBase):
     """Base class for control of the pen tip."""
 
     def __init__(

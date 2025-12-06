@@ -34,7 +34,7 @@ from penpal_interfaces.msg import BoardInfo as BoardInfoMsg
 from penpal import font_trajectory
 from penpal import grab_planner
 from penpal import write_planner
-from penpal.control import moveit_control, position_control
+from penpal.control import moveit_control, impedance_control
 from penpal import ppstate
 from penpal.utils import LockedString
 
@@ -151,7 +151,7 @@ class PenPal(Node):
             case 'moveit':
                 ctl = moveit_control.MoveItPPControl(self)
             case 'impedance':
-                ctl = position_control.ImpedancePPControl(self)
+                ctl = impedance_control.ImpedancePPControl(self)
             case 'mock':
                 from penpal.integration_tests.int_test_write_planner import (
                     MockController,
