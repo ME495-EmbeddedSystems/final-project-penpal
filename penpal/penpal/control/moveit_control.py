@@ -20,7 +20,6 @@ from moveit_msgs.msg import (
 )
 from moveit_msgs.msg import PlanningScene as PS
 from moveit_msgs.srv import GetCartesianPath
-from moveit_msgs.msg import AllowedCollisionEntry, AllowedCollisionMatrix
 from moveit_msgs.srv import ApplyPlanningScene
 from std_msgs.msg import ColorRGBA
 from franka_msgs.action import Grasp, Move

@@ -273,13 +273,10 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
         if res.result.error_code.val != 1:
             return
 
-        #await ctl.grip(0.025)
         await ctl.gripper_move(0.025)
-
         point_data = np.hstack([pen_pose, pen_ori, np.array([0])])
         traj_approach = Trajectory('pen_grab', point_data.reshape(1, 8))
         await ctl._execute_trajectory(traj_approach, 0.01)
-        #await ctl.grip(0.01)
         await ctl.gripper_grasp(0.005)
         await ctl.attach_pen()
         await asyncio.sleep(3.0)
