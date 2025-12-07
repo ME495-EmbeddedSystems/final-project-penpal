@@ -114,7 +114,7 @@ class BoardDetector(Node):
         self.T_base_camera = np.eye(4)
         self.T_base_camera[0:3, 3] = [2, 1, 0]
 
-        pub_freq_hz = 10
+        pub_freq_hz = 3
         self.create_timer(1 / pub_freq_hz, self.tag_cb)
 
         self.create_service(Trigger, 'restart_sequence', self._cb_restart_seq)

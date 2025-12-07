@@ -72,7 +72,7 @@ class PenPal(Node):
 
     Subscribers
     ----------
-    whiteboard_info: pose & metadata about the whiteboard
+    board_info: pose & metadata about the whiteboard
 
     Clients
     -------
@@ -201,7 +201,7 @@ class PenPal(Node):
         )
         self._c_ocr = self.create_client(Trigger, 'read_and_answer_board')
         self._sub_wbinfo = self.create_subscription(
-            BoardInfoMsg, 'whiteboard_info', self._cb_wbinfo, 10
+            BoardInfoMsg, 'board_info', self._cb_wbinfo, 10
         )
 
         # bookkeeping vars
@@ -220,10 +220,9 @@ class PenPal(Node):
         msg_ori = msg.pose.pose.orientation
         tl_pos = np.array([msg_pos.x, msg_pos.y, msg_pos.z])
         ori = R.from_quat([msg_ori.x, msg_ori.y, msg_ori.z, msg_ori.w])
-        wa = np.array(
-            [msg.writeable_area[0], msg.writeable_area[1]],
-            [msg.writeable_area[2], msg.writeable_area[3]],
-        )
+        wa = np.array([float(val) for val in msg.writeable_area])
+        wa = wa.reshape(2, 2)
+
         board = write_planner.BoardInfo(
             pos=tl_pos,
             ori=ori,
