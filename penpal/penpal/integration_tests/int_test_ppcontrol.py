@@ -20,11 +20,12 @@ from scipy.spatial.transform import Rotation as R
 
 from franka_msgs.srv import SetTCPFrame
 
-CORRECTION_ROT = R.from_euler('xyz', [-90, 90, 90], degrees=True)
+"""
+CORRECTION_ROT = R.from_euler('xyz', [-90, 90, 90], degrees=True) #hardcoded
 
 
 def calculate_writing_pose(board_pos, board_rot, pen_length=0.05, buffer=0.01):
-    """Calculate ferlink8 position for Pen to touch board."""
+    Calculate ee position for Pen to touch board.
     board_normal = board_rot.apply([0, 0, 1])
     target_pos = board_pos + board_normal * (pen_length + buffer)
     target_rot = board_rot * CORRECTION_ROT
@@ -37,7 +38,7 @@ def traj_from_points(
         center: np.ndarray,
         rot: R,
         force: float | None) -> Trajectory:
-    """Convert 2D shape points to 3D poses."""
+    Convert 2D shape points to 3D poses.
     if force is None:
         force = 0.0
     points = rot.apply(points) + center
@@ -52,9 +53,9 @@ def traj_from_points(
 def get_demo_traj_sequence_dynamic(
         center: np.ndarray,
         rot: R) -> list[Trajectory]:
-    """Generate demo sequence."""
+    Generate demo sequence.
     lineh = 0.02
-    right_vec = np.array([0, -1, 0]) # Moving 'Right' on the board
+    right_vec = np.array([0, -1, 0])
     circle_c = center
     arrow_c = center + rot.apply(right_vec * (lineh * 1.6))
     square_c = arrow_c + rot.apply(right_vec * (lineh * 0.6))
@@ -65,6 +66,25 @@ def get_demo_traj_sequence_dynamic(
     return [circle_traj, arrow_traj, square_traj]
 
 """
+
+
+def calculate_start_pose(buffer,
+                        board_pose_position: np.array,
+                        board_pose_rotation: R):
+    """Calculate the robot's ee to place the pen tip normal to the board surface."""
+
+    board_normal = np.array([1, 0, 0])
+    world_normal_vector = board_pose_rotation.apply(board_normal)
+    target_position = board_pose_position - (world_normal_vector * buffer)
+    current_pen_direction = np.array([1, 0, 0])
+    desired_pen_direction = world_normal_vector
+    R_world_to_target, _ = R.align_vectors([desired_pen_direction], 
+                                           [current_pen_direction])
+    target_orientation_quat = R_world_to_target.as_quat()
+    start_pose = np.array([*target_position, *target_orientation_quat])
+    return start_pose
+
+
 def traj_from_points(
     label: str,
     points: np.ndarray,
@@ -72,22 +92,18 @@ def traj_from_points(
     rot: R,
     force: float | None,
 ) -> Trajectory:
-    Convert set of R3 points into full 8D array.
+    """Convert set of R3 points into full 8D array."""
     if force is None:
         force = 0.0
-
-    points = rot.apply(points) + center
-    # down = R.from_euler('xyz', [0, 0, -np.pi / 2])
-    forward = R.from_euler('xyz', [np.pi / 2, 0, 0])
-    ori = R.from_matrix(rot.as_matrix() @ forward.as_matrix())
-    ori_quat = ori.as_quat(True)
-    # ori_quat = down.as_quat(True)
-
+    points_temp = np.zeros_like(points)
+    points_temp[:, 1] = points[:, 0]
+    points_temp[:, 2] = points[:, 1]
+    points_rotated = rot.apply(points_temp) + center
+    ori_quat = rot.as_quat()
     force_per_point = np.full((points.shape[0], 1), force)
     ori_per_point = np.broadcast_to(ori_quat, (points.shape[0], 4))
-    points_full = np.hstack([points, ori_per_point, force_per_point])
+    points_full = np.hstack([points_rotated, ori_per_point, force_per_point])
     return Trajectory(label, points_full)
-"""
 
 
 def get_circle_trajectory(
@@ -176,19 +192,19 @@ def get_demo_traj_sequence(start_pose: np.ndarray) -> list[Trajectory]:
         start_pose: [x, y, z, qx, qy, qz, qw]
 
     """
-    lineh = 0.02
+    lineh = 0.05
     off_board_dist = 0.02
     rot = R.from_quat(start_pose[3:])
     circle_c = start_pose[:3]
-    arrow_c = circle_c + rot.apply(np.array([lineh * 1.6, 0, 0]))
-    square_c = arrow_c + rot.apply(np.array([lineh * 0.6, 0, 0]))
+    arrow_c = circle_c + rot.apply(np.array([0, -lineh * 1.6, 0]))
+    square_c = arrow_c + rot.apply(np.array([0, -lineh * 0.6, 0]))
 
     # do them all in a line, then tilt em
     circle_traj = get_circle_trajectory(lineh / 2, circle_c, rot, 50)
     arrow_traj = get_arrow_trajectory(lineh, arrow_c, rot)
     square_traj = get_square_trajectory(lineh, square_c, rot)
 
-    board_gap = rot.apply(np.array([0, 0, off_board_dist]))
+    board_gap = rot.apply(np.array([-off_board_dist, 0, 0]))
     board_gap = np.array([*board_gap, 0, 0, 0, 0, 0])
 
     out = []
@@ -215,17 +231,8 @@ def get_demo_traj_sequence(start_pose: np.ndarray) -> list[Trajectory]:
 
 def ee_change_matrix():
     """Set matrix to move EE from tcp_hand to pen tip."""
-    T_link_gripper = np.eye(4)
-    T_link_gripper[2, 3] = 1.034
-
-    pen_length = 0.1
-    rot_pen = R.from_euler('z', 45, degrees=True).as_matrix()
-    x_shift = pen_length / 2 * np.cos(np.pi / 2)
-    y_shift = pen_length / 2 * np.sin(np.pi / 2)
-    T_gripper_to_pen = np.eye(4)
-    T_gripper_to_pen[:3, :3] = rot_pen
-    T_gripper_to_pen[:3, 3] = [x_shift, y_shift, 0.0]
-    T_final = np.dot(T_link_gripper, T_gripper_to_pen)
+    T_final = np.eye(4)
+    T_final[2, 3] = 0.1
     return T_final.flatten(order='F').tolist()
 
 
@@ -272,14 +279,15 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
             start_ee_pose=None,
             execute_immediately=True,
         )
-        """
-        wait_t = 10.0
+
+        wait_t = 5.0
         logger.info(f'Waiting {wait_t} seconds...')
         await asyncio.sleep(wait_t)
         logger.info('Starting integration test...')
         await ctl.configure()
 
         #Set up SetTCPFrame
+        tcp_matrix = ee_change_matrix()
         logger.info('Calling SetTCPFrame service')
         frame_service = node.create_client(SetTCPFrame,
                                            '/service_server/set_tcp_frame')
@@ -288,19 +296,17 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
             return
 
         req = SetTCPFrame.Request()
-        req.transformation = ee_change_matrix()
+        req.transformation = tcp_matrix
 
         await frame_service.call_async(req)
 
-        board_x = 0.59
+        demo_board_pose = np.array([0.5, 0.0, 0.6])
+        demo_board_rot = R.from_euler('xyz', [0, 0, 0], degrees=True)
         buffer = 0.01
-
-        rot = R.from_euler('x', 180, degrees=True)
-        start_pose = np.array([board_x + buffer, 0.0, 0.4, *rot.as_quat(True)])
-
+        start_pose = calculate_start_pose(buffer,
+                                                  demo_board_pose,
+                                                  demo_board_rot)
         speed = 0.05
-        #rot = R.from_euler('xyz', [180, 0, 0], degrees=True)
-        #start_pose = np.array([0.4, -0.025, 0.191, *rot.as_quat(True)])
         node.get_logger().info('Moving to start position')
         goal_handle = await ctl.move_to_ee_pose(goal_ee_position=start_pose[:3],
                                                 goal_ee_orientation=start_pose[3:],
@@ -357,7 +363,7 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
             await ctl._execute_trajectory(traj, 0.05)
     finally:
         node.get_logger().info('Integration test finished.')
-
+    """
 
 def plot_shapes() -> None:
     """Quick plotting demos of the trajectory functions."""

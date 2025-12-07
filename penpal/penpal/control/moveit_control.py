@@ -204,9 +204,9 @@ class MoveItPPControl(PPControlBase):
             q.z = goal_ee_orientation[2]
             q.w = goal_ee_orientation[3]
             orient_constraint.orientation = q
-            orient_constraint.absolute_x_axis_tolerance = 0.2
-            orient_constraint.absolute_y_axis_tolerance = 0.2
-            orient_constraint.absolute_z_axis_tolerance = 0.2
+            orient_constraint.absolute_x_axis_tolerance = 0.05
+            orient_constraint.absolute_y_axis_tolerance = 0.05
+            orient_constraint.absolute_z_axis_tolerance = 0.05
             orient_constraint.weight = 1.0
             goal_constraint.orientation_constraints.append(orient_constraint)
             # type: ignore
@@ -453,7 +453,7 @@ class MoveItPPControl(PPControlBase):
         box.type = SolidPrimitive.BOX
         box.dimensions = [0.02, 0.8, 0.61]
         board_pose = Pose()
-        board_pose.position.x = 0.6
+        board_pose.position.x = 1.0
         board_pose.position.y = 0.0
         board_pose.position.z = 0.4
         board_pose.orientation.w = 1.0
@@ -540,8 +540,8 @@ class MoveItPPControl(PPControlBase):
         attached_pen.link_name = 'fer_hand_tcp'
         attached_pen.object.id = 'pen'
         attached_pen.touch_links = ['fer_hand',
-                                    'fer_left_finger',
-                                    'fer_right_finger',
+                                    'fer_leftfinger',
+                                    'fer_rightfinger',
                                     'fer_hand_tcp']
         attached_pen.object.operation = CollisionObject.ADD
 
