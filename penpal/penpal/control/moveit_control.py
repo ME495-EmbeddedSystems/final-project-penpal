@@ -20,7 +20,8 @@ from moveit_msgs.msg import (
 )
 from moveit_msgs.msg import PlanningScene as PS
 from moveit_msgs.srv import GetCartesianPath
-
+from moveit_msgs.msg import AllowedCollisionEntry, AllowedCollisionMatrix
+from moveit_msgs.srv import ApplyPlanningScene
 from std_msgs.msg import ColorRGBA
 
 import numpy as np
@@ -64,6 +65,9 @@ class MoveItPPControl(PPControlBase):
                                                          'whiteboard_pose',
                                                          self.board_cb,
                                                          10)
+        self._ps_client = self._node.create_client(ApplyPlanningScene,
+                                                   '/apply_planning_scene',
+                                                   callback_group=self._cbgroup)
         self._board_pose = None
 
     def board_cb(self, msg) -> None:
@@ -508,12 +512,12 @@ class MoveItPPControl(PPControlBase):
         pen.id = 'pen'
         cylinder = SolidPrimitive()
         cylinder.type = SolidPrimitive.CYLINDER
-        cylinder.dimensions = [0.10, 0.01]  # [height, radius in meters]
+        cylinder.dimensions = [0.10, 0.009]  # [height, radius in meters]
         # Hard coded pen location
         pen_pose = Pose()
-        pen_pose.position.x = 0.5
-        pen_pose.position.y = 0.3
-        pen_pose.position.z = 0.191
+        pen_pose.position.x = 0.45
+        pen_pose.position.y = 0.2
+        pen_pose.position.z = 0.02
         pen_pose.orientation.x = 0.0
         pen_pose.orientation.y = 0.7071068
         pen_pose.orientation.z = 0.0

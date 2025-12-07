@@ -251,8 +251,9 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
     # Spawn and grab pen
     await ctl.add_fixed_pen()
     # await ctl.add_demo_board()
+
     logger.info('Robot approaching the pen.')
-    pen_pose = np.array([0.5, 0.3, 0.191])
+    pen_pose = np.array([0.45, 0.2, 0.03])
     pen_rot = R.from_euler('xyz', [180, 0, 0], degrees=True)
     pen_ori = pen_rot.as_quat()
     pre_grasp_pos = pen_pose + np.array([0, 0, 0.10])
@@ -272,7 +273,7 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
         if res.result.error_code.val != 1:
             return
 
-        await ctl.grip(0.03)
+        await ctl.grip(0.025)
 
         point_data = np.hstack([pen_pose, pen_ori, np.array([0])])
         traj_approach = Trajectory('pen_grab', point_data.reshape(1, 8))
