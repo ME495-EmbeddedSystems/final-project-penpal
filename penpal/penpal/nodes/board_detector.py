@@ -29,7 +29,9 @@ class BoardDetector(Node):
 
         # board + tag geometry
         self.width: float = self.declare_parameter('board_width_m', 0.8).value
-        self.height: float = self.declare_parameter('board_height_m', 0.61).value
+        self.height: float = self.declare_parameter(
+            'board_height_m', 0.61
+        ).value
         self.tag_size: float = self.declare_parameter('tag_size_m', 0.07).value
 
         # tag ids at known board corners
@@ -37,7 +39,9 @@ class BoardDetector(Node):
         self.tag_br: int = self.declare_parameter('bottom_right_id', 1).value
 
         # detection topic
-        self.tag_topic: str = self.declare_parameter('tag_topic', '/detections').value
+        self.tag_topic: str = self.declare_parameter(
+            'tag_topic', '/detections'
+        ).value
 
         # ---- Frames + calibration tag info ----
         self.base_frame_id: str = self.declare_parameter(
@@ -104,23 +108,17 @@ class BoardDetector(Node):
 
         # ------------------ Publishers ------------------
         self.pose_pub = self.create_publisher(
-            PoseStamped,
-            'whiteboard_pose',
-            10
+            PoseStamped, 'whiteboard_pose', 10
         )
 
         self.board_info_pub = self.create_publisher(
-            BoardInfo,
-            'board_info',
-            10
+            BoardInfo, 'board_info', 10
         )
         self.sequence_number: int = 0
 
         # --------------- Marker Publishers ---------------
         self.marker_pub = self.create_publisher(
-            Marker,
-            'whiteboard_outline',
-            10
+            Marker, 'whiteboard_outline', 10
         )
 
         # write-space visualization
@@ -137,7 +135,7 @@ class BoardDetector(Node):
             10,
         )
 
-        self.get_logger().info("BoardDetector running")
+        self.get_logger().info('BoardDetector running')
 
     # ---------------- Camera intrinsics ----------------
     def cam_info_cb(self, msg: CameraInfo) -> None:
@@ -149,7 +147,7 @@ class BoardDetector(Node):
         self.K = np.array(msg.k, dtype=float).reshape(3, 3)
         self.D = np.array(msg.d, dtype=float)
 
-        self.get_logger().info("Camera intrinsics received")
+        self.get_logger().info('Camera intrinsics received')
         # we only need intrinsics once
         self.destroy_subscription(self.caminfo_sub)
 
@@ -175,7 +173,7 @@ class BoardDetector(Node):
 
         if len(detection.corners) != 4:
             self.get_logger().warn(
-                f"Tag id={detection.id} has {len(detection.corners)} corners, expected 4"
+                f'Tag id={detection.id} has {len(detection.corners)} corners, expected 4'
             )
             return None
 
@@ -204,7 +202,7 @@ class BoardDetector(Node):
 
         if not success:
             self.get_logger().warn(
-                f"solvePnP failed for tag id={detection.id}"
+                f'solvePnP failed for tag id={detection.id}'
             )
             return None
 
@@ -237,7 +235,7 @@ class BoardDetector(Node):
 
         self._static_tf_broadcaster.sendTransform(tf)
         self.get_logger().info(
-            f"Published static TF {self.base_frame_id} -> {self.camera_frame_id}"
+            f'Published static TF {self.base_frame_id} -> {self.camera_frame_id}'
         )
 
     def publish_calibration_link(
@@ -297,10 +295,7 @@ class BoardDetector(Node):
         dets: Dict[int, AprilTagDetection] = {d.id: d for d in msg.detections}
 
         # ---------- Camera calibration ----------
-        if (
-            not self.camera_calibrated
-            and self.calib_tag_id in dets
-        ):
+        if not self.camera_calibrated and self.calib_tag_id in dets:
             calib = self.estimate_tag_pose(dets[self.calib_tag_id])
             if calib is not None:
                 R_cam_calib, t_cam_calib = calib
@@ -311,13 +306,15 @@ class BoardDetector(Node):
                 T_camera_calib[:3, 3] = t_cam_calib
 
                 # T_base_camera = T_base_calib_tag * (T_camera_calib_tag)^-1
-                T_base_camera = self.T_base_calib @ np.linalg.inv(T_camera_calib)
+                T_base_camera = self.T_base_calib @ np.linalg.inv(
+                    T_camera_calib
+                )
 
                 self.T_base_camera = T_base_camera
                 self._publish_base_camera_tf(T_base_camera)
                 self.camera_calibrated = True
                 self.get_logger().info(
-                    f"Camera calibrated using tag id={self.calib_tag_id}"
+                    f'Camera calibrated using tag id={self.calib_tag_id}'
                 )
 
                 # draw a line in rviz from BASE -> CALIB_TAG
@@ -326,21 +323,29 @@ class BoardDetector(Node):
                     t_cam_calib,
                 )
 
-        tl_pose = self.estimate_tag_pose(dets[self.tag_tl]) if self.tag_tl in dets else None
-        br_pose = self.estimate_tag_pose(dets[self.tag_br]) if self.tag_br in dets else None
+        tl_pose = (
+            self.estimate_tag_pose(dets[self.tag_tl])
+            if self.tag_tl in dets
+            else None
+        )
+        br_pose = (
+            self.estimate_tag_pose(dets[self.tag_br])
+            if self.tag_br in dets
+            else None
+        )
 
         # --- No tags visible: mark board as not visible and delete marker ---
         if tl_pose is None and br_pose is None:
             # reset sequence number
             self.sequence_number = 0
 
-            if getattr(self, "board_visible", False):
-                self.get_logger().info("Board not visible (no tags).")
+            if getattr(self, 'board_visible', False):
+                self.get_logger().info('Board not visible (no tags).')
                 self.board_visible = False
 
                 m = Marker()
                 m.header = msg.header
-                m.ns = "whiteboard"
+                m.ns = 'whiteboard'
                 m.id = 0
                 m.action = Marker.DELETE
                 self.marker_pub.publish(m)
@@ -376,8 +381,8 @@ class BoardDetector(Node):
             # count number of visible tags
             n_tags = 2
 
-            if not getattr(self, "board_visible", False):
-                self.get_logger().info("Board visible (both TL + BR).")
+            if not getattr(self, 'board_visible', False):
+                self.get_logger().info('Board visible (both TL + BR).')
             self.board_visible = True
 
         elif tl_pose is not None:
@@ -389,8 +394,8 @@ class BoardDetector(Node):
             # count number of visible tags
             n_tags = 1
 
-            if not getattr(self, "board_visible", False):
-                self.get_logger().info("Board visible (TL only).")
+            if not getattr(self, 'board_visible', False):
+                self.get_logger().info('Board visible (TL only).')
             self.board_visible = True
 
         else:
@@ -402,8 +407,8 @@ class BoardDetector(Node):
             # count number of visible tags
             n_tags = 1
 
-            if not getattr(self, "board_visible", False):
-                self.get_logger().info("Board visible (BR only).")
+            if not getattr(self, 'board_visible', False):
+                self.get_logger().info('Board visible (BR only).')
             self.board_visible = True
 
         # cache for potential later use/debugging
@@ -454,14 +459,19 @@ class BoardDetector(Node):
 
         writeable_area:
             Bottom half of the board, in board-plane coordinates with:
-            - origin at board center
+            - origin at top left of the board
         """
+        # can't publish anything unless we know where the base frame is
+        if self.T_base_camera is None:
+            return
+
         hw = self.width / 2.0
         hh = self.height / 2.0
 
-        # top-left corner in CAMERA frame
+        # top-left corner in BASE frame
         P_tl_b = np.array([-hw, hh, 0.0])
-        top_left_c = R @ P_tl_b + center
+        top_left_c_camera = R @ P_tl_b + center
+        top_left_c = self.T_base_camera @ top_left_c_camera
 
         # fill board info message
         msg = BoardInfo()
@@ -484,15 +494,19 @@ class BoardDetector(Node):
         msg.height_m = float(self.height)
 
         # writespace in board coordinates:
-        # origin at center: +x right, +y up -> down is -y
-        # bottom edge: y = -hh, midline: y = 0
-        x_tl = -hw
-        y_tl = 0.0  # top of writeable strip
-        x_br = hw
-        y_br = -hh  # bottom of board
+        # origin at top left of board: +x right, -y down
+        # bottom edge: y = -height, midline: y = -hh
+        x_tl = 0.0
+        y_tl = -hh  # top of writeable strip
+        x_br = msg.width_m
+        y_br = -msg.height_m  # bottom of board
 
-        msg.writeable_area = [float(x_tl), float(y_tl),
-                              float(x_br), float(y_br)]
+        msg.writeable_area = [
+            float(x_tl),
+            float(y_tl),
+            float(x_br),
+            float(y_br),
+        ]
 
         # tag + sequence info
         msg.n_tags = int(n_tags)
@@ -611,5 +625,5 @@ def main(args=None) -> None:
     rclpy.shutdown()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

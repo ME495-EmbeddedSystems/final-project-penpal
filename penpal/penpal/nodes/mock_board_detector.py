@@ -5,6 +5,7 @@ from typing import Optional, Tuple, Dict
 import cv2
 import numpy as np
 import transforms3d.quaternions as tquat
+from scipy.spatial.transform import Rotation
 
 from penpal_interfaces.msg import BoardInfo
 import rclpy
@@ -17,7 +18,7 @@ from example_interfaces.srv import Trigger
 from tf2_ros import StaticTransformBroadcaster
 
 
-class BoardDetector(Node):
+class MockBoardDetector(Node):
     """Detects pose + dimensions of one whiteboard using two AprilTags."""
 
     def __init__(self) -> None:
@@ -110,7 +111,7 @@ class BoardDetector(Node):
 
         self.get_logger().info('BoardDetector running')
 
-        # mock stuff
+        # --------------- MOCK STUFF ---------------
         self.T_base_camera = np.eye(4)
         self.T_base_camera[0:3, 3] = [2, 1, 0]
 
@@ -257,8 +258,10 @@ class BoardDetector(Node):
         mock_header.frame_id = 'base'
         mock_header.stamp = self.get_clock().now().to_msg()
 
-        R = np.eye(3)
-        center = np.array([0.5, 0.5, 0.5])
+        # upright & facing us
+        center = np.array([0.0, 0.5, 0.5])
+        rot = Rotation.from_euler('zx', (0, 90), degrees=True)
+        R = rot.as_matrix()
         n_tags = 2
 
         # # ---- Publish PoseStamped ----
@@ -306,7 +309,7 @@ class BoardDetector(Node):
 
         writeable_area:
             Bottom half of the board, in board-plane coordinates with:
-            - origin at board center
+            - origin at top left of board
         """
         hw = self.width / 2.0
         hh = self.height / 2.0
@@ -336,12 +339,12 @@ class BoardDetector(Node):
         msg.height_m = float(self.height)
 
         # writespace in board coordinates:
-        # origin at center: +x right, +y up -> down is -y
-        # bottom edge: y = -hh, midline: y = 0
-        x_tl = -hw
-        y_tl = 0.0  # top of writeable strip
-        x_br = hw
-        y_br = -hh  # bottom of board
+        # origin at top left of board: +x right, -y down
+        # bottom edge: y = -height, midline: y = -hh
+        x_tl = 0.0
+        y_tl = -hh  # top of writeable strip
+        x_br = msg.width_m
+        y_br = -msg.height_m  # bottom of board
 
         msg.writeable_area = [
             float(x_tl),
@@ -461,7 +464,7 @@ class BoardDetector(Node):
 def main(args=None) -> None:
     """Spin the node."""
     rclpy.init(args=args)
-    node = BoardDetector()
+    node = MockBoardDetector()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()

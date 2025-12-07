@@ -312,18 +312,21 @@ class PenPal(Node):
     def board_is_in_workspace(self) -> bool:
         """Return true if the board is in range of the arm."""
         if self.board_is_visible():
-            r_m = self.c.workspace_dimensions_m[0]
-            h_m = self.c.workspace_dimensions_m[1]
+            rthresh = self.c.workspace_dimensions_m[0]
+            hthresh = self.c.workspace_dimensions_m[1]
             board = self._write_planner.get_latest_board_info()
+            self.get_logger().info(str(board))
 
             # board's position is already in base frame.
             # evaluate if all 4 corners of the writing area are in reach.
             corners = board.get_writeable_area_corners_world_frame()
             for i in range(corners.shape[0]):
                 corner = corners[i]
-                xy_dist = np.linalg.norm(corner[0:2])
-                is_in_workspace = xy_dist < r_m and (
-                    corner[2] > 0 and corner[2] < h_m
+                r = np.linalg.norm(corner[0:2])
+                h = corner[2]
+                is_in_workspace = r < rthresh and (h > 0 and h < hthresh)
+                self.get_logger().info(
+                    f'CORNER{i}: r={r} h={h} in_workspace={is_in_workspace}'
                 )
                 if not is_in_workspace:
                     return False
