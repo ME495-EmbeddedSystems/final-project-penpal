@@ -12,6 +12,8 @@ import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 
+from franka_msgs.srv import SetFullCollisionBehavior
+
 from penpal.control import moveit_control, position_control, pp_control
 from penpal.control.pp_control import Trajectory
 from penpal.integration_tests import plot
@@ -240,10 +242,15 @@ def ee_change_matrix():
 async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
     """Test move plan functions."""
     logger = node.get_logger()
+    collision_service = node.create_client(SetFullCollisionBehavior,
+                                           '/service_server/set_full_collision_behavior')
+    if not collision_service.wait_for_service(timeout_sec=5.0):
+        logger.info('Service SetFullCollisionBehavior not there.')
+        return
 
     # Spawn and grab pen
     await ctl.add_fixed_pen()
-    await ctl.add_demo_board()
+    # await ctl.add_demo_board()
     logger.info('Robot approaching the pen.')
     pen_pose = np.array([0.5, 0.3, 0.191])
     pen_rot = R.from_euler('xyz', [180, 0, 0], degrees=True)
@@ -273,20 +280,6 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
         await ctl.grip(0.01)
         await ctl.attach_pen()
 
-        lift_pos = pen_pose + np.array([0, 0, 0.05])
-        await ctl.move_to_ee_pose(lift_pos, pen_ori)
-        await ctl.plan_to_named_config(
-            named_config='ready',
-            start_ee_pose=None,
-            execute_immediately=True,
-        )
-
-        wait_t = 5.0
-        logger.info(f'Waiting {wait_t} seconds...')
-        await asyncio.sleep(wait_t)
-        logger.info('Starting integration test...')
-        await ctl.configure()
-
         # Set up SetTCPFrame
         tcp_matrix = ee_change_matrix()
         logger.info('Calling SetTCPFrame service')
@@ -301,13 +294,35 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
 
         await frame_service.call_async(req)
 
-        demo_board_pose = np.array([0.5, 0.0, 0.55])
+        lift_pos = pen_pose + np.array([0, 0, 0.05])
+        await ctl.move_to_ee_pose(lift_pos, pen_ori)
+        await ctl.plan_to_named_config(
+            named_config='ready',
+            start_ee_pose=None,
+            execute_immediately=True,
+        )
+
+        wait_t = 5.0
+        logger.info(f'Waiting {wait_t} seconds...')
+        await asyncio.sleep(wait_t)
+        logger.info('Starting integration test...')
+        await ctl.configure()
+
+        demo_board_pose = np.array([0.5, 0.0, 0.6])
         demo_board_rot = R.from_euler('xyz', [0, 0, 0], degrees=True)
-        buffer = 0.01
+        buffer = 0.05
         start_pose = calculate_start_pose(buffer,
                                           demo_board_pose,
                                           demo_board_rot)
-        speed = 0.05
+        speed = 0.01
+
+        free_space_req = SetFullCollisionBehavior.Request()
+        free_space_req.upper_torque_thresholds_nominal = [60.0, 60.0, 60.0, 60.0, 50.0, 50.0, 50.0]
+        free_space_req.upper_force_thresholds_nominal = [60.0, 60.0, 60.0, 60.0, 60.0, 60.0]
+        free_space_req.lower_torque_thresholds_nominal = [50.0, 50.0, 50.0, 50.0, 40.0, 40.0, 40.0]
+        free_space_req.lower_force_thresholds_nominal = [50.0, 50.0, 50.0, 50.0, 50.0, 50.0]
+        await collision_service.call_async(free_space_req)
+
         node.get_logger().info('Moving to start position')
         goal_handle = await ctl.move_to_ee_pose(goal_ee_position=start_pose[:3],
                                                 goal_ee_orientation=start_pose[3:],
@@ -319,8 +334,18 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
 
         seq = get_demo_traj_sequence(start_pose)
 
+        # Define Treshold - Orange Zone
+        high_req = SetFullCollisionBehavior.Request()
+        high_req.lower_torque_thresholds_nominal = [20.0, 20.0, 20.0, 20.0,
+                                                    20.0, 20.0, 20.0]
+        high_req.upper_torque_thresholds_nominal = [80.0, 80.0, 80.0, 80.0, 80.0, 80.0, 80.0]
+        high_req.lower_force_thresholds_nominal = [8.0, 5.0, 5.0, 5.0,
+                                                   5.0, 5.0]
+        high_req.upper_force_thresholds_nominal = [80.0, 80.0, 80.0, 80.0, 80.0, 80.0]
+        logger.info('Setting Orange Zone Thresholds Higher for Writing')
+        await collision_service.call_async(high_req)
+
         # publish trajectories one by one
-        # uncomment once no failure
         for traj in seq:
             logger.info(f'Executing trajectory {traj.label}...')
             await ctl.execute_trajectory(traj, speed, publish_markers=True)
@@ -328,6 +353,16 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
         # for traj in seq:
         #     await ctl.publish_marker(traj)
 
+        #After Writing threshold
+        # low_req = SetFullCollisionBehavior.Request()
+        # low_req.lower_torque_thresholds_nominal = [20.0, 20.0, 20.0, 20.0,
+        #                                            15.0, 15.0, 15.0]
+        # low_req.upper_torque_thresholds_nominal = [20.0, 20.0, 20.0, 20.0,
+        #                                            15.0, 15.0, 15.0]
+        # low_req.lower_force_thresholds_nominal = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+        # low_req.upper_force_thresholds_nominal = [2.0, 2.0, 2.0, 2.0, 2.0, 2.0]
+        # logger.info('Setting Orange Zone Threshold Lower.')
+        # await collision_service.call_async(low_req)
         # for traj in seq:
         #     logger.info(f'Executing trajectory {traj.label}...')
         #     # markers already published for now so no need to republish here
