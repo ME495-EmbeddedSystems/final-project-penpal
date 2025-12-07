@@ -69,18 +69,19 @@ def get_demo_traj_sequence_dynamic(
 
 
 def calculate_start_pose(buffer,
-                        board_pose_position: np.array,
-                        board_pose_rotation: R):
-    """Calculate the robot's ee to place the pen tip normal to the board surface."""
-
+                         board_pose_position: np.array,
+                         board_pose_rotation: R):
+    """Calculate the start pose to place the pen tip normal to the board."""
     board_normal = np.array([1, 0, 0])
     world_normal_vector = board_pose_rotation.apply(board_normal)
-    target_position = board_pose_position - (world_normal_vector * buffer)
     current_pen_direction = np.array([1, 0, 0])
     desired_pen_direction = world_normal_vector
-    R_world_to_target, _ = R.align_vectors([desired_pen_direction], 
-                                           [current_pen_direction])
-    target_orientation_quat = R_world_to_target.as_quat()
+    R_align, _ = R.align_vectors([desired_pen_direction],
+                                 [current_pen_direction])
+    R_flip = R.from_euler('x', 180, degrees=True)
+    target_rot = R_align * R_flip
+    target_position = board_pose_position - (world_normal_vector * buffer)
+    target_orientation_quat = target_rot.as_quat()
     start_pose = np.array([*target_position, *target_orientation_quat])
     return start_pose
 
@@ -286,12 +287,12 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
         logger.info('Starting integration test...')
         await ctl.configure()
 
-        #Set up SetTCPFrame
+        # Set up SetTCPFrame
         tcp_matrix = ee_change_matrix()
         logger.info('Calling SetTCPFrame service')
         frame_service = node.create_client(SetTCPFrame,
                                            '/service_server/set_tcp_frame')
-        if not frame_service.wait_for_service(timeout_sec = 5.0):
+        if not frame_service.wait_for_service(timeout_sec=5.0):
             logger.info('Service SetTCPFrame not there.')
             return
 
@@ -300,12 +301,12 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
 
         await frame_service.call_async(req)
 
-        demo_board_pose = np.array([0.5, 0.0, 0.6])
+        demo_board_pose = np.array([0.5, 0.0, 0.55])
         demo_board_rot = R.from_euler('xyz', [0, 0, 0], degrees=True)
         buffer = 0.01
         start_pose = calculate_start_pose(buffer,
-                                                  demo_board_pose,
-                                                  demo_board_rot)
+                                          demo_board_pose,
+                                          demo_board_rot)
         speed = 0.05
         node.get_logger().info('Moving to start position')
         goal_handle = await ctl.move_to_ee_pose(goal_ee_position=start_pose[:3],
@@ -364,6 +365,7 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
     finally:
         node.get_logger().info('Integration test finished.')
     """
+
 
 def plot_shapes() -> None:
     """Quick plotting demos of the trajectory functions."""
