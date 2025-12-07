@@ -340,8 +340,8 @@ class BoardDetector(Node):
             # reset sequence number
             self.sequence_number = 0
 
-            if getattr(self, 'board_visible', False):
-                self.get_logger().info('Board not visible (no tags).')
+            if not self.board_visible:
+                self.get_logger().debug('Board not visible (no tags).')
                 self.board_visible = False
 
                 m = Marker()

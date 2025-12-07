@@ -8,7 +8,7 @@ from launch.substitutions import (
     PathJoinSubstitution,
     EqualsSubstitution,
     LaunchConfiguration,
-    EnvironmentVariable
+    EnvironmentVariable,
 )
 from launch.conditions import IfCondition
 from launch_ros.actions import Node
@@ -22,8 +22,7 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 'gemini_api_key',
                 default_value=EnvironmentVariable(
-                    'GOOGLE_API_KEY',
-                    default_value=''
+                    'GOOGLE_API_KEY', default_value=''
                 ),
                 description='API Key for Google Gemini service',
             ),
@@ -58,7 +57,7 @@ def generate_launch_description():
                 package='apriltag_ros',
                 executable='apriltag_node',
                 name='apriltag',
-                output='screen',
+                output='log',
                 parameters=[
                     PathJoinSubstitution(
                         [
@@ -101,10 +100,8 @@ def generate_launch_description():
                 name='ocr_node',
                 output='screen',
                 parameters=[
-                    {
-                        'gemini_api_key': LaunchConfiguration('gemini_api_key')
-                    }
-                ]
+                    {'gemini_api_key': LaunchConfiguration('gemini_api_key')}
+                ],
             ),
             Node(
                 package='rviz2',
