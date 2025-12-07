@@ -424,6 +424,8 @@ class MoveItPPControl(PPControlBase):
         if response is None:
             self._logger.error('response=None')
             return None
+
+        self._logger.info('Execution complete.')
         return response.result
 
     async def add_demo_board(self) -> None:

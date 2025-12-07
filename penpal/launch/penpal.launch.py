@@ -113,40 +113,40 @@ def generate_launch_description():
                     'pen',
                 ],
             ),
-            # Node(
-            #     package='rviz2',
-            #     executable='rviz2',
-            #     output='log',
-            #     arguments=[
-            #         '-d',
-            #         PathJoinSubstitution(
-            #             [
-            #                 FindPackageShare('franka_fer_moveit_config'),
-            #                 'config',
-            #                 'moveit.rviz',
-            #             ]
-            #         ),
-            #     ],
-            #     parameters=[
-            #         moveit_config.planning_pipelines,
-            #         moveit_config.robot_description_kinematics,
-            #     ],
-            #     remappings=[('/move_action', '/viz/move_action')],
-            # ),
             Node(
                 package='rviz2',
                 executable='rviz2',
-                name='rviz2',
+                output='log',
                 arguments=[
                     '-d',
                     PathJoinSubstitution(
                         [
                             FindPackageShare('penpal'),
                             'config',
-                            'robot_view.rviz',
+                            'penpal.rviz',
                         ]
                     ),
                 ],
+                parameters=[
+                    moveit_config.planning_pipelines,
+                    moveit_config.robot_description_kinematics,
+                ],
+                remappings=[('/move_action', '/viz/move_action')],
             ),
+            # Node(
+            #     package='rviz2',
+            #     executable='rviz2',
+            #     name='rviz2',
+            #     arguments=[
+            #         '-d',
+            #         PathJoinSubstitution(
+            #             [
+            #                 FindPackageShare('penpal'),
+            #                 'config',
+            #                 'robot_view.rviz',
+            #             ]
+            #         ),
+            #     ],
+            # ),
         ]
     )
