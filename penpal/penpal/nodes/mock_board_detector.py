@@ -129,9 +129,9 @@ class MockBoardDetector(Node):
         """Restart the sequence from 0. mocking helper."""
         self._is_publishing_mock = not self._is_publishing_mock
         self.get_logger().info(
-            'Mock - setting publish to ' + 'ON'
-            if self._is_publishing_mock
-            else 'OFF'
+            f'Mock - setting publish to {
+                "ON" if self._is_publishing_mock else "OFF"
+            }'
         )
         self.sequence_number = 0
         resp.success = True
