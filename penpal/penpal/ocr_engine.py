@@ -73,8 +73,9 @@ class QwenOCREngine:
             else:
                 print("Using CPU for OCR")
                 self._device = "cpu"
+        else:
+            self._device = device
 
-        self._device = device
         self._model = Qwen3VLForConditionalGeneration.from_pretrained(
             model_id,
             dtype="auto",

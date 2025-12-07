@@ -5,7 +5,7 @@ import numpy as np
 from pathlib import Path
 from datetime import datetime
 
-from penpal.penpal.ocr_engine import QwenOCREngine
+from penpal.ocr_engine import QwenOCREngine
 
 
 def capture_webcam_frame(cam_index: int = 0) -> np.ndarray:
