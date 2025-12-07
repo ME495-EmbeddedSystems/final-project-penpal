@@ -63,6 +63,9 @@ class PenPal(Node):
     Parameters
     ----------
     write_control_type: type of controller to use for writing
+    convo_font_name: font to use in writing
+    board_visibility_thresh_s
+    board_visibility_tags_thresh
 
     Publishers
     ---------
@@ -70,8 +73,7 @@ class PenPal(Node):
 
     Subscribers
     ----------
-    whiteboard_pose: 6dof pose of the whiteboard
-    whiteboard_outline: markers for the whiteboard boundary
+    whiteboard_info: pose & metadata about the whiteboard
 
     Clients
     -------
@@ -104,6 +106,12 @@ class PenPal(Node):
                 description='Type of controller to use for writing. [moveit, impedance, mock]'  # noqa: E501
             ),
         )
+        self.c.write_control_type = (
+            self.get_parameter('write_control_type')
+            .get_parameter_value()
+            .string_value
+        )
+
         self.declare_parameter(
             'convo_font_name',
             self.c.convo_font_name,
@@ -117,11 +125,6 @@ class PenPal(Node):
             .string_value
         )
 
-        self.c.write_control_type = (
-            self.get_parameter('write_control_type')
-            .get_parameter_value()
-            .string_value
-        )
         self.declare_parameter(
             'board_visibility_thresh_s',
             self.c.board_visibility_thresh_s,
