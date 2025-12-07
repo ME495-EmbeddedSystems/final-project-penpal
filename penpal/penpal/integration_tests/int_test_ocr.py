@@ -1,94 +1,64 @@
-"""Test QuenLM OCR with webcam."""
-
-import cv2
-import numpy as np
-from pathlib import Path
-from datetime import datetime
-
-from penpal.ocr_engine import QwenOCREngine
+"""Integration test for the Gemini OCR + QA service."""
+import json
+import rclpy
+from rclpy.node import Node
+from example_interfaces.srv import Trigger
 
 
-def capture_webcam_frame(cam_index: int = 0) -> np.ndarray:
-    """
-    Capture a single frame from the laptop webcam.
+class BoardClient(Node):
+    """ROS 2 client to request board OCR + QA."""
 
-    Args:
-    ----
-    cam_index: Index of the webcam device to open.
+    def __init__(self):
+        """Initialize the client node."""
+        super().__init__('board_client')
 
-    Returns:
-    -------
-    numpy.ndarray: RGB image array of shape HxWx3.
+        self.cli = self.create_client(Trigger, 'read_and_answer_board')
 
-    """
-    cap = cv2.VideoCapture(cam_index)
-    if not cap.isOpened():
-        raise RuntimeError("ERROR: Could not open webcam.")
+        while not self.cli.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('Service not available, waiting again...')
 
-    print("Press SPACE to capture image.")
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            continue
-
-        # show live preview
-        cv2.imshow("Webcam", frame)
-        key = cv2.waitKey(1)
-
-        if key == 32:  # SPACE
-            break
-        elif key == 27:  # ESC
-            cap.release()
-            cv2.destroyAllWindows()
-            raise SystemExit("Cancelled.")
-
-    cap.release()
-    cv2.destroyAllWindows()
-
-    # convert BGR -> RGB
-    return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-
-def save_image(img: np.ndarray, prefix: str = "capture") -> Path:
-    """Save the captured image for debugging."""
-    out_path = Path(f"{prefix}_{datetime.now().strftime('%H-%M-%S')}.jpg")
-    cv2.imwrite(str(out_path), cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
-    print(f"Saved captured image to: {out_path}")
-    return out_path
+    def send_request(self):
+        """Send the request to the OCR + QA service."""
+        req = Trigger.Request()
+        future = self.cli.call_async(req)
+        rclpy.spin_until_future_complete(self, future)
+        return future.result()
 
 
 def main():
-    """Run an OCR test using the laptop webcam."""
-    print("=== OCR Webcam Frame Test ===")
+    """Run the client."""
+    rclpy.init()
+    client = BoardClient()
 
-    rgb_img = capture_webcam_frame()
-    save_image(rgb_img)
+    print('\nRequesting board analysis from Gemini...')
 
-    print("Initializing OCR...")
-    engine = QwenOCREngine(model_id="Qwen/Qwen3-VL-2B-Instruct")
+    try:
+        response = client.send_request()
 
-    print("Running OCR...")
-    result = engine.recognize(rgb_img)
+        if response.success:
+            # parse the JSON string into a Python dictionary
+            data = json.loads(response.message)
 
-    print("\n===== RAW MODEL OUTPUT =====")
-    print(result.raw_output)
+            print('===OUTPUT FROM GEMINI OCR + QA SERVICE===')
+            print('=' * 40)
+            print('\nTRANSCRIPTION:')
+            print('-' * 13)
+            print(f'   {data.get('question', 'No text found')}')
+            print('=' * 40)
+            print('\nRESPONSE:')
+            print('-' * 9)
+            print(f'   {data.get('answer', 'No answer generated')}')
+            print('\n' + '-' * 40 + '\n')
+        else:
+            print('\n[Error] Service call failed!')
+            print(f'Message: {response.message}\n')
 
-    print("\n===== CLEAN TEXT =====")
-    print(result.text)
-
-    print("\n===== LINES =====")
-    for i, line in enumerate(result.lines):
-        print(f"{i + 1}. {line}")
-
-    print("\nRunning read_and_answer_board()...")
-    qa_result = engine.read_and_answer_board(rgb_img)
-
-    print("\n===== BOARD QUESTION (from OCR) =====")
-    print(qa_result.question)
-
-    print("\n===== MODEL ANSWER =====")
-    print(qa_result.answer)
+    except Exception as e:
+        print(f'[Error] Script failed: {e}')
+    finally:
+        client.destroy_node()
+        rclpy.shutdown()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

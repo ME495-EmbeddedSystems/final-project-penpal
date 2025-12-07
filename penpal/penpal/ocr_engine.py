@@ -1,15 +1,15 @@
-"""Use QuenLM to read writing on board."""
+"""Gemini OCR + QA Engine."""
 
+import io
+import json
+import os
 from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
+from google import genai
+from google.genai import types
 from PIL import Image
-import torch
-from transformers import (
-    Qwen3VLForConditionalGeneration,
-    AutoProcessor,
-)
 
 
 @dataclass
@@ -38,10 +38,9 @@ class BoardQAResult:
     """Raw model output for the answer call (for debugging)."""
 
 
-# ------------ Begin_Citation [2] -------------
-class QwenOCREngine:
+class GeminiOCREngine:
     """
-    Qwen3-VL-based OCR engine.
+    Gemini-based OCR engine using the 'google-genai' SDK.
 
     - Input: single image (whiteboard crop / rectified board) and/or text.
     - Output:
@@ -51,210 +50,113 @@ class QwenOCREngine:
 
     def __init__(
         self,
-        model_id: str = "Qwen/Qwen3-VL-2B-Instruct",
-        device: Optional[str] = None,
+        api_key: Optional[str] = None,
+        model_name: str = 'gemini-2.0-flash',
     ) -> None:
         """
-        Initialize the Qwen OCR engine.
+        Initialize the Gemini OCR engine.
 
         Args:
         ----
-        model_id:
-            HuggingFace model identifier for the Qwen3-VL variant to load.
-        device:
-            Device to run inference on ("cuda" or "cpu"). If None,
-            the method automatically selects GPU when available.
+        api_key:
+            API key for Google Gemini access. If None, reads from
+            'GOOGLE_API_KEY' environment variable.
+        model_name:
+            Gemini model name to use for OCR and QA.
 
         """
-        if device is None:
-            if torch.cuda.is_available():
-                print("Using GPU for OCR")
-                self._device = "cuda"
-            else:
-                print("Using CPU for OCR")
-                self._device = "cpu"
-        else:
-            self._device = device
-
-        self._model = Qwen3VLForConditionalGeneration.from_pretrained(
-            model_id,
-            dtype="auto",
-            device_map="auto" if device == "cuda" else None,
+        self.api_key = (
+            api_key
+            or os.getenv('GOOGLE_API_KEY')
         )
-        self._processor = AutoProcessor.from_pretrained(model_id)
+
+        if not self.api_key:
+            raise ValueError(
+                'No API key provided. Set GOOGLE_API_KEY env var.'
+            )
+
+        self._client = genai.Client(api_key=self.api_key)
+        self._model_name = model_name
 
     @staticmethod
     def _to_pil(image: np.ndarray | Image.Image) -> Image.Image:
-        """
-        Convert a numpy RGB array into a PIL image if necessary.
-
-        Args:
-        ----
-        image:
-            Either a PIL.Image or an HxWx3 uint8 numpy array
-            representing an RGB image.
-
-        Returns:
-        -------
-            A valid PIL.Image object ready for processing.
-
-        """
         if isinstance(image, Image.Image):
             return image
-        if image.ndim == 3 and image.shape[2] == 3:
-            return Image.fromarray(image.astype("uint8"))
-        raise ValueError("Expected HxWx3 RGB numpy array or PIL.Image")
+        if isinstance(image, np.ndarray):
+            if image.ndim == 3 and image.shape[2] == 3:
+                return Image.fromarray(image.astype('uint8'))
+        raise ValueError('Expected HxWx3 RGB numpy array or PIL.Image')
 
-    def recognize(self, image: np.ndarray | Image.Image) -> OCRResult:
-        """
-        Run OCR on a single image and return a text transcription.
-
-        Args:
-        ----
-        image:
-            Rectified RGB image of the writing surface (HxWx3, uint8 or PIL).
-
-        Returns:
-        -------
-        OCRResult:
-            Structured output containing the cleaned text,
-            line-separated text, and the raw model output.
-
-        """
-        pil_img = self._to_pil(image)
-
-        # prompt it to behave like strict OCR
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "image", "image": pil_img},
-                    {
-                        "type": "text",
-                        "text": (
-                            "You are an OCR engine. "
-                            "Read the handwritten text on this whiteboard and "
-                            "transcribe it exactly as plain text, line by line. "
-                            "Do not add explanations or comments."
-                        ),
-                    },
-                ],
-            }
-        ]
-
-        inputs = self._processor.apply_chat_template(
-            messages,
-            tokenize=True,
-            add_generation_prompt=True,
-            return_dict=True,
-            return_tensors="pt",
-        ).to(self._model.device)
-
-        generated_ids = self._model.generate(
-            **inputs,
-            max_new_tokens=512,
-            do_sample=False,
+    def _image_to_part(self, image: Image.Image) -> types.Part:
+        """Convert PIL image to Gemini Part (Byte handling)."""
+        img_bytes = io.BytesIO()
+        image.save(img_bytes, format='PNG')
+        img_bytes.seek(0)
+        return types.Part.from_bytes(
+            data=img_bytes.read(), mime_type='image/png'
         )
-        # strip the prompt tokens
-        generated_ids_trimmed = [
-            out_ids[len(in_ids):]
-            for in_ids, out_ids in zip(inputs["input_ids"], generated_ids)
-        ]
-        output_texts = self._processor.batch_decode(
-            generated_ids_trimmed,
-            skip_special_tokens=True,
-            clean_up_tokenization_spaces=False,
-        )
-# -------------- End_Citation [2] --------------
-
-        raw = output_texts[0]
-
-        # normalize newlines a bit
-        text = raw.strip()
-        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
-
-        return OCRResult(text=text, lines=lines, raw_output=raw)
 
     def read_and_answer_board(
         self,
         image: np.ndarray | Image.Image,
         context: Optional[str] = None,
     ) -> BoardQAResult:
-        """
-        Full pipeline: OCR the board and generate an answer in one call.
+        """OCR the board and generate an answer."""
+        pil_img = self._to_pil(image)
+        image_part = self._image_to_part(pil_img)
 
-        This is convenient for your demo:
-        - Take a snapshot of the board.
-        - Read the text as the "question".
-        - Generate an answer with the same model.
-        - Return everything in a structured result suitable for JSON.
-
-        Args:
-        ----
-        image:
-            Rectified RGB image of the board.
-        context:
-            Optional extra context for answering.
-
-        Returns:
-        -------
-        BoardQAResult:
-            Contains the inferred question, generated answer,
-            full OCR result, and raw answer model output.
-
-        """
-        ocr_result = self.recognize(image)
-        question = ocr_result.text
-
-        # generate answer using the same model
-        prompt = (
-            "You are a helpful assistant answering a question written on a whiteboard.\n\n"
-            f"Board text (question):\n{question}\n\n"
-            "Answer the question clearly and concisely."
+        prompt_text = (
+            'Analyze this whiteboard image.\n'
+            '1. Transcribe exactly what is written on the board.\n'
+            '2. Treat the transcription as a question and provide a clear, concise answer.\n'
+            'Return the result as a valid JSON object with this schema:\n'
+            '{\n'
+            '  "transcription": "string (exact text on board)",\n'
+            '  "answer": "string (your response to the text)"\n'
+            '}'
         )
 
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": prompt,
-                    }
-                ],
-            }
-        ]
+        text_part = types.Part.from_text(text=prompt_text)
 
-        inputs = self._processor.apply_chat_template(
-            messages,
-            tokenize=True,
-            add_generation_prompt=True,
-            return_dict=True,
-            return_tensors="pt",
-        ).to(self._model.device)
-
-        generated_ids = self._model.generate(
-            **inputs,
-            max_new_tokens=512,
-            do_sample=False,
+        # JSON response type
+        config = types.GenerateContentConfig(
+            response_mime_type='application/json', temperature=0.0
         )
 
-        trimmed = [
-            out_ids[len(in_ids):]
-            for in_ids, out_ids in zip(inputs["input_ids"], generated_ids)
-        ]
-        output_texts = self._processor.batch_decode(
-            trimmed,
-            skip_special_tokens=True,
-            clean_up_tokenization_spaces=False,
-        )
+        try:
+            response = self._client.models.generate_content(
+                model=self._model_name,
+                contents=[types.Content(parts=[image_part, text_part])],
+                config=config,
+            )
 
-        raw_answer = output_texts[0]
-        answer = raw_answer.strip()
+            raw_text = response.text
+            data = json.loads(raw_text)
 
-        return BoardQAResult(
-            question=question,
-            answer=answer,
-            ocr=ocr_result,
-            raw_answer_output=raw_answer,
-        )
+            question_text = data.get('transcription', '')
+            answer_text = data.get('answer', '')
+
+            lines = [
+                ln.strip() for ln in question_text.splitlines() if ln.strip()
+            ]
+
+            ocr_res = OCRResult(
+                text=question_text, lines=lines, raw_output=raw_text
+            )
+
+            return BoardQAResult(
+                question=question_text,
+                answer=answer_text,
+                ocr=ocr_res,
+                raw_answer_output=raw_text,
+            )
+
+        except Exception as e:
+            print(f'Gemini QA Error: {e}')
+            empty_ocr = OCRResult(text='', lines=[], raw_output=str(e))
+            return BoardQAResult(
+                question='',
+                answer=f'Error processing board: {e}',
+                ocr=empty_ocr,
+                raw_answer_output=str(e),
+            )
