@@ -5,7 +5,7 @@ Authors: Conor
 """
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 import traceback
 from typing import Any, List, Literal
@@ -92,6 +92,24 @@ class PenPal(Node):
         convo_font_size_mm: float = 30.0
         convo_pen_thickness_mm: float = 2.0
         convo_font_name: str = 'Roboto-Regular'
+
+        workspace_dimensions_m: np.ndarray = field(
+            default_factory=lambda: np.array([1.0, 1.0])
+        )
+        """
+        Dimensions of the robot's cylindrical workspace in meters.
+
+        This is represented as a cylinder centered at the origin
+        of the base frame, and resting on the base xy plane in z
+        (since we can't reach under the table)
+
+        This is only used to heuristically evaluate whether the board
+        is reachable; a final determination of actual reachability is
+        left to MoveIt/franka's IK solvers. So this should be a
+        conservative definition.
+
+        format: (radius_m, height_m)
+        """
 
     def __init__(self) -> None:
         """Initialize the node."""
@@ -293,8 +311,22 @@ class PenPal(Node):
 
     def board_is_in_workspace(self) -> bool:
         """Return true if the board is in range of the arm."""
-        # TODO assess this heuristically. for now just using visibility
         if self.board_is_visible():
+            r_m = self.c.workspace_dimensions_m[0]
+            h_m = self.c.workspace_dimensions_m[1]
+            board = self._write_planner.get_latest_board_info()
+
+            # board's position is already in base frame.
+            # evaluate if all 4 corners of the writing area are in reach.
+            corners = board.get_writeable_area_corners_world_frame()
+            for i in range(corners.shape[0]):
+                corner = corners[i]
+                xy_dist = np.linalg.norm(corner[0:2])
+                is_in_workspace = xy_dist < r_m and (
+                    corner[2] > 0 and corner[2] < h_m
+                )
+                if not is_in_workspace:
+                    return False
             return True
 
         return False
@@ -311,7 +343,7 @@ class PenPal(Node):
                 f': {err}\n\nTraceback:\n{tb}'
             )
 
-    def run_in_worker(self, coroutine_func) -> concurrent.futures.Future:
+    def schedule_in_worker(self, coroutine_func) -> concurrent.futures.Future:
         """Schedule an async function into the worker thread."""
         return self._executor.submit(
             self._run_async_worker_in_thread, coroutine_func
@@ -319,7 +351,7 @@ class PenPal(Node):
 
     def worker_home(self) -> None:
         """Send the robot to the home position in the worker thread."""
-        self.run_in_worker(self._grabber.home_arm())
+        self.schedule_in_worker(self._grabber.home_arm())
 
     def worker_write(
         self,
@@ -334,7 +366,7 @@ class PenPal(Node):
         chars = self._fonts.write_text(
             text, font_name, font_size_mm, pen_thickness_mm
         )
-        future = self.run_in_worker(
+        future = self.schedule_in_worker(
             self._write_planner.write_characters(
                 chars, self._fonts.c.line_spacing_factor
             )
@@ -379,7 +411,7 @@ class PenPal(Node):
 
     def worker_trigger_vlm(self) -> None:
         """Use the worker thread to get text to write from the VLM."""
-        self.run_in_worker(self._async_trigger_vlm())
+        self.schedule_in_worker(self._async_trigger_vlm())
         self._fsm.transition(ppstate.E.OCR_VLM_TRIGGERED)
 
     def _cb_tick(self, info: TimerInfo) -> None:
