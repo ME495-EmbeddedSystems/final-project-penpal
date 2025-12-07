@@ -1,4 +1,4 @@
-"""ROS 2 node wrapper for QwenOCREngine."""
+"""ROS 2 node wrapper for GeminiOCREngine."""
 
 from typing import Optional
 import json
@@ -10,11 +10,11 @@ from example_interfaces.srv import Trigger
 from rclpy.node import Node
 from sensor_msgs.msg import Image as RosImage
 
-from penpal.ocr_engine import QwenOCREngine, BoardQAResult
+from penpal.ocr_engine import GeminiOCREngine, BoardQAResult
 
 
-class QwenOCRNode(Node):
-    """ROS 2 node using Qwen-based OCR + QA as a Trigger service."""
+class GeminiOCRNode(Node):
+    """ROS 2 node using Gemini-based OCR + QA as a Trigger service."""
 
     def __init__(self) -> None:
         """Initialize the OCR node."""
@@ -24,16 +24,18 @@ class QwenOCRNode(Node):
             'image_topic',
             '/camera/camera/color/image_raw',
         ).value
+
         service_name: str = self.declare_parameter(
             'service_name',
             'read_and_answer_board',
         ).value
 
-        self._engine = QwenOCREngine()
+        api_key = self.declare_parameter('gemini_api_key', '').value
+        self._engine = GeminiOCREngine(api_key=api_key)
+
         self._bridge = CvBridge()
         self._last_board_rgb: Optional[np.ndarray] = None
 
-        # ------------------ Subscribers ------------------
         self._image_sub = self.create_subscription(
             RosImage,
             image_topic,
@@ -41,8 +43,6 @@ class QwenOCRNode(Node):
             10,
         )
 
-        # ------------------- Services --------------------
-        # trigger OCR + answer using latest cached image
         self._srv = self.create_service(
             Trigger,
             service_name,
@@ -50,25 +50,15 @@ class QwenOCRNode(Node):
         )
 
         self.get_logger().info(
-            f'OCRNode started.\n'
+            f'GeminiOCRNode started.\n'
             f'image_topic: {image_topic}\n'
             f'service: {service_name}'
         )
 
     def _image_cb(self, msg: RosImage) -> None:
-        """
-        Cache the latest board image from the subscribed topic.
-
-        Args:
-        ----
-        msg:
-            Incoming rectified board image (sensor_msgs/Image).
-
-        """
+        """Cache the latest board image."""
         try:
-            # ROS Image -> OpenCV BGR
             cv_bgr = self._bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
-            # BGR -> RGB for OCR model
             rgb = cv2.cvtColor(cv_bgr, cv2.COLOR_BGR2RGB)
             self._last_board_rgb = rgb
         except Exception as exc:
@@ -79,22 +69,13 @@ class QwenOCRNode(Node):
         request: Trigger.Request,
         response: Trigger.Response,
     ) -> Trigger.Response:
-        """
-        Handle `read_and_answer_board` Trigger service calls.
-
-        Returns
-        -------
-        Trigger.Response:
-            success:
-                True if OCR+QA ran successfully.
-            message:
-                JSON string with question, answer, and raw outputs.
-
-        """
+        """Handle service calls."""
         if self._last_board_rgb is None:
             response.success = False
             response.message = 'No board image received yet.'
             return response
+
+        self.get_logger().info("Processing board request with Gemini...")
 
         try:
             qa: BoardQAResult = self._engine.read_and_answer_board(
@@ -110,8 +91,14 @@ class QwenOCRNode(Node):
                 'answer_raw': qa.raw_answer_output,
             }
 
-            response.success = True
-            response.message = json.dumps(payload)
+            # validation
+            if not qa.question and "Error" in qa.answer:
+                response.success = False
+                response.message = qa.answer
+            else:
+                response.success = True
+                response.message = json.dumps(payload)
+
         except Exception as exc:
             self.get_logger().error(f'OCR/QA failed: {exc}')
             response.success = False
@@ -123,9 +110,8 @@ class QwenOCRNode(Node):
 def main(args: Optional[list[str]] = None) -> None:
     """Node entry point."""
     import rclpy
-
     rclpy.init(args=args)
-    node = QwenOCRNode()
+    node = GeminiOCRNode()
     try:
         rclpy.spin(node)
     finally:

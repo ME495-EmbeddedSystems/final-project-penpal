@@ -1,4 +1,4 @@
-"""Vision launch file."""
+"""Penpal vision launch file."""
 
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
@@ -8,6 +8,7 @@ from launch.substitutions import (
     PathJoinSubstitution,
     EqualsSubstitution,
     LaunchConfiguration,
+    EnvironmentVariable
 )
 from launch.conditions import IfCondition
 from launch_ros.actions import Node
@@ -18,6 +19,14 @@ def generate_launch_description():
     """Generate ROS Launch description."""
     return LaunchDescription(
         [
+            DeclareLaunchArgument(
+                'gemini_api_key',
+                default_value=EnvironmentVariable(
+                    'GOOGLE_API_KEY',
+                    default_value=''
+                ),
+                description='API Key for Google Gemini service',
+            ),
             DeclareLaunchArgument(
                 'run_rviz',
                 default_value='true',
@@ -91,6 +100,11 @@ def generate_launch_description():
                 executable='ocr_node',
                 name='ocr_node',
                 output='screen',
+                parameters=[
+                    {
+                        'gemini_api_key': LaunchConfiguration('gemini_api_key')
+                    }
+                ]
             ),
             Node(
                 package='rviz2',
