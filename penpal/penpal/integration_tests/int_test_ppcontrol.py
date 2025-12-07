@@ -273,13 +273,13 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
         if res.result.error_code.val != 1:
             return
 
-        await ctl.grip(0.025)
-
+        await ctl.gripper_move(0.025)
         point_data = np.hstack([pen_pose, pen_ori, np.array([0])])
         traj_approach = Trajectory('pen_grab', point_data.reshape(1, 8))
         await ctl._execute_trajectory(traj_approach, 0.01)
-        await ctl.grip(0.01)
+        await ctl.gripper_grasp(0.005)
         await ctl.attach_pen()
+        await asyncio.sleep(3.0)
 
         # Set up SetTCPFrame
         tcp_matrix = ee_change_matrix()
@@ -323,7 +323,7 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
         free_space_req.lower_torque_thresholds_nominal = [50.0, 50.0, 50.0, 50.0, 40.0, 40.0, 40.0]
         free_space_req.lower_force_thresholds_nominal = [50.0, 50.0, 50.0, 50.0, 50.0, 50.0]
         await collision_service.call_async(free_space_req)
-
+        await asyncio.sleep(2.0)
         node.get_logger().info('Moving to start position')
         goal_handle = await ctl.move_to_ee_pose(goal_ee_position=start_pose[:3],
                                                 goal_ee_orientation=start_pose[3:],
@@ -345,6 +345,7 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
         high_req.upper_force_thresholds_nominal = [80.0, 80.0, 80.0, 80.0, 80.0, 80.0]
         logger.info('Setting Orange Zone Thresholds Higher for Writing')
         await collision_service.call_async(high_req)
+        await asyncio.sleep(2.0)
 
         # publish trajectories one by one
         for traj in seq:
