@@ -277,16 +277,17 @@ class BoardDetector(Node):
         # self.pose_pub.publish(pose)
 
         # ---- Publish BoardInfo ----
-        self.publish_board_info(
-            mock_header,
-            R,
-            center,
-            n_tags,
-        )
+        if self._is_publishing_mock:
+            self.publish_board_info(
+                mock_header,
+                R,
+                center,
+                n_tags,
+            )
 
-        # ---- Publish outline markers ----
-        self.publish_outline(mock_header, R, center)
-        self.publish_write_space(mock_header, R, center)
+            # ---- Publish outline markers ----
+            self.publish_outline(mock_header, R, center)
+            self.publish_write_space(mock_header, R, center)
 
     # ---------------- Publish BoardInfo ----------------
     def publish_board_info(

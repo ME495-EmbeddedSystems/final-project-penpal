@@ -109,7 +109,7 @@ class ConvoFSM:
                     if e == E.OCR_VLM_TEXT_RECEIVED:
                         new_s = S.READY_TO_WRITE
                 case S.READY_TO_WRITE:
-                    if e == E.WRITE_STARTED:
+                    if e == E.BOARD_IN_WORKSPACE:
                         new_s = S.WRITING
                 case S.WRITING:
                     if e == E.WRITE_INCOMPLETE:

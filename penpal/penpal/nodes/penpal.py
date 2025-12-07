@@ -329,7 +329,7 @@ class PenPal(Node):
         pen_thickness_mm: float,
     ) -> list[write_planner.Character]:
         """Use the worker thread to write with the robot."""
-        self.get_logger().info('Writing message to board...')
+        self.get_logger().info(f'Writing message "{text}" to board...')
         self._fsm.transition(ppstate.E.WRITE_STARTED)
         chars = self._fonts.write_text(
             text, font_name, font_size_mm, pen_thickness_mm
@@ -345,7 +345,7 @@ class PenPal(Node):
             # TODO figure out how to not need to block.
             unwritten_chars: list[write_planner.Character] = future.result()  # type: ignore
 
-            self.get_logger().info('Finished writing message!')
+            self.get_logger().info(f'Finished writing message "{text}"!')
             cstr = ''.join([c.char for c in unwritten_chars])
 
             if len(unwritten_chars) > 0:
