@@ -7,7 +7,6 @@ Authors: Conor
 import asyncio
 from dataclasses import dataclass
 from pathlib import Path
-import threading
 import traceback
 from typing import Any, List, Literal
 from threading import Lock

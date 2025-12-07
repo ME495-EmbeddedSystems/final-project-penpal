@@ -34,7 +34,8 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 'vision',
                 default_value='true',
-                description='If true, launch with vision nodes running.',
+                description='If true, launch with vision nodes running. '
+                'if "mock", use the mock OCR node and no BoardDetector.',
             ),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
@@ -64,6 +65,21 @@ def generate_launch_description():
                     'penpal:=DEBUG',
                 ],
                 parameters=[{'write_control_type': 'mock'}],
+            ),
+            # mock nodes
+            Node(
+                package='penpal',
+                executable='mock_ocr_node',
+                condition=IfCondition(
+                    EqualsSubstitution(LaunchConfiguration('vision'), 'mock')
+                ),
+            ),
+            Node(
+                package='penpal',
+                executable='mock_board_detector',
+                condition=IfCondition(
+                    EqualsSubstitution(LaunchConfiguration('vision'), 'mock')
+                ),
             ),
             Node(
                 package='tf2_ros',
@@ -113,9 +129,6 @@ def generate_launch_description():
                 package='rviz2',
                 executable='rviz2',
                 name='rviz2',
-                condition=IfCondition(
-                    EqualsSubstitution(LaunchConfiguration('run_rviz'), 'true')
-                ),
                 arguments=[
                     '-d',
                     PathJoinSubstitution(
