@@ -89,25 +89,43 @@ def generate_launch_description():
                     'pen',
                 ],
             ),
+            # Node(
+            #     package='rviz2',
+            #     executable='rviz2',
+            #     output='log',
+            #     arguments=[
+            #         '-d',
+            #         PathJoinSubstitution(
+            #             [
+            #                 FindPackageShare('franka_fer_moveit_config'),
+            #                 'config',
+            #                 'moveit.rviz',
+            #             ]
+            #         ),
+            #     ],
+            #     parameters=[
+            #         moveit_config.planning_pipelines,
+            #         moveit_config.robot_description_kinematics,
+            #     ],
+            #     remappings=[('/move_action', '/viz/move_action')],
+            # ),
             Node(
                 package='rviz2',
                 executable='rviz2',
-                output='log',
+                name='rviz2',
+                condition=IfCondition(
+                    EqualsSubstitution(LaunchConfiguration('run_rviz'), 'true')
+                ),
                 arguments=[
                     '-d',
                     PathJoinSubstitution(
                         [
-                            FindPackageShare('franka_fer_moveit_config'),
+                            FindPackageShare('penpal'),
                             'config',
-                            'moveit.rviz',
+                            'robot_view.rviz',
                         ]
                     ),
                 ],
-                parameters=[
-                    moveit_config.planning_pipelines,
-                    moveit_config.robot_description_kinematics,
-                ],
-                remappings=[('/move_action', '/viz/move_action')],
             ),
         ]
     )
