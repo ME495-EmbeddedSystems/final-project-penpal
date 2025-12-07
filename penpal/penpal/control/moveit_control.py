@@ -21,10 +21,9 @@ from moveit_msgs.msg import (
 )
 from moveit_msgs.msg import PlanningScene as PS
 from moveit_msgs.srv import GetCartesianPath
-from moveit_msgs.msg import AllowedCollisionEntry, AllowedCollisionMatrix
 from moveit_msgs.srv import ApplyPlanningScene
 from std_msgs.msg import ColorRGBA
-
+from franka_msgs.action import Grasp, Move
 import numpy as np
 
 from penpal.control.pp_control import PPControlBase, PPControlError, Trajectory
@@ -48,6 +47,12 @@ class MoveItPPControl(PPControlBase):
         self._cbgroup = MutuallyExclusiveCallbackGroup()
         self._c_move_group = ActionClient(
             node, MoveGroup, '/move_action', callback_group=self._cbgroup
+        )
+        self._c_franka_move = ActionClient(
+            node, Move, '/fer_gripper/move', callback_group=self._cbgroup
+        )
+        self._c_franka_grasp = ActionClient(
+            node, Grasp, '/fer_gripper/grasp', callback_group=self._cbgroup
         )
         self._c_execute_trajectory = ActionClient(
             node,
@@ -147,6 +152,53 @@ class MoveItPPControl(PPControlBase):
         self._logger.info('Returning the result')
 
         return response.result
+
+    async def gripper_move(self, width: float, speed: float = .04):
+        """
+        Move the gripper out to the desired offset.
+
+        Args:
+            width: Offset (meters) of each finger from the EE frame.
+            speed: speed of gripper opening.
+        """
+        goal = Move.Goal()
+        width = float(width)
+        speed = float(speed)
+        MostClosed = 0.0
+        MostOpen = 0.1
+        amount = min(MostOpen, max(width, MostClosed))
+        goal.width = amount
+        goal.speed = speed
+        handle = await self._c_franka_move.send_goal_async(goal)
+        response = await handle.get_result_async()
+        if response.result.success:
+            self._logger.info(f'Gripper moved to {amount}m')
+        else:
+            self._logger.error(f'Gripper failed: {response.result.error}')
+
+    async def gripper_grasp(self, width: float, speed: float = .04):
+        """
+        Move the gripper in to the desired offset.
+
+        Args:
+            width: Offset (meters) of each finger from the EE frame.
+            speed: speed of gripper opening.
+        """
+        goal = Grasp.Goal()
+        width = float(width)
+        speed = float(speed)
+
+        MostClosed = 0.0
+        MostOpen = 0.1
+        amount = min(MostOpen, max(width, MostClosed))
+        goal.width = amount
+        goal.speed = speed
+        handle = await self._c_franka_grasp.send_goal_async(goal)
+        response = await handle.get_result_async()
+        if response.result.success:
+            self._logger.info(f'Gripper moved to {amount}m')
+        else:
+            self._logger.error(f'Gripper failed: {response.result.error}')
 
     async def move_to_ee_pose(
         self,
