@@ -5,22 +5,44 @@ from launch.actions import (
     RegisterEventHandler,
     Shutdown,
     IncludeLaunchDescription,
+    DeclareLaunchArgument,
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from ament_index_python.packages import get_package_share_directory
 from launch.launch_description_sources import AnyLaunchDescriptionSource
 from launch.event_handlers import OnProcessExit
-from launch.substitutions import PathJoinSubstitution
+from launch.substitutions import (
+    PathJoinSubstitution,
+    EqualsSubstitution,
+    LaunchConfiguration,
+)
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
+from launch.conditions import IfCondition
 
 from moveit_configs_utils import MoveItConfigsBuilder
 
 
 def generate_launch_description():
     """ROS2 launch description generator."""
+    moveit_config = MoveItConfigsBuilder(
+        'fer', package_name='franka_fer_moveit_config'
+    ).to_moveit_configs()
+
     return LaunchDescription(
         [
+            DeclareLaunchArgument(
+                'vision',
+                default_value='true',
+                description='If true, launch with vision nodes running. '
+                'if "mock", use the mock OCR node and no BoardDetector.',
+            ),
+            DeclareLaunchArgument(
+                'controller',
+                default_value='mock',
+                description='Sets type of controller to use in PenPal node. '
+                'See PenPal node for details.',
+            ),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
                     [
@@ -36,6 +58,9 @@ def generate_launch_description():
                 launch_arguments={
                     'run_rviz': 'false',
                 }.items(),
+                condition=IfCondition(
+                    EqualsSubstitution(LaunchConfiguration('vision'), 'true')
+                ),
             ),
             Node(
                 package='penpal',
@@ -45,7 +70,24 @@ def generate_launch_description():
                     '--log-level',
                     'penpal:=DEBUG',
                 ],
-                parameters=[{'write_control_type': 'mock'}],
+                parameters=[
+                    {'write_control_type': LaunchConfiguration('controller')}
+                ],
+            ),
+            # mock nodes
+            Node(
+                package='penpal',
+                executable='mock_ocr_node',
+                condition=IfCondition(
+                    EqualsSubstitution(LaunchConfiguration('vision'), 'mock')
+                ),
+            ),
+            Node(
+                package='penpal',
+                executable='mock_board_detector',
+                condition=IfCondition(
+                    EqualsSubstitution(LaunchConfiguration('vision'), 'mock')
+                ),
             ),
             Node(
                 package='tf2_ros',
@@ -74,17 +116,37 @@ def generate_launch_description():
             Node(
                 package='rviz2',
                 executable='rviz2',
-                name='rviz2',
+                output='log',
                 arguments=[
                     '-d',
                     PathJoinSubstitution(
                         [
                             FindPackageShare('penpal'),
                             'config',
-                            'robot_view.rviz',
+                            'penpal.rviz',
                         ]
                     ),
                 ],
+                parameters=[
+                    moveit_config.planning_pipelines,
+                    moveit_config.robot_description_kinematics,
+                ],
+                remappings=[('/move_action', '/viz/move_action')],
             ),
+            # Node(
+            #     package='rviz2',
+            #     executable='rviz2',
+            #     name='rviz2',
+            #     arguments=[
+            #         '-d',
+            #         PathJoinSubstitution(
+            #             [
+            #                 FindPackageShare('penpal'),
+            #                 'config',
+            #                 'robot_view.rviz',
+            #             ]
+            #         ),
+            #     ],
+            # ),
         ]
     )

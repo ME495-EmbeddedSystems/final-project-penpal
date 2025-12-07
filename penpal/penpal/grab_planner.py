@@ -1,40 +1,25 @@
 """Grabs the pen."""
 
-from dataclasses import dataclass
-
-import numpy as np
-from penpal.control.pp_control import PPControlBase
+from penpal.control.moveit_control import MoveItPPControl
 from rclpy.node import Node
-
-
-@dataclass
-class Character:
-    """Represents a set of strokes for a single character."""
-
-    char: str
-    """Actual UTF character represented by this trajectory"""
-
-    trajectory: np.ndarray
-    """
-    Trajectory for this character.
-
-    N points, each point in R3
-    Nx3 array
-    each point is [x, y, z]
-    where x is position in virtual board
-    z in [0, 1] where: 
-    - 0 = off the board (no pressure)
-    - (0, 1] = pressure, with 1 being hardest and epsilon being softest.
-    """
 
 
 class GrabPlanner:
     """Compute trajectories to write on the real board."""
 
-    def __init__(self, node: Node, controller: PPControlBase) -> None:
+    def __init__(self, node: Node, controller: MoveItPPControl) -> None:
         """Initialize the object."""
         self.control = controller
+        self._node = node
+        self._logger = node.get_logger().get_child('GrabPlanner')
 
-    def grab_pen(self) -> None:
+    async def grab_pen(self) -> None:
         """Grab the pen (must be visible to camera)."""
         pass
+
+    async def home_arm(self) -> None:
+        """Send the arm to the home position."""
+        self._logger.info("Homing the arm to 'ready' position...")
+        await self.control.plan_to_named_config(
+            'ready', execute_immediately=True
+        )

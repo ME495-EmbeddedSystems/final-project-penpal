@@ -1,31 +1,29 @@
-"""Detect pose + dimensions of a rectangular whiteboard using AprilTags."""
+"""Mock node for publishing BoardInfo to PenPal."""
 
 from typing import Optional, Tuple, Dict
 
 import cv2
 import numpy as np
 import transforms3d.quaternions as tquat
+from scipy.spatial.transform import Rotation
 
 from penpal_interfaces.msg import BoardInfo
 import rclpy
 from rclpy.node import Node
 
-from sensor_msgs.msg import CameraInfo
 from geometry_msgs.msg import PoseStamped, Point, TransformStamped
 from visualization_msgs.msg import Marker
-from apriltag_msgs.msg import AprilTagDetectionArray, AprilTagDetection
 from std_msgs.msg import Header
+from example_interfaces.srv import Trigger
 from tf2_ros import StaticTransformBroadcaster
 
 
-class BoardDetector(Node):
+class MockBoardDetector(Node):
     """Detects pose + dimensions of one whiteboard using two AprilTags."""
 
     def __init__(self) -> None:
         """Initialize board detector."""
-        super().__init__('board_detector')
-
-        self.T_base_camera: Optional[np.ndarray] = None
+        super().__init__('mock_board_detector')
 
         # board + tag geometry
         self.width: float = self.declare_parameter('board_width_m', 0.8).value
@@ -37,11 +35,6 @@ class BoardDetector(Node):
         # tag ids at known board corners
         self.tag_tl: int = self.declare_parameter('top_left_id', 0).value
         self.tag_br: int = self.declare_parameter('bottom_right_id', 1).value
-
-        # detection topic
-        self.tag_topic: str = self.declare_parameter(
-            'tag_topic', '/detections'
-        ).value
 
         # ---- Frames + calibration tag info ----
         self.base_frame_id: str = self.declare_parameter(
@@ -82,29 +75,10 @@ class BoardDetector(Node):
         self.camera_calibrated: bool = False
         self._static_tf_broadcaster = StaticTransformBroadcaster(self)
 
-        # camera intrinsics
-        self.K: Optional[np.ndarray] = None
-        self.D: Optional[np.ndarray] = None
-
         # cached board pose/orientation for fallback when only one tag is seen
         self.R_board: Optional[np.ndarray] = None
         self.center_board: Optional[np.ndarray] = None
         self.board_visible: bool = False
-
-        # ---------------- Subscriptions ----------------
-        self.caminfo_sub = self.create_subscription(
-            CameraInfo,
-            '/camera/camera/color/camera_info',
-            self.cam_info_cb,
-            1,
-        )
-
-        self.create_subscription(
-            AprilTagDetectionArray,
-            self.tag_topic,
-            self.tag_cb,
-            10,
-        )
 
         # ------------------ Publishers ------------------
         self.pose_pub = self.create_publisher(
@@ -137,81 +111,31 @@ class BoardDetector(Node):
 
         self.get_logger().info('BoardDetector running')
 
-    # ---------------- Camera intrinsics ----------------
-    def cam_info_cb(self, msg: CameraInfo) -> None:
-        """Cache camera intrinsics K, D from CameraInfo."""
-        if self.K is not None:
-            return
+        # --------------- MOCK STUFF ---------------
+        self.T_base_camera = np.eye(4)
+        self.T_base_camera[0:3, 3] = [2, 1, 0]
 
-        # use for solvePnP
-        self.K = np.array(msg.k, dtype=float).reshape(3, 3)
-        self.D = np.array(msg.d, dtype=float)
+        pub_freq_hz = 3
+        self.create_timer(1 / pub_freq_hz, self.tag_cb)
 
-        self.get_logger().info('Camera intrinsics received')
-        # we only need intrinsics once
-        self.destroy_subscription(self.caminfo_sub)
-
-    # --------------- SolvePnP helper -------------------
-    def estimate_tag_pose(
-        self,
-        detection: AprilTagDetection,
-    ) -> Optional[Tuple[np.ndarray, np.ndarray]]:
-        """
-        Estimate tag pose (R, t) in CAMERA frame from 4 corners using IPPE_SQUARE.
-
-        Returns
-        -------
-        (R, t): if successful
-            R: 3x3 rotation matrix (TAG frame -> CAMERA frame)
-            t: shape (3,) translation vector (tag origin in CAMERA frame)
-        None:
-            if intrinsics missing or PnP fails
-
-        """
-        if self.K is None:
-            return None
-
-        if len(detection.corners) != 4:
-            self.get_logger().warn(
-                f'Tag id={detection.id} has {len(detection.corners)} corners, expected 4'
-            )
-            return None
-
-        # pixel corners -> shape (4, 2)
-        uv = np.array([[c.x, c.y] for c in detection.corners], dtype=float)
-
-        # TAG frame 3D corners (square in z = 0 plane, centered at origin)
-        s: float = self.tag_size / 2.0
-        XYZ = np.array(
-            [
-                [-s, s, 0],
-                [s, s, 0],
-                [s, -s, 0],
-                [-s, -s, 0],
-            ],
-            dtype=float,
+        self.create_service(
+            Trigger, 'toggle_publish_board_info', self._cb_toggle_publish
         )
+        self._is_publishing_mock = True
 
-        success, rvec, tvec = cv2.solvePnP(
-            XYZ,  # real-world coordinates of tag corners
-            uv,  # pixel coordinates of corners
-            self.K,
-            self.D,
-            flags=cv2.SOLVEPNP_IPPE_SQUARE,
+    def _cb_toggle_publish(
+        self, req: Trigger.Request, resp: Trigger.Response
+    ) -> Trigger.Response:
+        """Restart the sequence from 0. mocking helper."""
+        self._is_publishing_mock = not self._is_publishing_mock
+        self.get_logger().info(
+            f'Mock - setting publish to {
+                "ON" if self._is_publishing_mock else "OFF"
+            }'
         )
-
-        if not success:
-            self.get_logger().warn(
-                f'solvePnP failed for tag id={detection.id}'
-            )
-            return None
-
-        # rotation matrix from TAG frame -> CAMERA frame
-        R, _ = cv2.Rodrigues(rvec)
-        # translation vector from tag origin -> CAMERA frame
-        t = tvec.reshape(3)
-
-        return R, t
+        self.sequence_number = 0
+        resp.success = True
+        return resp
 
     def _publish_base_camera_tf(self, T_base_camera: np.ndarray) -> None:
         """Publish BASE -> CAMERA transform as a static TF."""
@@ -234,7 +158,7 @@ class BoardDetector(Node):
         tf.transform.rotation.z = float(qz)
 
         self._static_tf_broadcaster.sendTransform(tf)
-        self.get_logger().info(
+        self.get_logger().debug(
             f'Published static TF {self.base_frame_id} -> {self.camera_frame_id}'
         )
 
@@ -286,71 +210,38 @@ class BoardDetector(Node):
         self.marker_pub.publish(marker)
 
     # ---------------- Main callback --------------------
-    def tag_cb(self, msg: AprilTagDetectionArray) -> None:
+    def tag_cb(self) -> None:
         """Use TL + BR tags to compute board pose and outline."""
-        if self.K is None:
-            return
+        self._publish_base_camera_tf(self.T_base_camera)
 
-        # map id -> detection
-        dets: Dict[int, AprilTagDetection] = {d.id: d for d in msg.detections}
+        # tl_pose = (
+        #     self.estimate_tag_pose(dets[self.tag_tl])
+        #     if self.tag_tl in dets
+        #     else None
+        # )
+        # br_pose = (
+        #     self.estimate_tag_pose(dets[self.tag_br])
+        #     if self.tag_br in dets
+        #     else None
+        # )
 
-        # ---------- Camera calibration ----------
-        if not self.camera_calibrated and self.calib_tag_id in dets:
-            calib = self.estimate_tag_pose(dets[self.calib_tag_id])
-            if calib is not None:
-                R_cam_calib, t_cam_calib = calib
+        # # --- No tags visible: mark board as not visible and delete marker ---
+        # if tl_pose is None and br_pose is None:
+        #     # reset sequence number
+        #     self.sequence_number = 0
 
-                # build T_camera_calib_tag as 4x4 homogeneous
-                T_camera_calib = np.eye(4)
-                T_camera_calib[:3, :3] = R_cam_calib
-                T_camera_calib[:3, 3] = t_cam_calib
+        #     if getattr(self, 'board_visible', False):
+        #         self.get_logger().info('Board not visible (no tags).')
+        #         self.board_visible = False
 
-                # T_base_camera = T_base_calib_tag * (T_camera_calib_tag)^-1
-                T_base_camera = self.T_base_calib @ np.linalg.inv(
-                    T_camera_calib
-                )
+        #         m = Marker()
+        #         m.header = msg.header
+        #         m.ns = 'whiteboard'
+        #         m.id = 0
+        #         m.action = Marker.DELETE
+        #         self.marker_pub.publish(m)
 
-                self.T_base_camera = T_base_camera
-                self._publish_base_camera_tf(T_base_camera)
-                self.camera_calibrated = True
-                self.get_logger().info(
-                    f'Camera calibrated using tag id={self.calib_tag_id}'
-                )
-
-                # draw a line in rviz from BASE -> CALIB_TAG
-                self.publish_calibration_link(
-                    msg.header,
-                    t_cam_calib,
-                )
-
-        tl_pose = (
-            self.estimate_tag_pose(dets[self.tag_tl])
-            if self.tag_tl in dets
-            else None
-        )
-        br_pose = (
-            self.estimate_tag_pose(dets[self.tag_br])
-            if self.tag_br in dets
-            else None
-        )
-
-        # --- No tags visible: mark board as not visible and delete marker ---
-        if tl_pose is None and br_pose is None:
-            # reset sequence number
-            self.sequence_number = 0
-
-            if getattr(self, 'board_visible', False):
-                self.get_logger().info('Board not visible (no tags).')
-                self.board_visible = False
-
-                m = Marker()
-                m.header = msg.header
-                m.ns = 'whiteboard'
-                m.id = 0
-                m.action = Marker.DELETE
-                self.marker_pub.publish(m)
-
-            return
+        #     return
 
         # --- Board geometry in BOARD frame ---
         W: float = self.width
@@ -358,89 +249,48 @@ class BoardDetector(Node):
         S: float = self.tag_size
         hw, hh, hs = W / 2.0, H / 2.0, S / 2.0
 
-        # BOARD frame convention: origin at center, +x right, +y down
-        P_tag_tl_b = np.array([-hw + hs, -hh + hs, 0.0])  # TL tag center
-        P_tag_br_b = np.array([hw - hs, hh - hs, 0.0])  # BR tag center
+        # # BOARD frame convention: origin at center, +x right, +y down
+        # P_tag_tl_b = np.array([-hw + hs, -hh + hs, 0.0])  # TL tag center
+        # P_tag_br_b = np.array([hw - hs, hh - hs, 0.0])  # BR tag center
 
-        # --- Choose R and center depending on which tags are in view ---
-        if tl_pose is not None and br_pose is not None:
-            # both tags visible
-            R_tl, t_tl = tl_pose
-            R_br, t_br = br_pose
+        # CONOR'S MOCK STUFF
+        mock_header = Header()
+        mock_header.frame_id = 'base'
+        mock_header.stamp = self.get_clock().now().to_msg()
 
-            # center inferred from each tag separately
-            center_from_tl = t_tl - R_tl @ P_tag_tl_b
-            center_from_br = t_br - R_br @ P_tag_br_b
-            center = 0.5 * (center_from_tl + center_from_br)
+        # upright & facing us
+        center = np.array([0.0, 0.5, 0.5])
+        rot = Rotation.from_euler('zx', (0, 90), degrees=True)
+        R = rot.as_matrix()
+        n_tags = 2
 
-            # take average rotation via SVD on R_tl + R_br
-            R_sum = R_tl + R_br
-            U, _, Vt = np.linalg.svd(R_sum)
-            R = U @ Vt
+        # # ---- Publish PoseStamped ----
+        # pose = PoseStamped()
+        # pose.header = mock_header
+        # pose.pose.position.x = float(center[0])
+        # pose.pose.position.y = float(center[1])
+        # pose.pose.position.z = float(center[2])
 
-            # count number of visible tags
-            n_tags = 2
+        # q = tquat.mat2quat(R)  # (w, x, y, z)
+        # pose.pose.orientation.w = float(q[0])
+        # pose.pose.orientation.x = float(q[1])
+        # pose.pose.orientation.y = float(q[2])
+        # pose.pose.orientation.z = float(q[3])
 
-            if not getattr(self, 'board_visible', False):
-                self.get_logger().info('Board visible (both TL + BR).')
-            self.board_visible = True
-
-        elif tl_pose is not None:
-            # only top-left tag visible: lock TL to top-left of board
-            R_tl, t_tl = tl_pose
-            R = R_tl
-            center = t_tl - R @ P_tag_tl_b
-
-            # count number of visible tags
-            n_tags = 1
-
-            if not getattr(self, 'board_visible', False):
-                self.get_logger().info('Board visible (TL only).')
-            self.board_visible = True
-
-        else:
-            # only bottom-right tag visible: lock BR to bottom-right of board
-            R_br, t_br = br_pose
-            R = R_br
-            center = t_br - R @ P_tag_br_b
-
-            # count number of visible tags
-            n_tags = 1
-
-            if not getattr(self, 'board_visible', False):
-                self.get_logger().info('Board visible (BR only).')
-            self.board_visible = True
-
-        # cache for potential later use/debugging
-        self.R_board = R
-        self.center_board = center
-
-        # ---- Publish PoseStamped ----
-        pose = PoseStamped()
-        pose.header = msg.header
-        pose.pose.position.x = float(center[0])
-        pose.pose.position.y = float(center[1])
-        pose.pose.position.z = float(center[2])
-
-        q = tquat.mat2quat(R)  # (w, x, y, z)
-        pose.pose.orientation.w = float(q[0])
-        pose.pose.orientation.x = float(q[1])
-        pose.pose.orientation.y = float(q[2])
-        pose.pose.orientation.z = float(q[3])
-
-        self.pose_pub.publish(pose)
+        # self.pose_pub.publish(pose)
 
         # ---- Publish BoardInfo ----
-        self.publish_board_info(
-            msg.header,
-            R,
-            center,
-            n_tags,
-        )
+        if self._is_publishing_mock:
+            self.publish_board_info(
+                mock_header,
+                R,
+                center,
+                n_tags,
+            )
 
-        # ---- Publish outline markers ----
-        self.publish_outline(msg.header, R, center)
-        self.publish_write_space(msg.header, R, center)
+            # ---- Publish outline markers ----
+            self.publish_outline(mock_header, R, center)
+            self.publish_write_space(mock_header, R, center)
 
     # ---------------- Publish BoardInfo ----------------
     def publish_board_info(
@@ -459,19 +309,14 @@ class BoardDetector(Node):
 
         writeable_area:
             Bottom half of the board, in board-plane coordinates with:
-            - origin at top left of the board
+            - origin at top left of board
         """
-        # can't publish anything unless we know where the base frame is
-        if self.T_base_camera is None:
-            return
-
         hw = self.width / 2.0
         hh = self.height / 2.0
 
-        # top-left corner in BASE frame
+        # top-left corner in CAMERA frame
         P_tl_b = np.array([-hw, hh, 0.0])
-        top_left_c_camera = R @ P_tl_b + center
-        top_left_c = self.T_base_camera @ top_left_c_camera
+        top_left_c = R @ P_tl_b + center
 
         # fill board info message
         msg = BoardInfo()
@@ -619,7 +464,7 @@ class BoardDetector(Node):
 def main(args=None) -> None:
     """Spin the node."""
     rclpy.init(args=args)
-    node = BoardDetector()
+    node = MockBoardDetector()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
