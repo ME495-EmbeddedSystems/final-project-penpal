@@ -87,7 +87,7 @@ class PenPal(Node):
         board_visibility_thresh_s: float = 1.0
         board_visibility_tags_thresh: int = 2
         write_control_type: str = 'mock'
-        timer_freq_hz: float = 20.0
+        timer_freq_hz: float = 10.0
 
         convo_font_size_mm: float = 30.0
         convo_pen_thickness_mm: float = 2.0
@@ -234,13 +234,16 @@ class PenPal(Node):
 
         # bookkeep variables to help with determination of last valid reading
         now = self.get_clock().now()
-        if msg.sequence_number < self._board_sequence_no:
+        if (
+            msg.sequence_number <= self._board_sequence_no
+            or self._board_sequence_start_t is None
+        ):
             # we've restarted the sequence due to a bad reading.
             # (or somehow the messages arrived out of order--is that
             # possible in ros2? unsure. if it's a big issue i'll deal w/ it)
             self._board_sequence_start_t = now
         else:
-            if msg.n_tags <= self.c.board_visibility_tags_thresh:
+            if msg.n_tags < self.c.board_visibility_tags_thresh:
                 # this counds as a bad reading cuz the number of tags
                 # is too low.
                 self._board_sequence_start_t = now
@@ -256,21 +259,34 @@ class PenPal(Node):
 
         Applies the relevant thresholds to evaluate this.
         """
-        now_s = self.get_clock().now().seconds_nanoseconds()[0]
+        now_s = self.get_clock().now().nanoseconds / 1.0e9
 
         first_info_received = (
             self._board_last_reading_t is not None
             and self._board_sequence_start_t is not None
         )
+
+        # self.get_logger().info(
+        #     'last reading: '
+        #     + str(self._board_last_reading_t)
+        #     + '; seq start: '
+        #     + str(self._board_sequence_start_t)
+        # )
         if first_info_received:
-            last_valid_s = self._board_last_reading_t.seconds_nanoseconds()[0]  # type: ignore
-            seq_start_s = self._board_sequence_start_t.seconds_nanoseconds()[0]  # type: ignore
+            last_valid_s = self._board_last_reading_t.nanoseconds / 1.0e9  # type: ignore
+            seq_start_s = self._board_sequence_start_t.nanoseconds / 1.0e9  # type: ignore
             t_since_valid = now_s - last_valid_s
             t_since_invalid = now_s - seq_start_s
+            # self.get_logger().info(
+            #     f'since valid: {t_since_valid}; since invalid: {t_since_invalid}'
+            # )
             if (
-                t_since_invalid > self.c.board_visibility_thresh_s
-                and t_since_valid <= self.c.board_visibility_thresh_s
+                t_since_valid <= self.c.board_visibility_thresh_s
+                and t_since_invalid > self.c.board_visibility_thresh_s
             ):
+                # self.get_logger().info(
+                #     f'Board visible! since valid: {t_since_valid}; since invalid: {t_since_invalid}'
+                # )
                 return True
 
         return False
@@ -363,7 +379,7 @@ class PenPal(Node):
 
     def worker_trigger_vlm(self) -> None:
         """Use the worker thread to get text to write from the VLM."""
-        self.run_in_worker(self._async_trigger_vlm)
+        self.run_in_worker(self._async_trigger_vlm())
         self._fsm.transition(ppstate.E.OCR_VLM_TRIGGERED)
 
     def _cb_tick(self, info: TimerInfo) -> None:
@@ -393,7 +409,8 @@ class PenPal(Node):
                 # nothing to do; we just wait for visibility
                 pass
             case ppstate.S.READING:
-                self.worker_trigger_vlm()
+                if enter:
+                    self.worker_trigger_vlm()
             # otherwise we just wait around for the VLM to get back to us
             case ppstate.S.READY_TO_WRITE:
                 # nothing to do; wait for board to enter workspace

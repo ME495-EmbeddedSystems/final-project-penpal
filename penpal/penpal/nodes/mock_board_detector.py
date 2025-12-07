@@ -117,13 +117,21 @@ class BoardDetector(Node):
         pub_freq_hz = 3
         self.create_timer(1 / pub_freq_hz, self.tag_cb)
 
-        self.create_service(Trigger, 'restart_sequence', self._cb_restart_seq)
+        self.create_service(
+            Trigger, 'toggle_publish_board_info', self._cb_toggle_publish
+        )
+        self._is_publishing_mock = True
 
-    def _cb_restart_seq(
+    def _cb_toggle_publish(
         self, req: Trigger.Request, resp: Trigger.Response
     ) -> Trigger.Response:
         """Restart the sequence from 0. mocking helper."""
-        self.get_logger().info('Mock - resetting sequence number.')
+        self._is_publishing_mock = not self._is_publishing_mock
+        self.get_logger().info(
+            'Mock - setting publish to ' + 'ON'
+            if self._is_publishing_mock
+            else 'OFF'
+        )
         self.sequence_number = 0
         resp.success = True
         return resp

@@ -37,6 +37,12 @@ def generate_launch_description():
                 description='If true, launch with vision nodes running. '
                 'if "mock", use the mock OCR node and no BoardDetector.',
             ),
+            DeclareLaunchArgument(
+                'controller',
+                default_value='mock',
+                description='Sets type of controller to use in PenPal node. '
+                'See PenPal node for details.',
+            ),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
                     [
@@ -64,7 +70,9 @@ def generate_launch_description():
                     '--log-level',
                     'penpal:=DEBUG',
                 ],
-                parameters=[{'write_control_type': 'mock'}],
+                parameters=[
+                    {'write_control_type': LaunchConfiguration('controller')}
+                ],
             ),
             # mock nodes
             Node(
