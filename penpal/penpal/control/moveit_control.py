@@ -20,7 +20,8 @@ from moveit_msgs.msg import (
 )
 from moveit_msgs.msg import PlanningScene as PS
 from moveit_msgs.srv import GetCartesianPath
-
+from moveit_msgs.msg import AllowedCollisionEntry, AllowedCollisionMatrix
+from moveit_msgs.srv import ApplyPlanningScene
 from std_msgs.msg import ColorRGBA
 
 import numpy as np
@@ -64,6 +65,9 @@ class MoveItPPControl(PPControlBase):
                                                          'whiteboard_pose',
                                                          self.board_cb,
                                                          10)
+        self._ps_client = self._node.create_client(ApplyPlanningScene,
+                                                   '/apply_planning_scene',
+                                                   callback_group=self._cbgroup)
         self._board_pose = None
 
     def board_cb(self, msg) -> None:
@@ -85,7 +89,7 @@ class MoveItPPControl(PPControlBase):
 
         """
         pose_only = traj.data[:, :7]
-        await self.plan_cartesian_path(pose_only, None, True)
+        await self.plan_cartesian_path(pose_only, None, True, 0.1, 0.1)
 
     async def grip(
         self, offset_m: float, grip_force_N: float | None = None
@@ -204,9 +208,9 @@ class MoveItPPControl(PPControlBase):
             q.z = goal_ee_orientation[2]
             q.w = goal_ee_orientation[3]
             orient_constraint.orientation = q
-            orient_constraint.absolute_x_axis_tolerance = 0.2
-            orient_constraint.absolute_y_axis_tolerance = 0.2
-            orient_constraint.absolute_z_axis_tolerance = 0.2
+            orient_constraint.absolute_x_axis_tolerance = 0.05
+            orient_constraint.absolute_y_axis_tolerance = 0.05
+            orient_constraint.absolute_z_axis_tolerance = 0.05
             orient_constraint.weight = 1.0
             goal_constraint.orientation_constraints.append(orient_constraint)
             # type: ignore
@@ -246,6 +250,8 @@ class MoveItPPControl(PPControlBase):
         waypoints: np.ndarray,
         start_ee_pose: np.ndarray | None = None,
         execute_immediately: bool = False,
+        velocity_scale: float = 0.5,
+        accel_scale: float = 0.5
     ) -> GetCartesianPath.Response:
         """
         Plan a Cartesian path from any valid starting pose to a goal pose.
@@ -269,6 +275,8 @@ class MoveItPPControl(PPControlBase):
         request.link_name = 'fer_hand_tcp'
         request.waypoints = []
         request.max_step = 0.01
+        request.max_velocity_scaling_factor = velocity_scale
+        request.max_acceleration_scaling_factor = accel_scale
 
         for goal_ee_pose in waypoints:
             goal_pose = Pose()
@@ -444,29 +452,31 @@ class MoveItPPControl(PPControlBase):
         """Spawn a board from board_detector at hard_coded location."""
         board = CollisionObject()
         board.header.frame_id = 'base'
-        board.id = 'board'
+        board.id = 'demo_board'
         box = SolidPrimitive()
         box.type = SolidPrimitive.BOX
-        box.dimensions = [0.8, 0.61, 0.02]
+        box.dimensions = [0.02, 0.8, 0.61]
         board_pose = Pose()
-        board_pose.position.x = 0.6
+        board_pose.position.x = 1.0
         board_pose.position.y = 0.0
         board_pose.position.z = 0.4
         board_pose.orientation.w = 1.0
 
+        board.primitives.append(box)
         board.primitive_poses.append(board_pose)
         board.operation = CollisionObject.ADD
 
-        # Publihs the addition
+        # Publish the addition
         scene_msg = PS()
         scene_msg.world.collision_objects.append(board)
         scene_msg.is_diff = True
         color_msg = ObjectColor()
         color_msg.id = 'demo_board'
-        color_msg.color = ColorRGBA(r=0.0, g=0.0, b=1.0, a=0.5)
+        color_msg.color = ColorRGBA(r=0.0, g=0.0, b=1.0, a=1.0)
         scene_msg.object_colors.append(color_msg)
-        await asyncio.sleep(1.0)
-        self._scene_pub.publish(scene_msg)
+        for i in range(5):
+            self._scene_pub.publish(scene_msg)
+            await asyncio.sleep(0.2)
         self._logger.info('Board in planning scene.')
 
     async def add_board(self) -> None:
@@ -475,23 +485,24 @@ class MoveItPPControl(PPControlBase):
         board.header.frame_id = 'base'
         board.id = 'board'
         box = SolidPrimitive()
-        box.type = SolidPrimitive.Box
+        box.type = SolidPrimitive.BOX
         box.dimensions = [0.8, 0.61, 0.02]
 
         board_pose = self._board_pose.pose
         board.primitive_poses.append(board_pose)
         board.operation = CollisionObject.ADD
 
-        # Publihs the addition
+        # Publish the addition
         scene_msg = PS()
         scene_msg.world.collision_objects.append(board)
         scene_msg.is_diff = True
         color_msg = ObjectColor()
         color_msg.id = 'board'
-        color_msg.color = ColorRGBA(r=0.0, g=0.0, b=1.0, a=0.5)
+        color_msg.color = ColorRGBA(r=0.0, g=0.0, b=1.0, a=1.0)
         scene_msg.object_colors.append(color_msg)
-        await asyncio.sleep(1.0)
-        self._scene_pub.publihs(scene_msg)
+        for i in range(5):
+            self._scene_pub.publish(scene_msg)
+            await asyncio.sleep(0.2)
         self._logger.info('Demo board in planning scene.')
 
     async def add_fixed_pen(self) -> None:
@@ -501,12 +512,12 @@ class MoveItPPControl(PPControlBase):
         pen.id = 'pen'
         cylinder = SolidPrimitive()
         cylinder.type = SolidPrimitive.CYLINDER
-        cylinder.dimensions = [0.10, 0.01]  # [height, radius in meters]
+        cylinder.dimensions = [0.10, 0.009]  # [height, radius in meters]
         # Hard coded pen location
         pen_pose = Pose()
-        pen_pose.position.x = 0.5
-        pen_pose.position.y = 0.3
-        pen_pose.position.z = 0.191
+        pen_pose.position.x = 0.45
+        pen_pose.position.y = 0.2
+        pen_pose.position.z = 0.02
         pen_pose.orientation.x = 0.0
         pen_pose.orientation.y = 0.7071068
         pen_pose.orientation.z = 0.0
@@ -533,8 +544,8 @@ class MoveItPPControl(PPControlBase):
         attached_pen.link_name = 'fer_hand_tcp'
         attached_pen.object.id = 'pen'
         attached_pen.touch_links = ['fer_hand',
-                                    'fer_left_finger',
-                                    'fer_right_finger',
+                                    'fer_leftfinger',
+                                    'fer_rightfinger',
                                     'fer_hand_tcp']
         attached_pen.object.operation = CollisionObject.ADD
 

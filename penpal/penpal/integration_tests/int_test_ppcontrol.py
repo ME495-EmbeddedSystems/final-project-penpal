@@ -12,11 +12,80 @@ import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 
+from franka_msgs.srv import SetFullCollisionBehavior
+
 from penpal.control import moveit_control, position_control, pp_control
 from penpal.control.pp_control import Trajectory
 from penpal.integration_tests import plot
 
 from scipy.spatial.transform import Rotation as R
+
+from franka_msgs.srv import SetTCPFrame
+
+"""
+CORRECTION_ROT = R.from_euler('xyz', [-90, 90, 90], degrees=True) #hardcoded
+
+
+def calculate_writing_pose(board_pos, board_rot, pen_length=0.05, buffer=0.01):
+    Calculate ee position for Pen to touch board.
+    board_normal = board_rot.apply([0, 0, 1])
+    target_pos = board_pos + board_normal * (pen_length + buffer)
+    target_rot = board_rot * CORRECTION_ROT
+    return target_pos, target_rot
+
+
+def traj_from_points(
+        label: str,
+        points: np.ndarray,
+        center: np.ndarray,
+        rot: R,
+        force: float | None) -> Trajectory:
+    Convert 2D shape points to 3D poses.
+    if force is None:
+        force = 0.0
+    points = rot.apply(points) + center
+    ori = rot * CORRECTION_ROT
+    ori_quat = ori.as_quat()
+    force_per_point = np.full((points.shape[0], 1), force)
+    ori_per_point = np.broadcast_to(ori_quat, (points.shape[0], 4))
+    points_full = np.hstack([points, ori_per_point, force_per_point])
+    return Trajectory(label, points_full)
+
+
+def get_demo_traj_sequence_dynamic(
+        center: np.ndarray,
+        rot: R) -> list[Trajectory]:
+    Generate demo sequence.
+    lineh = 0.02
+    right_vec = np.array([0, -1, 0])
+    circle_c = center
+    arrow_c = center + rot.apply(right_vec * (lineh * 1.6))
+    square_c = arrow_c + rot.apply(right_vec * (lineh * 0.6))
+    circle_traj = get_circle_trajectory(lineh / 2, circle_c, rot, 50)
+    arrow_traj = get_arrow_trajectory(lineh, arrow_c, rot)
+    square_traj = get_square_trajectory(lineh, square_c, rot)
+
+    return [circle_traj, arrow_traj, square_traj]
+
+"""
+
+
+def calculate_start_pose(buffer,
+                         board_pose_position: np.array,
+                         board_pose_rotation: R):
+    """Calculate the start pose to place the pen tip normal to the board."""
+    board_normal = np.array([1, 0, 0])
+    world_normal_vector = board_pose_rotation.apply(board_normal)
+    current_pen_direction = np.array([1, 0, 0])
+    desired_pen_direction = world_normal_vector
+    R_align, _ = R.align_vectors([desired_pen_direction],
+                                 [current_pen_direction])
+    R_flip = R.from_euler('x', 180, degrees=True)
+    target_rot = R_align * R_flip
+    target_position = board_pose_position - (world_normal_vector * buffer)
+    target_orientation_quat = target_rot.as_quat()
+    start_pose = np.array([*target_position, *target_orientation_quat])
+    return start_pose
 
 
 def traj_from_points(
@@ -29,17 +98,14 @@ def traj_from_points(
     """Convert set of R3 points into full 8D array."""
     if force is None:
         force = 0.0
-
-    points = rot.apply(points) + center
-    down = R.from_euler('xyz', [0, 0, -np.pi / 2])
-    forward = R.from_euler('xyz', [np.pi / 2, 0, 0])
-    ori = R.from_matrix(rot.as_matrix() @ forward.as_matrix())
-    ori_quat = ori.as_quat(True)
-    # ori_quat = down.as_quat(True)
-
+    points_temp = np.zeros_like(points)
+    points_temp[:, 1] = points[:, 0]
+    points_temp[:, 2] = points[:, 1]
+    points_rotated = rot.apply(points_temp) + center
+    ori_quat = rot.as_quat()
     force_per_point = np.full((points.shape[0], 1), force)
     ori_per_point = np.broadcast_to(ori_quat, (points.shape[0], 4))
-    points_full = np.hstack([points, ori_per_point, force_per_point])
+    points_full = np.hstack([points_rotated, ori_per_point, force_per_point])
     return Trajectory(label, points_full)
 
 
@@ -129,19 +195,19 @@ def get_demo_traj_sequence(start_pose: np.ndarray) -> list[Trajectory]:
         start_pose: [x, y, z, qx, qy, qz, qw]
 
     """
-    lineh = 0.02
+    lineh = 0.05
     off_board_dist = 0.02
     rot = R.from_quat(start_pose[3:])
     circle_c = start_pose[:3]
-    arrow_c = circle_c + rot.apply(np.array([lineh * 1.6, 0, 0]))
-    square_c = arrow_c + rot.apply(np.array([lineh * 0.6, 0, 0]))
+    arrow_c = circle_c + rot.apply(np.array([0, -lineh * 1.6, 0]))
+    square_c = arrow_c + rot.apply(np.array([0, -lineh * 0.6, 0]))
 
     # do them all in a line, then tilt em
     circle_traj = get_circle_trajectory(lineh / 2, circle_c, rot, 50)
     arrow_traj = get_arrow_trajectory(lineh, arrow_c, rot)
     square_traj = get_square_trajectory(lineh, square_c, rot)
 
-    board_gap = rot.apply(np.array([0, 0, off_board_dist]))
+    board_gap = rot.apply(np.array([-off_board_dist, 0, 0]))
     board_gap = np.array([*board_gap, 0, 0, 0, 0, 0])
 
     out = []
@@ -166,15 +232,28 @@ def get_demo_traj_sequence(start_pose: np.ndarray) -> list[Trajectory]:
     return out
 
 
+def ee_change_matrix():
+    """Set matrix to move EE from tcp_hand to pen tip."""
+    T_final = np.eye(4)
+    T_final[2, 3] = 0.1
+    return T_final.flatten(order='F').tolist()
+
+
 async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
     """Test move plan functions."""
     logger = node.get_logger()
+    collision_service = node.create_client(SetFullCollisionBehavior,
+                                           '/service_server/set_full_collision_behavior')
+    if not collision_service.wait_for_service(timeout_sec=5.0):
+        logger.info('Service SetFullCollisionBehavior not there.')
+        return
 
     # Spawn and grab pen
     await ctl.add_fixed_pen()
-    #await ctl.add_demo_board()
+    # await ctl.add_demo_board()
+
     logger.info('Robot approaching the pen.')
-    pen_pose = np.array([0.5, 0.3, 0.191])
+    pen_pose = np.array([0.45, 0.2, 0.03])
     pen_rot = R.from_euler('xyz', [180, 0, 0], degrees=True)
     pen_ori = pen_rot.as_quat()
     pre_grasp_pos = pen_pose + np.array([0, 0, 0.10])
@@ -194,13 +273,27 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
         if res.result.error_code.val != 1:
             return
 
-        await ctl.grip(0.03)
+        await ctl.grip(0.025)
 
         point_data = np.hstack([pen_pose, pen_ori, np.array([0])])
         traj_approach = Trajectory('pen_grab', point_data.reshape(1, 8))
         await ctl._execute_trajectory(traj_approach, 0.01)
         await ctl.grip(0.01)
         await ctl.attach_pen()
+
+        # Set up SetTCPFrame
+        tcp_matrix = ee_change_matrix()
+        logger.info('Calling SetTCPFrame service')
+        frame_service = node.create_client(SetTCPFrame,
+                                           '/service_server/set_tcp_frame')
+        if not frame_service.wait_for_service(timeout_sec=5.0):
+            logger.info('Service SetTCPFrame not there.')
+            return
+
+        req = SetTCPFrame.Request()
+        req.transformation = tcp_matrix
+
+        await frame_service.call_async(req)
 
         lift_pos = pen_pose + np.array([0, 0, 0.05])
         await ctl.move_to_ee_pose(lift_pos, pen_ori)
@@ -210,15 +303,27 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
             execute_immediately=True,
         )
 
-        wait_t = 10.0
+        wait_t = 5.0
         logger.info(f'Waiting {wait_t} seconds...')
         await asyncio.sleep(wait_t)
         logger.info('Starting integration test...')
         await ctl.configure()
 
-        speed = 0.05
-        rot = R.from_euler('xyz', [180, 0, 0], degrees=True)
-        start_pose = np.array([0.4, -0.025, 0.191, *rot.as_quat(True)])
+        demo_board_pose = np.array([0.5, 0.0, 0.6])
+        demo_board_rot = R.from_euler('xyz', [0, 0, 0], degrees=True)
+        buffer = 0.05
+        start_pose = calculate_start_pose(buffer,
+                                          demo_board_pose,
+                                          demo_board_rot)
+        speed = 0.01
+
+        free_space_req = SetFullCollisionBehavior.Request()
+        free_space_req.upper_torque_thresholds_nominal = [60.0, 60.0, 60.0, 60.0, 50.0, 50.0, 50.0]
+        free_space_req.upper_force_thresholds_nominal = [60.0, 60.0, 60.0, 60.0, 60.0, 60.0]
+        free_space_req.lower_torque_thresholds_nominal = [50.0, 50.0, 50.0, 50.0, 40.0, 40.0, 40.0]
+        free_space_req.lower_force_thresholds_nominal = [50.0, 50.0, 50.0, 50.0, 50.0, 50.0]
+        await collision_service.call_async(free_space_req)
+
         node.get_logger().info('Moving to start position')
         goal_handle = await ctl.move_to_ee_pose(goal_ee_position=start_pose[:3],
                                                 goal_ee_orientation=start_pose[3:],
@@ -230,16 +335,35 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
 
         seq = get_demo_traj_sequence(start_pose)
 
+        # Define Treshold - Orange Zone
+        high_req = SetFullCollisionBehavior.Request()
+        high_req.lower_torque_thresholds_nominal = [20.0, 20.0, 20.0, 20.0,
+                                                    20.0, 20.0, 20.0]
+        high_req.upper_torque_thresholds_nominal = [80.0, 80.0, 80.0, 80.0, 80.0, 80.0, 80.0]
+        high_req.lower_force_thresholds_nominal = [8.0, 5.0, 5.0, 5.0,
+                                                   5.0, 5.0]
+        high_req.upper_force_thresholds_nominal = [80.0, 80.0, 80.0, 80.0, 80.0, 80.0]
+        logger.info('Setting Orange Zone Thresholds Higher for Writing')
+        await collision_service.call_async(high_req)
+
         # publish trajectories one by one
-        # uncomment once no failure
         for traj in seq:
             logger.info(f'Executing trajectory {traj.label}...')
             await ctl.execute_trajectory(traj, speed, publish_markers=True)
-
         # logger.info('Publishing all trajectory markers...')
         # for traj in seq:
         #     await ctl.publish_marker(traj)
 
+        #After Writing threshold
+        # low_req = SetFullCollisionBehavior.Request()
+        # low_req.lower_torque_thresholds_nominal = [20.0, 20.0, 20.0, 20.0,
+        #                                            15.0, 15.0, 15.0]
+        # low_req.upper_torque_thresholds_nominal = [20.0, 20.0, 20.0, 20.0,
+        #                                            15.0, 15.0, 15.0]
+        # low_req.lower_force_thresholds_nominal = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+        # low_req.upper_force_thresholds_nominal = [2.0, 2.0, 2.0, 2.0, 2.0, 2.0]
+        # logger.info('Setting Orange Zone Threshold Lower.')
+        # await collision_service.call_async(low_req)
         # for traj in seq:
         #     logger.info(f'Executing trajectory {traj.label}...')
         #     # markers already published for now so no need to republish here
@@ -247,6 +371,36 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
 
     finally:
         node.get_logger().info('Integration test finished.')
+    """
+        await asyncio.sleep(1.0)
+        await ctl.configure()
+
+        demo_board_pos = np.array([0.59, 0.0, 0.4])
+        demo_board_rot = R.from_euler('y', -90, degrees=True)
+
+        start_pos, start_rot = calculate_writing_pose(
+            demo_board_pos,
+            demo_board_rot,
+            pen_length=0.05,
+            buffer=0.01
+        )
+
+        goal_handle = await ctl.move_to_ee_pose(goal_ee_position=start_pos,
+                                                goal_ee_orientation=start_rot.as_quat(),
+                                                execute_immediately=True)
+        res = await goal_handle.get_result_async()
+        if res.result.error_code.val != 1:
+            node.get_logger().error(f'Move failed: {res.result.error_code.val}')
+            return
+
+        seq = get_demo_traj_sequence_dynamic(start_pos, demo_board_rot)
+
+        for traj in seq:
+            node.get_logger().info(f'Executing {traj.label}...')
+            await ctl._execute_trajectory(traj, 0.05)
+    finally:
+        node.get_logger().info('Integration test finished.')
+    """
 
 
 def plot_shapes() -> None:
