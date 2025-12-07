@@ -18,15 +18,15 @@ class QwenOCRNode(Node):
 
     def __init__(self) -> None:
         """Initialize the OCR node."""
-        super().__init__("ocr_node")
+        super().__init__('ocr_node')
 
         image_topic: str = self.declare_parameter(
-            "image_topic",
-            "/board/image_rectified",
+            'image_topic',
+            '/camera/camera/color/image_raw',
         ).value
         service_name: str = self.declare_parameter(
-            "service_name",
-            "read_and_answer_board",
+            'service_name',
+            'read_and_answer_board',
         ).value
 
         self._engine = QwenOCREngine()
@@ -50,9 +50,9 @@ class QwenOCRNode(Node):
         )
 
         self.get_logger().info(
-            f"OCRNode started.\n"
-            f"image_topic: '{image_topic}'\n"
-            f"service: '{service_name}'"
+            f'OCRNode started.\n'
+            f'image_topic: {image_topic}\n'
+            f'service: {service_name}'
         )
 
     def _image_cb(self, msg: RosImage) -> None:
@@ -67,12 +67,12 @@ class QwenOCRNode(Node):
         """
         try:
             # ROS Image -> OpenCV BGR
-            cv_bgr = self._bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+            cv_bgr = self._bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
             # BGR -> RGB for OCR model
             rgb = cv2.cvtColor(cv_bgr, cv2.COLOR_BGR2RGB)
             self._last_board_rgb = rgb
         except Exception as exc:
-            self.get_logger().error(f"Failed to convert board image: {exc}")
+            self.get_logger().error(f'Failed to convert board image: {exc}')
 
     def _handle_read_and_answer(
         self,
@@ -93,7 +93,7 @@ class QwenOCRNode(Node):
         """
         if self._last_board_rgb is None:
             response.success = False
-            response.message = "No board image received yet."
+            response.message = 'No board image received yet.'
             return response
 
         try:
@@ -102,26 +102,26 @@ class QwenOCRNode(Node):
             )
 
             payload = {
-                "question": qa.question,
-                "answer": qa.answer,
-                "ocr_text": qa.ocr.text,
-                "ocr_lines": qa.ocr.lines,
-                "ocr_raw": qa.ocr.raw_output,
-                "answer_raw": qa.raw_answer_output,
+                'question': qa.question,
+                'answer': qa.answer,
+                'ocr_text': qa.ocr.text,
+                'ocr_lines': qa.ocr.lines,
+                'ocr_raw': qa.ocr.raw_output,
+                'answer_raw': qa.raw_answer_output,
             }
 
             response.success = True
             response.message = json.dumps(payload)
         except Exception as exc:
-            self.get_logger().error(f"OCR/QA failed: {exc}")
+            self.get_logger().error(f'OCR/QA failed: {exc}')
             response.success = False
-            response.message = f"OCR/QA failed: {exc}"
+            response.message = f'OCR/QA failed: {exc}'
 
         return response
 
 
 def main(args: Optional[list[str]] = None) -> None:
-    """Entry point for `ros2 run penpal ocr_node`."""
+    """Node entry point."""
     import rclpy
 
     rclpy.init(args=args)
@@ -133,5 +133,5 @@ def main(args: Optional[list[str]] = None) -> None:
         rclpy.shutdown()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

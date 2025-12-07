@@ -91,12 +91,6 @@ def generate_launch_description():
                 executable='ocr_node',
                 name='ocr_node',
                 output='screen',
-                parameters=[
-                    {
-                        'image_topic': '/camera/camera/color/image_raw',
-                        'service_name': 'read_and_answer_board',
-                    }
-                ],
             ),
             Node(
                 package='rviz2',
