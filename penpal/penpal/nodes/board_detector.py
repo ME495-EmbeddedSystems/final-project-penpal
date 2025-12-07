@@ -471,7 +471,8 @@ class BoardDetector(Node):
         # top-left corner in BASE frame
         P_tl_b = np.array([-hw, hh, 0.0])
         top_left_c_camera = R @ P_tl_b + center
-        top_left_c = self.T_base_camera @ top_left_c_camera
+        homog_tl = np.array([*top_left_c_camera, 1])
+        top_left_c = (self.T_base_camera @ homog_tl)[0:3]
 
         # fill board info message
         msg = BoardInfo()
