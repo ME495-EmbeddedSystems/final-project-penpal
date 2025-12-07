@@ -34,7 +34,11 @@ rosdep install --from-paths src --ignore-src --rosdistro kilted
 # WARNING - the below worked fine on our computers, BUT
 # there are warnings not to do this from Ubuntu. Move forward
 # at your own risk...
-pip install --break-system-packages transformers torch
+pip install --break-system-packages google-genai torch
 
 colcon build
+
+# set the google API key in your shell:
+export GOOGLE_API_KEY='[INSERT YOUR API KEY HERE]'
+
 ```

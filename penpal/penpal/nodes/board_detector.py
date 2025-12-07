@@ -5,6 +5,7 @@ from typing import Optional, Tuple, Dict
 import cv2
 import numpy as np
 import transforms3d.quaternions as tquat
+from scipy.spatial.transform import Rotation
 
 from penpal_interfaces.msg import BoardInfo
 import rclpy
@@ -339,8 +340,8 @@ class BoardDetector(Node):
             # reset sequence number
             self.sequence_number = 0
 
-            if getattr(self, 'board_visible', False):
-                self.get_logger().info('Board not visible (no tags).')
+            if not self.board_visible:
+                self.get_logger().debug('Board not visible (no tags).')
                 self.board_visible = False
 
                 m = Marker()
@@ -381,8 +382,8 @@ class BoardDetector(Node):
             # count number of visible tags
             n_tags = 2
 
-            if not getattr(self, 'board_visible', False):
-                self.get_logger().info('Board visible (both TL + BR).')
+            if self.board_visible:
+                self.get_logger().debug('Board visible (both TL + BR).')
             self.board_visible = True
 
         elif tl_pose is not None:
@@ -394,8 +395,8 @@ class BoardDetector(Node):
             # count number of visible tags
             n_tags = 1
 
-            if not getattr(self, 'board_visible', False):
-                self.get_logger().info('Board visible (TL only).')
+            if self.board_visible:
+                self.get_logger().debug('Board visible (TL only).')
             self.board_visible = True
 
         else:
@@ -407,8 +408,8 @@ class BoardDetector(Node):
             # count number of visible tags
             n_tags = 1
 
-            if not getattr(self, 'board_visible', False):
-                self.get_logger().info('Board visible (BR only).')
+            if self.board_visible:
+                self.get_logger().debug('Board visible (BR only).')
             self.board_visible = True
 
         # cache for potential later use/debugging
@@ -471,7 +472,8 @@ class BoardDetector(Node):
         # top-left corner in BASE frame
         P_tl_b = np.array([-hw, hh, 0.0])
         top_left_c_camera = R @ P_tl_b + center
-        top_left_c = self.T_base_camera @ top_left_c_camera
+        homog_tl = np.array([*top_left_c_camera, 1])
+        top_left_c = (self.T_base_camera @ homog_tl)[0:3]
 
         # fill board info message
         msg = BoardInfo()
@@ -578,13 +580,16 @@ class BoardDetector(Node):
         """
         hw, hh = self.width / 2.0, self.height / 2.0
 
+        # hacky fix - flip R over in the plane of the board's z axis
+        R = R @ Rotation.from_euler('z', 180, degrees=True).as_matrix()
+
         # bottom half in BOARD frame
         corners_b = np.array(
             [
                 [-hw, -hh, 0.0],  # bottom-left
                 [hw, -hh, 0.0],  # bottom-right
-                [hw, 0.0, 0.0],  # mid-right
-                [-hw, 0.0, 0.0],  # mid-left
+                [hw, 0.0, 0.0],  # top-right
+                [-hw, 0.0, 0.0],  # top-left
             ],
             dtype=float,
         ).T
