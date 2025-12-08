@@ -99,8 +99,10 @@ def generate_launch_description():
                         'tag_topic': '/detections',
 
                         # Measured offset from tag center to desired grasp point
-                        'pen_offset_xyz': [-0.042, 0.003, -0.018],
-                        'pen_offset_quat': [0.0, 0.0, 0.0, 1.0],
+                        #'pen_offset_xyz': [-0.042, 0.003, -0.018], # for OLD pen support
+                        'pen_offset_xyz': [0.042, 0.003, -0.018], # for NEW pen support
+                        #'pen_offset_quat': [0.0, 0.0, 0.0, 1.0], # for OLD pen support
+                        'pen_offset_quat': [0.0, 1.0, 0.0, 0.0], # for NEW pen support
 
                         # Marker visual size (meters)
                         'publish_marker': True,
