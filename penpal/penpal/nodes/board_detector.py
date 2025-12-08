@@ -54,7 +54,7 @@ class BoardDetector(Node):
             'base_frame_id', 'base'
         ).value
         self.camera_frame_id: str = self.declare_parameter(
-            'camera_frame_id', 'camera_color_optical_frame'
+            'camera_frame_id', 'camera_link'
         ).value
 
         # id of the calibration tag (on the table)
@@ -223,8 +223,8 @@ class BoardDetector(Node):
         """Publish BASE -> CAMERA transform as a static TF."""
         tf = TransformStamped()
         tf.header.stamp = self.get_clock().now().to_msg()
-        tf.header.frame_id = self.base_frame_id
-        tf.child_frame_id = self.camera_frame_id
+        tf.header.frame_id = 'base'
+        tf.child_frame_id = 'camera_link'
 
         # translation
         tf.transform.translation.x = float(T_base_camera[0, 3])
