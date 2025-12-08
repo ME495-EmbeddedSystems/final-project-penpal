@@ -49,12 +49,16 @@ class BoardDetector(Node):
             'base_frame_id', 'base'
         ).value
         self.camera_frame_id: str = self.declare_parameter(
-            'camera_frame_id', 'camera_color_optical_frame'
+            'camera_frame_id', 'camera_link'
         ).value
 
         # id of the calibration tag (on the table)
         self.calib_tag_id: int = self.declare_parameter(
             'calib_tag_id', 2
+        ).value
+
+        self.calib_tag_tf: str = self.declare_parameter(
+            'calib_tag_tf', 'tag_calib'
         ).value
 
         # known pose of calib tag in BASE frame: [x, y, z]
@@ -97,7 +101,7 @@ class BoardDetector(Node):
             CameraInfo,
             '/camera/camera/color/camera_info',
             self.cam_info_cb,
-            1,
+            5,
         )
 
         self.create_subscription(
@@ -218,25 +222,28 @@ class BoardDetector(Node):
         """Publish BASE -> CAMERA transform as a static TF."""
         tf = TransformStamped()
         tf.header.stamp = self.get_clock().now().to_msg()
-        tf.header.frame_id = self.base_frame_id
-        tf.child_frame_id = self.camera_frame_id
+        tf.header.frame_id = self.calib_tag_tf
+        # tf.header.frame_id = self.camera_frame_id
+        tf.child_frame_id = self.base_frame_id
 
         # translation
-        tf.transform.translation.x = float(T_base_camera[0, 3])
-        tf.transform.translation.y = float(T_base_camera[1, 3])
-        tf.transform.translation.z = float(T_base_camera[2, 3])
+        # tf.transform.translation.x = float(T_base_camera[0, 3])
+        # tf.transform.translation.y = float(T_base_camera[1, 3])
+        # tf.transform.translation.z = float(T_base_camera[2, 3])
+        tf.transform.translation.y = -0.3
+        self.get_logger().info(f'Tag transform: {(tf.transform.translation.x,tf.transform.translation.y,tf.transform.translation.z)}')
 
         # rotation: convert R to quaternion
         R_bc = T_base_camera[:3, :3]
         qw, qx, qy, qz = tquat.mat2quat(R_bc)
-        tf.transform.rotation.w = float(qw)
-        tf.transform.rotation.x = float(qx)
-        tf.transform.rotation.y = float(qy)
-        tf.transform.rotation.z = float(qz)
+        # tf.transform.rotation.w = float(qw)
+        # tf.transform.rotation.x = float(qx)
+        # tf.transform.rotation.y = float(qy)
+        # tf.transform.rotation.z = float(qz)
 
         self._static_tf_broadcaster.sendTransform(tf)
         self.get_logger().info(
-            f'Published static TF {self.base_frame_id} -> {self.camera_frame_id}'
+            f'Published static TF {self.calib_tag_id} -> {self.base_frame_id}'
         )
 
     def publish_calibration_link(
