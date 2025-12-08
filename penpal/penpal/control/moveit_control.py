@@ -183,7 +183,14 @@ class MoveItPPControl(PPControlBase):
             else:
                 return False
         result = response.result
-        if result.error_code.val != MoveItErrorCodes.SUCCESS:
+        errcode = getattr(result, 'error_code', None)
+        if errcode is not None:
+            errcode = errcode.val
+        success = getattr(result, 'success', None)
+        self._logger.info(f'RESULT: {result}')
+        if (errcode is not None and errcode != MoveItErrorCodes.SUCCESS) or (
+            success is not None and not success
+        ):
             errmsg += f'Failed result (err={result.error_code.val}) - {result}'
             self._logger.error(errmsg)
             if raise_on_fail:
