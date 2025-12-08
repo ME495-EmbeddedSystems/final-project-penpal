@@ -153,7 +153,7 @@ class FreespacePlanner:
             50.0,
             50.0,
         ]
-        await self.ctl.set_collision_thresholds(free_space_req)
+        # await self.ctl.set_collision_thresholds(free_space_req)
 
         self._logger.info('Moving to start position')
         await self.ctl.move_to_ee_pose(

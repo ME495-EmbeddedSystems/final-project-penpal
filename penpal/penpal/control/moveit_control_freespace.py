@@ -47,4 +47,4 @@ class FreeSpaceMoveItPPControl(MoveItPPControl):
             50.0,
             50.0,
         ]
-        await self.set_collision_thresholds(free_space_req)
+        # await self.set_collision_thresholds(free_space_req)

@@ -161,7 +161,7 @@ class WritePlanner:
     class Config:
         """Configuration for this class."""
 
-        traj_len: int = 10
+        traj_len: int = 100
         """Max length of trajectory to write at a time."""
         ee_velocity_m_s: float = 0.02
         """End-effector forward velocity while writing."""
@@ -377,10 +377,18 @@ class WritePlanner:
 
     def get_latest_board_info(self) -> BoardInfo:
         """Return the most recently update board location + dimensions."""
-        if self._board is None:
-            raise ValueError('No BoardInfo has been received by WritePlanner.')
-        else:
-            return self._board
+        # if self._board is None:
+        #     raise ValueError('No BoardInfo has been received by WritePlanner.')
+        # else:
+        #     return self._board
+
+        return BoardInfo(
+            pos=np.array([0.5, 0.0, 0.6]),
+            ori=R.identity(),
+            width_m=0.8,
+            height_m=0.61,
+            writeable_area=np.array([[0.0, -0.305], [0.8, -0.61]]),
+        )
 
     def set_board_info(self, board: BoardInfo) -> None:
         """Set new board info for the planner to use. Thread safe."""

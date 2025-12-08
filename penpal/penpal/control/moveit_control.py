@@ -143,7 +143,7 @@ class MoveItPPControl(PPControlBase):
         await self.set_collision_thresholds(high_req)
 
         # wait for everything to boot up
-        await asyncio.sleep(3.0)
+        # await asyncio.sleep(3.0)
 
     async def send_goal_async(
         self,
