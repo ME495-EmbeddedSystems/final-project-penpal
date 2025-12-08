@@ -8,7 +8,6 @@ import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
 import traceback
-from typing import Any, List, Literal
 from threading import Lock
 import json
 
@@ -17,10 +16,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 from rclpy.node import Node
-from rclpy.time import Time
-from rclpy.parameter import Parameter
 from rcl_interfaces.msg import ParameterDescriptor
-from rclpy.qos import QoSProfile, qos_profile_rosout_default
 from rclpy.action import ActionServer
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.action.server import ServerGoalHandle
@@ -416,6 +412,16 @@ class PenPal(Node):
         self.schedule_in_worker(self._perform_trigger_vlm())
         self._fsm.transition(ppstate.E.OCR_VLM_TRIGGERED)
 
+    async def _perform_startup_actions(self) -> None:
+        """Perform startup actions in worker thread."""
+        await self._grabber.ctl.remove_pen()
+        await self._grabber.home_arm()
+
+    def worker_startup_actions(self) -> None:
+        """Perform startup actions, blocking."""
+        future = self.schedule_in_worker(self._perform_startup_actions())
+        future.result(10.0)
+
     def _cb_tick(self, info: TimerInfo) -> None:
         """Handle periodic tasks. Timer callback."""
         # non-state specific logic
@@ -431,6 +437,11 @@ class PenPal(Node):
         s = self._fsm.get_state()
         enter = s != self._prev_state
         match s:
+            case ppstate.S.STARTUP:
+                # go straight to asleep after a reset.
+                self.worker_startup_actions()
+                self._fsm.transition(ppstate.E.STARTUP_COMPLETE)
+
             case ppstate.S.ASLEEP:
                 if enter:
                     self.worker_home()

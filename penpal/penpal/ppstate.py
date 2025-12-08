@@ -9,6 +9,8 @@ from rclpy.logging import RcutilsLogger
 class S(Enum):
     """State for PenPal node."""
 
+    STARTUP = auto()
+    """Startup state that immediately goes to sleep."""
     ASLEEP = auto()
     """Not in conversational mode."""
     ASLEEP_IN_USE = auto()
@@ -28,6 +30,8 @@ class S(Enum):
 class E(Enum):
     """Events driving the penpal node state machine."""
 
+    STARTUP_COMPLETE = auto()
+    """Finished performing startup actions"""
     WAKE = auto()
     """Wake command received."""
     WRITEMESSAGE_CALLED = auto()
@@ -71,7 +75,7 @@ class ConvoFSM:
         self, transition_lock: Lock, logger: RcutilsLogger | None = None
     ) -> None:
         """Initialize the object."""
-        self._s = S.ASLEEP
+        self._s = S.STARTUP
         self._lock = transition_lock
         self._logger = logger
 
@@ -94,6 +98,9 @@ class ConvoFSM:
             new_s = self._s
 
             match self._s:
+                case S.STARTUP:
+                    if e == E.STARTUP_COMPLETE:
+                        new_s = S.ASLEEP
                 case S.ASLEEP:
                     if e == E.WAKE:
                         new_s = S.READY_TO_READ
