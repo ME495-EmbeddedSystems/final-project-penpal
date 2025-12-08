@@ -127,18 +127,18 @@ class BoardDetector(Node):
         )
 
         # write-space visualization
-        self.write_space_pub = self.create_publisher(
-            Marker,
-            'penpal_write_space',
-            10,
-        )
+        # self.write_space_pub = self.create_publisher(
+        #     Marker,
+        #     'penpal_write_space',
+        #     10,
+        # )
 
         # debug line from BASE -> CALIB_TAG
-        self._debug_pub = self.create_publisher(
-            Marker,
-            'calib_link',
-            10,
-        )
+        # self._debug_pub = self.create_publisher(
+        #     Marker,
+        #     'calib_link',
+        #     10,
+        # )
 
         self.get_logger().info('BoardDetector running')
 
@@ -625,7 +625,7 @@ class BoardDetector(Node):
 
         m.points.append(m.points[0])
 
-        self.write_space_pub.publish(m)
+        # self.write_space_pub.publish(m)
 
 
 def main(args=None) -> None:
