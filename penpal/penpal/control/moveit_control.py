@@ -595,66 +595,6 @@ class MoveItPPControl(PPControlBase):
             self._c_move_group, goal_msg, f'Move to name {named_config}'
         )
 
-    async def add_demo_board(self) -> None:
-        """Spawn a board from board_detector at hard_coded location."""
-        board = CollisionObject()
-        board.header.frame_id = 'base'
-        board.id = 'demo_board'
-        box = SolidPrimitive()
-        box.type = SolidPrimitive.BOX
-        box.dimensions = [0.02, 0.8, 0.61]
-        board_pose = Pose()
-        board_pose.position.x = 1.0
-        board_pose.position.y = 0.0
-        board_pose.position.z = 0.4
-        board_pose.orientation.w = 1.0
-
-        board.primitive_poses = []
-        board.primitives.append(box)
-        board.primitive_poses.append(board_pose)
-        board.operation = CollisionObject.ADD
-
-        # Publish the addition
-        scene_msg = PS()
-        scene_msg.world.collision_objects = []
-        scene_msg.world.collision_objects.append(board)
-        scene_msg.is_diff = True
-        color_msg = ObjectColor()
-        color_msg.id = 'demo_board'
-        scene_msg.object_colors = []
-        color_msg.color = ColorRGBA(r=0.0, g=0.0, b=1.0, a=1.0)
-        scene_msg.object_colors.append(color_msg)
-        for i in range(5):
-            self._scene_pub.publish(scene_msg)
-            await asyncio.sleep(0.2)
-        self._logger.info('Board in planning scene.')
-
-    async def add_board(self) -> None:
-        """Spawn a board from board_detector provided location."""
-        board = CollisionObject()
-        board.header.frame_id = 'base'
-        board.id = 'board'
-        box = SolidPrimitive()
-        box.type = SolidPrimitive.BOX
-        box.dimensions = [0.8, 0.61, 0.02]
-
-        board_pose = self._board_pose.pose
-        board.primitive_poses.append(board_pose)
-        board.operation = CollisionObject.ADD
-
-        # Publish the addition
-        scene_msg = PS()
-        scene_msg.world.collision_objects.append(board)
-        scene_msg.is_diff = True
-        color_msg = ObjectColor()
-        color_msg.id = 'board'
-        color_msg.color = ColorRGBA(r=0.0, g=0.0, b=1.0, a=1.0)
-        scene_msg.object_colors.append(color_msg)
-        for i in range(5):
-            self._scene_pub.publish(scene_msg)
-            await asyncio.sleep(0.2)
-        self._logger.info('Demo board in planning scene.')
-
     async def add_fixed_pen(self) -> None:
         """Spawn a collision object pen at a hardcoded location."""
         pen = CollisionObject()

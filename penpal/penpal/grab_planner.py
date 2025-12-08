@@ -61,7 +61,7 @@ class GrabPlanner:
         await asyncio.sleep(3.0)
 
         # Set up SetTCPFrame
-        tcp_matrix = self._ee_change_matrix()
+        tcp_matrix = self._get_ee_transform_matrix()
         await self.ctl.set_tcp_frame(tcp_matrix)
 
         lift_pos = pen_pose + np.array([0, 0, 0.05])
@@ -74,8 +74,12 @@ class GrabPlanner:
         self._logger.info(f'Waiting {wait_t} seconds...')
         await asyncio.sleep(wait_t)
 
-    def _ee_change_matrix(self) -> np.ndarray:
-        """Set matrix to move EE from tcp_hand to pen tip."""
+    def _get_ee_transform_matrix(self) -> np.ndarray:
+        """
+        Get matrix to move EE from tcp_hand to pen tip.
+
+        Hardcoded to match pen dimensions.
+        """
         T_final = np.eye(4)
         T_final[2, 3] = 0.1
         return T_final.flatten(order='F').tolist()
