@@ -51,6 +51,7 @@ def generate_launch_description():
                     'align_depth.enable': 'true',
                     'rgb_camera.profile': '640x480x30',
                     'depth_module.profile': '640x480x30',
+                    'publish_tf': 'true',
                 }.items(),
             ),
             Node(
