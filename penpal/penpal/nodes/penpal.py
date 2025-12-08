@@ -291,27 +291,15 @@ class PenPal(Node):
             and self._board_sequence_start_t is not None
         )
 
-        # self.get_logger().info(
-        #     'last reading: '
-        #     + str(self._board_last_reading_t)
-        #     + '; seq start: '
-        #     + str(self._board_sequence_start_t)
-        # )
         if first_info_received:
             last_valid_s = self._board_last_reading_t.nanoseconds / 1.0e9  # type: ignore
             seq_start_s = self._board_sequence_start_t.nanoseconds / 1.0e9  # type: ignore
             t_since_valid = now_s - last_valid_s
             t_since_invalid = now_s - seq_start_s
-            # self.get_logger().info(
-            #     f'since valid: {t_since_valid}; since invalid: {t_since_invalid}'
-            # )
             if (
                 t_since_valid <= self.c.board_visibility_thresh_s
                 and t_since_invalid > self.c.board_visibility_thresh_s
             ):
-                # self.get_logger().info(
-                #     f'Board visible! since valid: {t_since_valid}; since invalid: {t_since_invalid}'
-                # )
                 return True
 
         return False
@@ -322,7 +310,6 @@ class PenPal(Node):
             rthresh = self.c.workspace_dimensions_m[0]
             hthresh = self.c.workspace_dimensions_m[1]
             board = self._write_planner.get_latest_board_info()
-            # self.get_logger().info(str(board))
 
             # board's position is already in base frame.
             # evaluate if all 4 corners of the writing area are in reach.
@@ -332,9 +319,6 @@ class PenPal(Node):
                 r = np.linalg.norm(corner[0:2])
                 h = corner[2]
                 is_in_workspace = r < rthresh and (h > 0 and h < hthresh)
-                # self.get_logger().info(
-                #     f'CORNER{i}: r={r} h={h} in_workspace={is_in_workspace}'
-                # )
                 if not is_in_workspace:
                     return False
             return True
@@ -346,7 +330,7 @@ class PenPal(Node):
         try:
             result = asyncio.run(coroutine_func)
             return result
-        except Exception as err:
+        except Exception as err:  # noqa: B902
             tb = traceback.format_exc()
             self.get_logger().error(
                 f'{type(err).__name__} while running event loop'
@@ -374,7 +358,10 @@ class PenPal(Node):
     ) -> None:
         """Perform the actual write sequence."""
         await self._grabber.ctl.configure()
-        await self._grabber.move_to_board()
+        await self._grabber.move_to_board(
+            self._write_planner.get_latest_board_info(),
+            self._write_planner.c.off_board_height_m,
+        )
 
         await self._write_planner.control.configure()
         await self._write_planner.write_characters(
@@ -396,31 +383,22 @@ class PenPal(Node):
         )
         future = self.schedule_in_worker(self._perform_write(chars))
 
-        try:
-            # block here for now.
-            # TODO figure out how to not need to block.
-            unwritten_chars: list[write_planner.Character] = future.result()  # type: ignore
+        # block here for now.
+        # TODO figure out how to not need to block.
+        unwritten_chars: list[write_planner.Character] = future.result()  # type: ignore
 
-            self.get_logger().info(f'Finished writing message "{text}"!')
-            cstr = ''.join([c.char for c in unwritten_chars])
+        self.get_logger().info(f'Finished writing message "{text}"!')
+        cstr = ''.join([c.char for c in unwritten_chars])
 
-            if len(unwritten_chars) > 0:
-                self.get_logger().warning(
-                    f'Unable to write the end of the message: {cstr}'
-                )
-                self._fsm.transition(ppstate.E.WRITE_INCOMPLETE)
-            else:
-                self._fsm.transition(ppstate.E.WRITE_SUCCEEDED)
-
-            return unwritten_chars
-
-        except Exception as err:
-            tb = traceback.format_exc()
-            self.get_logger().error(
-                f'{type(err).__name__} in write worker: {err}\n\nTraceback:\n{tb}'
+        if len(unwritten_chars) > 0:
+            self.get_logger().warning(
+                f'Unable to write the end of the message: {cstr}'
             )
-            self._fsm.transition(ppstate.E.WRITE_FAILED)
-            raise err
+            self._fsm.transition(ppstate.E.WRITE_INCOMPLETE)
+        else:
+            self._fsm.transition(ppstate.E.WRITE_SUCCEEDED)
+
+        return unwritten_chars
 
     async def _perform_trigger_vlm(self) -> None:
         """Actual async function to trigger the vlm and wait for the response."""
@@ -583,7 +561,7 @@ class PenPal(Node):
             res.unwritten_characters = cstr
             return res
 
-        except Exception:
+        except Exception:  # noqa: B902
             # we already make a fuss about this in the worker_write function.
             # we can just swallow this.
             goal_handle.abort()
