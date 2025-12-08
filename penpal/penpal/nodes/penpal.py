@@ -416,6 +416,7 @@ class PenPal(Node):
         """Perform startup actions in worker thread."""
         await asyncio.sleep(3.0)
         await self._fplanner.ctl.remove_pen()
+        await self._fplanner.reset_gripper()
         await self._fplanner.home_arm()
 
     def worker_startup_actions(self) -> None:
