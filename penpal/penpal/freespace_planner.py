@@ -76,6 +76,7 @@ class FreespacePlanner:
         Hardcoded to match pen dimensions.
         """
         T_final = np.eye(4)
+        # T_final[0:3, 0:3] = R.from_euler('xy', (180, 90), True).as_matrix()
         T_final[2, 3] = 0.1
         return T_final.flatten(order='F').tolist()
 

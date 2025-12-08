@@ -183,6 +183,9 @@ class WritePlanner:
         self._board: BoardInfo | None = None
         self._boardinfo_write_lock = Lock()
 
+        self._shim_rot = R.from_euler('y', (90,), True).as_matrix()
+        self._logger.info(f'SHIM ROTATION: {self._shim_rot}')
+
     async def write_characters(
         self,
         characters: list[Character],
@@ -219,7 +222,9 @@ class WritePlanner:
         # transforming each into world frame as its time comes.
         for traj in short_trajs:
             board = self.get_latest_board_info()
-            world_traj = traj.transform(board.pos, board.ori)
+            rot = board.ori
+            rot = R.from_matrix(rot.as_matrix() @ self._shim_rot)
+            world_traj = traj.transform(board.pos, rot)
             await self.control.execute_trajectory(
                 world_traj, self.c.ee_velocity_m_s
             )
