@@ -10,6 +10,7 @@ from scipy.spatial.transform import Rotation
 from penpal_interfaces.msg import BoardInfo
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, QoSDurabilityPolicy
 
 from sensor_msgs.msg import CameraInfo
 from geometry_msgs.msg import PoseStamped, Point, TransformStamped
@@ -28,6 +29,10 @@ class BoardDetector(Node):
 
         self.T_base_camera: Optional[np.ndarray] = None
 
+        marker_qos = QoSProfile(
+            depth=10, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL
+        )
+
         # board + tag geometry
         self.width: float = self.declare_parameter('board_width_m', 0.8).value
         self.height: float = self.declare_parameter(
@@ -45,13 +50,6 @@ class BoardDetector(Node):
         ).value
 
         # ---- Frames + calibration tag info ----
-        self.base_frame_id: str = self.declare_parameter(
-            'base_frame_id', 'base'
-        ).value
-        self.camera_frame_id: str = self.declare_parameter(
-            'camera_frame_id', 'camera_color_optical_frame'
-        ).value
-
         # id of the calibration tag (on the table)
         self.calib_tag_id: int = self.declare_parameter(
             'calib_tag_id', 2
@@ -67,17 +65,20 @@ class BoardDetector(Node):
         base_calib_quat = self.declare_parameter(
             'base_calib_tag_quat',
             [0.0, 0.0, np.sin(np.pi / 4), np.cos(np.pi / 4)],
+            # [0.0, 0.0, 0.0, 1.0],
         ).value
 
         # homogeneous transform T_base_calib_tag
         self.T_base_calib = np.eye(4)
-        # transforms3d expects (w, x, y, z)
-        qw = float(base_calib_quat[3])
-        qx = float(base_calib_quat[0])
-        qy = float(base_calib_quat[1])
-        qz = float(base_calib_quat[2])
-        self.T_base_calib[:3, :3] = tquat.quat2mat([qw, qx, qy, qz])
+        # need x,y,z,w
+        # R_base_calib = Rotation.from_quat(base_calib_quat)
+        R_base_calib = Rotation.from_euler('zyz', (90, 180, -90), degrees=True)
+
+        self.T_base_calib[:3, :3] = R_base_calib.as_matrix()
         self.T_base_calib[:3, 3] = np.array(base_calib_xyz, dtype=float)
+        self.get_logger().info(
+            f'BASE->CALIB hardcoded transformation matrix: {self.T_base_calib}'
+        )
 
         # only need to publish BASE -> CAMERA once
         self.camera_calibrated: bool = False
@@ -119,21 +120,21 @@ class BoardDetector(Node):
 
         # --------------- Marker Publishers ---------------
         self.marker_pub = self.create_publisher(
-            Marker, 'whiteboard_outline', 10
+            Marker, 'whiteboard_outline', marker_qos
         )
 
         # write-space visualization
         self.write_space_pub = self.create_publisher(
             Marker,
             'penpal_write_space',
-            10,
+            marker_qos,
         )
 
         # debug line from BASE -> CALIB_TAG
         self._debug_pub = self.create_publisher(
             Marker,
             'calib_link',
-            10,
+            marker_qos,
         )
 
         self.get_logger().info('BoardDetector running')
@@ -216,10 +217,13 @@ class BoardDetector(Node):
 
     def _publish_base_camera_tf(self, T_base_camera: np.ndarray) -> None:
         """Publish BASE -> CAMERA transform as a static TF."""
+        base_frame_id = 'base'
+        # camera_frame_id = 'camera_link'
+        camera_frame_id = 'camera_color_optical_frame'
         tf = TransformStamped()
         tf.header.stamp = self.get_clock().now().to_msg()
-        tf.header.frame_id = self.base_frame_id
-        tf.child_frame_id = self.camera_frame_id
+        tf.header.frame_id = base_frame_id
+        tf.child_frame_id = camera_frame_id
 
         # translation
         tf.transform.translation.x = float(T_base_camera[0, 3])
@@ -227,8 +231,8 @@ class BoardDetector(Node):
         tf.transform.translation.z = float(T_base_camera[2, 3])
 
         # rotation: convert R to quaternion
-        R_bc = T_base_camera[:3, :3]
-        qw, qx, qy, qz = tquat.mat2quat(R_bc)
+        R_bc = Rotation.from_matrix(T_base_camera[:3, :3])
+        qx, qy, qz, qw = R_bc.as_quat(True)
         tf.transform.rotation.w = float(qw)
         tf.transform.rotation.x = float(qx)
         tf.transform.rotation.y = float(qy)
@@ -236,7 +240,8 @@ class BoardDetector(Node):
 
         self._static_tf_broadcaster.sendTransform(tf)
         self.get_logger().info(
-            f'Published static TF {self.base_frame_id} -> {self.camera_frame_id}'
+            f'Published static TF {base_frame_id} -> {camera_frame_id}: '
+            f'\n\n{T_base_camera}'
         )
 
     def publish_calibration_link(
@@ -302,17 +307,17 @@ class BoardDetector(Node):
                 R_cam_calib, t_cam_calib = calib
 
                 # build T_camera_calib_tag as 4x4 homogeneous
-                T_camera_calib = np.eye(4)
-                T_camera_calib[:3, :3] = R_cam_calib
-                T_camera_calib[:3, 3] = t_cam_calib
+                T_camera_to_calib = np.eye(4)
+                T_camera_to_calib[:3, :3] = R_cam_calib
+                T_camera_to_calib[:3, 3] = t_cam_calib
 
                 # T_base_camera = T_base_calib_tag * (T_camera_calib_tag)^-1
-                T_base_camera = self.T_base_calib @ np.linalg.inv(
-                    T_camera_calib
+                T_base_to_camera = self.T_base_calib @ np.linalg.inv(
+                    T_camera_to_calib
                 )
 
-                self.T_base_camera = T_base_camera
-                self._publish_base_camera_tf(T_base_camera)
+                self.T_base_camera = T_base_to_camera
+                self._publish_base_camera_tf(T_base_to_camera)
                 self.camera_calibrated = True
                 self.get_logger().info(
                     f'Camera calibrated using tag id={self.calib_tag_id}'

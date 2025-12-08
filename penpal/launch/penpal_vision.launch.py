@@ -90,7 +90,7 @@ def generate_launch_description():
                         'base_frame_id': 'base',
                         'camera_frame_id': 'camera_color_optical_frame',
                         'base_calib_tag_xyz': [0.30, 0.0, 0.0],
-                        'base_calib_tag_quat': [1.0, 0.0, 0.0, 0.0],
+                        'base_calib_tag_quat': [0.0, 0.0, 0.0, 1.0],
                     }
                 ],
                 output='screen',
