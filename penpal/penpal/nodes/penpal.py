@@ -366,7 +366,7 @@ class PenPal(Node):
 
     def worker_home(self) -> None:
         """Send the robot to the home position in the worker thread."""
-        self.schedule_in_worker(self._perform_home)
+        self.schedule_in_worker(self._perform_home())
 
     async def _perform_write(
         self,
@@ -462,6 +462,8 @@ class PenPal(Node):
                 # wait to be woken up
                 pass
             case ppstate.S.READY_TO_READ:
+                if enter:
+                    self.worker_home()
                 # nothing to do; we just wait for visibility
                 pass
             case ppstate.S.READING:

@@ -345,7 +345,7 @@ Visualization Manager:
       Namespaces:
         whiteboard: true
       Topic:
-        Depth: 5
+        Depth: 80
         Durability Policy: Volatile
         Filter size: 10
         History Policy: Keep Last
@@ -379,7 +379,7 @@ Visualization Manager:
       Name: Camera
       Overlay Alpha: 0.5
       Topic:
-        Depth: 5
+        Depth: 80
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
@@ -400,7 +400,7 @@ Visualization Manager:
       Namespaces:
         {}
       Topic:
-        Depth: 5
+        Depth: 80
         Durability Policy: Volatile
         Filter size: 10
         History Policy: Keep Last

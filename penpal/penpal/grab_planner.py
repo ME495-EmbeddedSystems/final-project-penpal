@@ -82,6 +82,7 @@ class GrabPlanner:
     async def home_arm(self) -> None:
         """Send the arm to the home position."""
         self._logger.info("Homing the arm to 'ready' position...")
+        await self.ctl.gripper_move(0.025)
         await self.ctl.plan_to_named_config('ready', execute_immediately=True)
 
     def _calculate_start_pose(
