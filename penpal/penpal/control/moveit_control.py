@@ -19,6 +19,7 @@ from moveit_msgs.msg import (
     CollisionObject,
     ObjectColor,
 )
+from franka_msgs.srv import SetFullCollisionBehavior
 from moveit_msgs.msg import PlanningScene as PS
 from moveit_msgs.srv import GetCartesianPath
 from moveit_msgs.srv import ApplyPlanningScene
@@ -32,6 +33,7 @@ from rclpy.action import ActionClient
 from rclpy.action.client import ClientGoalHandle
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.node import Node
+from franka_msgs.srv import SetTCPFrame
 
 from shape_msgs.msg import SolidPrimitive
 
@@ -84,6 +86,89 @@ class MoveItPPControl(PPControlBase):
             callback_group=self._cbgroup,
         )
         self._board_pose = None
+
+        self._c_collision = node.create_client(
+            SetFullCollisionBehavior,
+            '/service_server/set_full_collision_behavior',
+        )
+        self._c_tcpframe = node.create_client(
+            SetTCPFrame, '/service_server/set_tcp_frame'
+        )
+
+    async def configure(self) -> None:
+        """One-time setup to use the controller."""
+        if not self._c_collision.wait_for_service(timeout_sec=5.0):
+            msg = 'Service SetFullCollisionBehavior not there.'
+            self._logger.error(msg)
+            raise PPControlError(msg)
+
+        high_req = SetFullCollisionBehavior.Request()
+        high_req.lower_torque_thresholds_nominal = [
+            20.0,
+            20.0,
+            20.0,
+            20.0,
+            20.0,
+            20.0,
+            20.0,
+        ]
+        high_req.upper_torque_thresholds_nominal = [
+            80.0,
+            80.0,
+            80.0,
+            80.0,
+            80.0,
+            80.0,
+            80.0,
+        ]
+        high_req.lower_force_thresholds_nominal = [
+            8.0,
+            5.0,
+            5.0,
+            5.0,
+            5.0,
+            5.0,
+        ]
+        high_req.upper_force_thresholds_nominal = [
+            80.0,
+            80.0,
+            80.0,
+            80.0,
+            80.0,
+            80.0,
+        ]
+        self._logger.info('Setting Orange Zone Thresholds Higher for Writing')
+        await self.set_collision_thresholds(high_req)
+
+        # wait for everything to boot up
+        await asyncio.sleep(3.0)
+
+    async def set_tcp_frame(self, T_en: np.ndarray) -> None:
+        """
+        Set the transformation from the EE to NE frame.
+
+        Args:
+            T_en (np.ndarray): _description_
+
+        """
+        self._logger.info('Calling SetTCPFrame service')
+        if not self._c_tcpframe.wait_for_service(timeout_sec=5.0):
+            self._logger.info('Service SetTCPFrame not there.')
+            return
+
+        req = SetTCPFrame.Request()
+        req.transformation = T_en
+
+        await self._c_tcpframe.call_async(req)
+
+    async def set_collision_thresholds(
+        self, req: SetFullCollisionBehavior.Request
+    ) -> None:
+        """Set the collision thresholds of the franka arm."""
+        self._logger.info('Setting collision thresholds...')
+        await asyncio.sleep(2.0)
+        await self._c_collision.call_async(req)
+        await asyncio.sleep(2.0)
 
     def board_cb(self, msg) -> None:
         """Execute board callback."""
@@ -153,7 +238,7 @@ class MoveItPPControl(PPControlBase):
 
         return response.result
 
-    async def gripper_move(self, width: float, speed: float = .04):
+    async def gripper_move(self, width: float, speed: float = 0.04):
         """
         Move the gripper out to the desired offset.
 
@@ -176,7 +261,7 @@ class MoveItPPControl(PPControlBase):
         else:
             self._logger.error(f'Gripper failed: {response.result.error}')
 
-    async def gripper_grasp(self, width: float, speed: float = .04):
+    async def gripper_grasp(self, width: float, speed: float = 0.04):
         """
         Move the gripper in to the desired offset.
 

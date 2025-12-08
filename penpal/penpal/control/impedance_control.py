@@ -44,3 +44,7 @@ class ImpedancePPControl(PPControlBase):
         """
         # not intended to be used in this control scheme. use moveit controller
         raise NotImplementedError
+
+    async def configure(self) -> None:
+        """One-time configuration called before use."""
+        return await super().configure()

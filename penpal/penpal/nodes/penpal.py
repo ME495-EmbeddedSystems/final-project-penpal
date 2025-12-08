@@ -35,7 +35,11 @@ from penpal_interfaces.msg import BoardInfo as BoardInfoMsg
 from penpal import font_trajectory
 from penpal import grab_planner
 from penpal import write_planner
-from penpal.control import moveit_control, impedance_control
+from penpal.control import (
+    moveit_control,
+    impedance_control,
+    moveit_control_freespace,
+)
 from penpal import ppstate
 from penpal.utils import LockedString
 
@@ -190,7 +194,7 @@ class PenPal(Node):
         # it _cannot_ be used at the same time as the other one, and this
         # isn't hard-enforced in the controller code, so we must take care
         # to enforce this in our logic here. We use the FSM formalism for this.
-        grab_ctl = moveit_control.MoveItPPControl(self)
+        grab_ctl = moveit_control_freespace.FreeSpaceMoveItPPControl(self)
         self._grabber = grab_planner.GrabPlanner(self, grab_ctl)
 
         # thread pool executor for long running arm tasks
@@ -352,9 +356,24 @@ class PenPal(Node):
             self._run_async_worker_in_thread, coroutine_func
         )
 
+    async def _perform_home(self) -> None:
+        """Perform async home."""
+        await self._grabber.ctl.configure()
+        await self._grabber.home_arm()
+
     def worker_home(self) -> None:
         """Send the robot to the home position in the worker thread."""
-        self.schedule_in_worker(self._grabber.home_arm())
+        self.schedule_in_worker(self._perform_home)
+
+    async def _perform_write(
+        self,
+        chars: list[font_trajectory.Character],
+    ) -> None:
+        """Perform the actual write."""
+        await self._write_planner.control.configure()
+        await self._write_planner.write_characters(
+            chars, self._fonts.c.line_spacing_factor
+        )
 
     def worker_write(
         self,
@@ -369,11 +388,7 @@ class PenPal(Node):
         chars = self._fonts.write_text(
             text, font_name, font_size_mm, pen_thickness_mm
         )
-        future = self.schedule_in_worker(
-            self._write_planner.write_characters(
-                chars, self._fonts.c.line_spacing_factor
-            )
-        )
+        future = self.schedule_in_worker(self._perform_write(chars))
 
         try:
             # block here for now.
