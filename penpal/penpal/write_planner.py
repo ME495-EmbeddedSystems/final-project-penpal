@@ -385,6 +385,8 @@ class WritePlanner:
         return BoardInfo(
             pos=np.array([0.5, 0.0, 0.6]),
             ori=R.identity(),
+            # pos=np.array([-0.4, 0.0, 0.6]),
+            # ori=R.from_euler('z', (180,), True),
             width_m=0.8,
             height_m=0.61,
             writeable_area=np.array([[0.0, -0.305], [0.8, -0.61]]),
