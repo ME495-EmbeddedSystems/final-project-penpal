@@ -218,6 +218,9 @@ class PenPal(Node):
         )
         self._srv_wake = self.create_service(Trigger, 'wake', self._cb_wake)
         self._srv_sleep = self.create_service(Trigger, 'sleep', self._cb_sleep)
+        self._srv_sleep = self.create_service(
+            Trigger, 'grab_pen', self._cb_grab_pen
+        )
         self._tick = self.create_timer(
             1.0 / self.c.timer_freq_hz, self._cb_tick
         )
@@ -369,7 +372,10 @@ class PenPal(Node):
         self,
         chars: list[font_trajectory.Character],
     ) -> None:
-        """Perform the actual write."""
+        """Perform the actual write sequence."""
+        await self._grabber.ctl.configure()
+        await self._grabber.move_to_board()
+
         await self._write_planner.control.configure()
         await self._write_planner.write_characters(
             chars, self._fonts.c.line_spacing_factor
@@ -416,7 +422,7 @@ class PenPal(Node):
             self._fsm.transition(ppstate.E.WRITE_FAILED)
             raise err
 
-    async def _async_trigger_vlm(self) -> None:
+    async def _perform_trigger_vlm(self) -> None:
         """Actual async function to trigger the vlm and wait for the response."""
         resp: Trigger.Response = await self._c_ocr.call_async(
             Trigger.Request()
@@ -429,7 +435,7 @@ class PenPal(Node):
 
     def worker_trigger_vlm(self) -> None:
         """Use the worker thread to get text to write from the VLM."""
-        self.schedule_in_worker(self._async_trigger_vlm())
+        self.schedule_in_worker(self._perform_trigger_vlm())
         self._fsm.transition(ppstate.E.OCR_VLM_TRIGGERED)
 
     def _cb_tick(self, info: TimerInfo) -> None:
@@ -514,6 +520,22 @@ class PenPal(Node):
             'Awake. Display board with writing to begin conversation'
         )
         return response
+
+    async def _perform_grab_pen(self) -> None:
+        """Grab the pen; called in the worker thread."""
+        await self._grabber.ctl.configure()
+        await self._grabber.grab_pen()
+        self._fsm.transition(ppstate.E.GRAB_PEN_COMPLETE)
+
+    def _cb_grab_pen(
+        self, req: Trigger.Request, resp: Trigger.Response
+    ) -> Trigger.Response:
+        """Handle grab pen service call."""
+        self._fsm.transition(ppstate.E.GRAB_PEN_CALLED)
+        self.schedule_in_worker(self._perform_grab_pen())
+        resp.success = True
+        resp.message = 'Retrieving pen.'
+        return resp
 
     def _cb_sleep(
         self, request: Trigger.Request, response: Trigger.Response
