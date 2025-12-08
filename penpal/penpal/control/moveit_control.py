@@ -1,5 +1,4 @@
 """Controller implementation using MoveIt. Lacks force control."""
-
 import asyncio
 
 from geometry_msgs.msg import Pose, Quaternion, PoseStamped
@@ -60,29 +59,20 @@ class MoveItPPControl(PPControlBase):
             '/execute_trajectory',
             callback_group=self._cbgroup,
         )
-        self._logger = node.get_logger().get_child('MoveItPPControl')
+        self._logger = node.get_logger()
         self._c_cartesian_path = self._node.create_client(
             GetCartesianPath,
             'compute_cartesian_path',
             callback_group=self._cbgroup,
         )
-        self._scene_pub = self._node.create_publisher(
-            PS, '/planning_scene', 10
-        )
-        self._board_sub = self._node.create_subscription(
-            PoseStamped, 'whiteboard_pose', self.board_cb, 10
-        )
-        self._scene_pub = self._node.create_publisher(
-            PS, '/planning_scene', 10
-        )
-        self._board_sub = self._node.create_subscription(
-            PoseStamped, 'whiteboard_pose', self.board_cb, 10
-        )
-        self._ps_client = self._node.create_client(
-            ApplyPlanningScene,
-            '/apply_planning_scene',
-            callback_group=self._cbgroup,
-        )
+        self._scene_pub = self._node.create_publisher(PS, '/planning_scene', 10)
+        self._board_sub = self._node.create_subscription(PoseStamped,
+                                                         'whiteboard_pose',
+                                                         self.board_cb,
+                                                         10)
+        self._ps_client = self._node.create_client(ApplyPlanningScene,
+                                                   '/apply_planning_scene',
+                                                   callback_group=self._cbgroup)
         self._board_pose = None
 
     def board_cb(self, msg) -> None:
@@ -302,9 +292,7 @@ class MoveItPPControl(PPControlBase):
         res_msg = await goal_handle.get_result_async()
         result = res_msg.result
         if result.error_code.val != MoveItErrorCodes.SUCCESS:
-            self._logger.error(
-                f'Move failed with error code: {result.error_code.val}'
-            )
+            self._logger.error(f'Move failed with error code: {result.error_code.val}')
         else:
             self._logger.info('Move execution succeeded.')
         return goal_handle
@@ -315,7 +303,7 @@ class MoveItPPControl(PPControlBase):
         start_ee_pose: np.ndarray | None = None,
         execute_immediately: bool = False,
         velocity_scale: float = 0.5,
-        accel_scale: float = 0.5,
+        accel_scale: float = 0.5
     ) -> GetCartesianPath.Response:
         """
         Plan a Cartesian path from any valid starting pose to a goal pose.
@@ -415,6 +403,7 @@ class MoveItPPControl(PPControlBase):
     async def plan_to_named_config(
         self,
         named_config: str,
+        start_ee_pose: np.ndarray | None = None,
         execute_immediately: bool = False,
     ) -> MoveGroup.Result | None:
         """
@@ -474,6 +463,23 @@ class MoveItPPControl(PPControlBase):
 
         goal_joints = named_states[named_config]
 
+        if start_ee_pose is not None:
+            msg = PoseStamped()
+            msg.header.frame_id = 'base'
+            msg.pose.position.x = start_ee_pose[0]
+            msg.pose.position.y = start_ee_pose[1]
+            msg.pose.position.z = start_ee_pose[2]
+            msg.pose.orientation.x = start_ee_pose[3]
+            msg.pose.orientation.y = start_ee_pose[4]
+            msg.pose.orientation.z = start_ee_pose[5]
+            msg.pose.orientation.w = start_ee_pose[6]
+            start_joint_state = self._robot_state.inverse_kinematics(msg)
+            if start_joint_state is None:
+                return None
+
+            start_state = RobotState()
+            start_state.joint_state = start_joint_state
+            request.start_state = start_state
         request.goal_constraints = self.joint_constraints(goal_joints)
 
         goal_msg.request = request
@@ -492,8 +498,6 @@ class MoveItPPControl(PPControlBase):
         if response is None:
             self._logger.error('response=None')
             return None
-
-        self._logger.info('Execution complete.')
         return response.result
 
     async def add_demo_board(self) -> None:
@@ -510,19 +514,16 @@ class MoveItPPControl(PPControlBase):
         board_pose.position.z = 0.4
         board_pose.orientation.w = 1.0
 
-        board.primitive_poses = []
         board.primitives.append(box)
         board.primitive_poses.append(board_pose)
         board.operation = CollisionObject.ADD
 
         # Publish the addition
         scene_msg = PS()
-        scene_msg.world.collision_objects = []
         scene_msg.world.collision_objects.append(board)
         scene_msg.is_diff = True
         color_msg = ObjectColor()
         color_msg.id = 'demo_board'
-        scene_msg.object_colors = []
         color_msg.color = ColorRGBA(r=0.0, g=0.0, b=1.0, a=1.0)
         scene_msg.object_colors.append(color_msg)
         for i in range(5):
@@ -594,12 +595,10 @@ class MoveItPPControl(PPControlBase):
         attached_pen = AttachedCollisionObject()
         attached_pen.link_name = 'fer_hand_tcp'
         attached_pen.object.id = 'pen'
-        attached_pen.touch_links = [
-            'fer_hand',
-            'fer_left_finger',
-            'fer_right_finger',
-            'fer_hand_tcp',
-        ]
+        attached_pen.touch_links = ['fer_hand',
+                                    'fer_leftfinger',
+                                    'fer_rightfinger',
+                                    'fer_hand_tcp']
         attached_pen.object.operation = CollisionObject.ADD
 
         scene_msg = PS()

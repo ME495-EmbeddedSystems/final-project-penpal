@@ -319,9 +319,16 @@ class WritePlanner:
                     f'not write: {charstr}'
                 )
                 return trajs, missing_chars
-
+            x_board_m = (char.trajectory[:, 0] / 1000.0) + offset[0]
+            y_board_m = (char.trajectory[:, 1] / 1000.0) + offset[1] 
+            data = np.zeros(shape=(char.trajectory.shape[0], 8))
+            data[:, 0] = 0.0 
+            data[:, 1] = x_board_m 
+            data[:, 2] = -y_board_m
+            """
             data = np.zeros(shape=(char.trajectory.shape[0], 8))
             data[:, 0:2] = (char.trajectory[:, 0:2] / 1000.0) + offset
+            """
             data[:, 3:7] = self.DOWN_Q[np.newaxis, :]
             data[:, 7] = char.trajectory[:, 2] * self.c.max_force_N
             traj = Trajectory(char.char, data)
