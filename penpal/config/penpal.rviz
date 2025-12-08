@@ -134,14 +134,16 @@ Visualization Manager:
         camera_color_frame:
           Value: false
         camera_color_optical_frame:
-          Value: false
+          Value: true
         camera_depth_frame:
           Value: false
         camera_depth_optical_frame:
           Value: false
         camera_link:
-          Value: true
+          Value: false
         pen:
+          Value: true
+        tag0:
           Value: true
         tag_calib:
           Value: true
@@ -152,11 +154,14 @@ Visualization Manager:
       Show Names: true
       Tree:
         base:
+          camera_color_optical_frame:
+            tag0:
+              {}
+            tag_calib:
+              {}
           camera_link:
             camera_color_frame:
-              camera_color_optical_frame:
-                tag_calib:
-                  {}
+              {}
             camera_depth_frame:
               camera_depth_optical_frame:
                 {}
@@ -168,7 +173,7 @@ Visualization Manager:
       Enabled: true
       Name: Marker - WB
       Namespaces:
-        {}
+        whiteboard: true
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -223,7 +228,7 @@ Visualization Manager:
       Enabled: true
       Name: Marker - WB writespace
       Namespaces:
-        {}
+        penpal_write_space: true
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -265,10 +270,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.41999903321266174
+      Pitch: 0.49999895691871643
       Target Frame: base
       Value: Orbit (rviz_default_plugins)
-      Yaw: 6.260187149047852
+      Yaw: 5.540186882019043
     Saved: ~
 Window Geometry:
   Camera:

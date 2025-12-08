@@ -225,10 +225,6 @@ class BoardDetector(Node):
         tf.header.frame_id = base_frame_id
         tf.child_frame_id = camera_frame_id
 
-        # reflect_over_xy = np.eye(4)
-        # reflect_over_xy[2, 2] = -1
-        # T_base_camera = reflect_over_xy @ T_base_camera
-
         # translation
         tf.transform.translation.x = float(T_base_camera[0, 3])
         tf.transform.translation.y = float(T_base_camera[1, 3])
