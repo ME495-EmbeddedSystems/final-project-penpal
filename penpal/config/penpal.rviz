@@ -365,7 +365,7 @@ Visualization Manager:
       Shaft Radius: 0.05000000074505806
       Shape: Arrow
       Topic:
-        Depth: 5
+        Depth: 80
         Durability Policy: Volatile
         Filter size: 10
         History Policy: Keep Last

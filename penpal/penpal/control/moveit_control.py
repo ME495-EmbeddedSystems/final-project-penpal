@@ -238,6 +238,12 @@ class MoveItPPControl(PPControlBase):
 
         return response.result
 
+    async def reset_gripper(self) -> None:
+        """Reset the gripper to fully open."""
+        # remove the pen marker if it's present
+        await self.remove_pen()
+        await self.ctl.gripper_move(0.025)
+
     async def gripper_move(self, width: float, speed: float = 0.04):
         """
         Move the gripper out to the desired offset.
@@ -259,7 +265,7 @@ class MoveItPPControl(PPControlBase):
         if response.result.success:
             self._logger.info(f'Gripper moved to {amount}m')
         else:
-            self._logger.error(f'Gripper failed: {response.result.error}')
+            self._logger.error(f'Gripper failed: {response.result}')
 
     async def gripper_grasp(self, width: float, speed: float = 0.04):
         """
@@ -388,7 +394,7 @@ class MoveItPPControl(PPControlBase):
         result = res_msg.result
         if result.error_code.val != MoveItErrorCodes.SUCCESS:
             self._logger.error(
-                f'Move failed with error code: {result.error_code.val}'
+                f'Move failed with error code: {result.error_code.val} res: {result}'
             )
         else:
             self._logger.info('Move execution succeeded.')
@@ -673,6 +679,20 @@ class MoveItPPControl(PPControlBase):
         await asyncio.sleep(1.0)
         self._scene_pub.publish(scene_msg)
         self._logger.info('Pen in planning scene.')
+    
+    async def remove_pen(self) -> None:
+        """Remove the pen from the planning scene."""
+        pen = CollisionObject()
+        pen.header.frame_id = 'base'
+        pen.id = 'pen'
+        pen.operation = CollisionObject.REMOVE
+
+        # Publish the removal
+        scene_msg = PS()
+        scene_msg.world.collision_objects.append(pen)
+        scene_msg.is_diff = True
+        self._scene_pub.publish(scene_msg)
+        self._logger.info('Removed pen from planning scene.')
 
     async def attach_pen(self) -> None:
         """Attach the pen to the robot hand."""
@@ -681,8 +701,8 @@ class MoveItPPControl(PPControlBase):
         attached_pen.object.id = 'pen'
         attached_pen.touch_links = [
             'fer_hand',
-            'fer_left_finger',
-            'fer_right_finger',
+            'fer_leftfinger',
+            'fer_rightfinger',
             'fer_hand_tcp',
         ]
         attached_pen.object.operation = CollisionObject.ADD

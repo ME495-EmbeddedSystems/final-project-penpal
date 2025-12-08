@@ -47,9 +47,10 @@ class GrabPlanner:
         )
         res = await goal.get_result_async()  # type: ignore
         if res.result.error_code.val != 1:  # type: ignore
-            raise GrabError(
-                f'Pre-grasp position error code {res.result.error_code.val}'
-            )
+            msg = f'Pre-grasp position error code {res.result.error_code.val}. obj: {res.result}'
+            self._logger.error(msg)
+
+            raise GrabError(msg)
 
         await self.ctl.gripper_move(0.025)
         point_data = np.hstack([pen_pose, pen_ori, np.array([0])])
@@ -82,8 +83,12 @@ class GrabPlanner:
     async def home_arm(self) -> None:
         """Send the arm to the home position."""
         self._logger.info("Homing the arm to 'ready' position...")
-        await self.ctl.gripper_move(0.025)
         await self.ctl.plan_to_named_config('ready', execute_immediately=True)
+
+    async def reset_gripper(self) -> None:
+        """Open the gripper fully."""
+        self._logger.info('Resetting gripper to open position...')
+        await self.ctl.reset_gripper()
 
     def _calculate_start_pose(
         self, buffer, board_pose_position: np.ndarray, board_pose_rotation: R
