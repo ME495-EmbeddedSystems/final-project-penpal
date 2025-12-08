@@ -18,8 +18,8 @@ class GrabError(Exception):
     pass
 
 
-class GrabPlanner:
-    """Compute trajectories to write on the real board."""
+class FreespacePlanner:
+    """Compute trajectories to grab the pen and move through free space."""
 
     def __init__(self, node: Node, controller: MoveItPPControl) -> None:
         """Initialize the object."""

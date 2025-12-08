@@ -29,7 +29,7 @@ from penpal_interfaces.action import WriteMessage
 from penpal_interfaces.msg import BoardInfo as BoardInfoMsg
 
 from penpal import font_trajectory
-from penpal import grab_planner
+from penpal import freespace_planner
 from penpal import write_planner
 from penpal.control import (
     moveit_control,
@@ -191,7 +191,7 @@ class PenPal(Node):
         # isn't hard-enforced in the controller code, so we must take care
         # to enforce this in our logic here. We use the FSM formalism for this.
         grab_ctl = moveit_control_freespace.FreeSpaceMoveItPPControl(self)
-        self._grabber = grab_planner.GrabPlanner(self, grab_ctl)
+        self._fplanner = freespace_planner.FreespacePlanner(self, grab_ctl)
 
         # thread pool executor for long running arm tasks
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
@@ -341,8 +341,8 @@ class PenPal(Node):
 
     async def _perform_home(self) -> None:
         """Perform async home."""
-        await self._grabber.ctl.configure()
-        await self._grabber.home_arm()
+        await self._fplanner.ctl.configure()
+        await self._fplanner.home_arm()
 
     def worker_home(self) -> None:
         """Send the robot to the home position in the worker thread."""
@@ -353,8 +353,8 @@ class PenPal(Node):
         chars: list[font_trajectory.Character],
     ) -> None:
         """Perform the actual write sequence."""
-        await self._grabber.ctl.configure()
-        await self._grabber.move_to_board(
+        await self._fplanner.ctl.configure()
+        await self._fplanner.move_to_board(
             self._write_planner.get_latest_board_info(),
             self._write_planner.c.off_board_height_m,
         )
@@ -415,7 +415,7 @@ class PenPal(Node):
     async def _perform_startup_actions(self) -> None:
         """Perform startup actions in worker thread."""
         # await self._grabber.ctl.remove_pen()
-        await self._grabber.home_arm()
+        await self._fplanner.home_arm()
 
     def worker_startup_actions(self) -> None:
         """Perform startup actions, blocking."""
@@ -512,8 +512,8 @@ class PenPal(Node):
 
     async def _perform_grab_pen(self) -> None:
         """Grab the pen; called in the worker thread."""
-        await self._grabber.ctl.configure()
-        await self._grabber.grab_pen()
+        await self._fplanner.ctl.configure()
+        await self._fplanner.grab_pen()
         self._fsm.transition(ppstate.E.GRAB_PEN_COMPLETE)
 
     def _cb_grab_pen(
