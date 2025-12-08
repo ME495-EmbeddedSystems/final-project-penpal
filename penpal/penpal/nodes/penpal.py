@@ -414,13 +414,13 @@ class PenPal(Node):
 
     async def _perform_startup_actions(self) -> None:
         """Perform startup actions in worker thread."""
-        await self._grabber.ctl.remove_pen()
+        # await self._grabber.ctl.remove_pen()
         await self._grabber.home_arm()
 
     def worker_startup_actions(self) -> None:
         """Perform startup actions, blocking."""
         future = self.schedule_in_worker(self._perform_startup_actions())
-        future.result(10.0)
+        future.result(20.0)
 
     def _cb_tick(self, info: TimerInfo) -> None:
         """Handle periodic tasks. Timer callback."""
@@ -443,8 +443,6 @@ class PenPal(Node):
                 self._fsm.transition(ppstate.E.STARTUP_COMPLETE)
 
             case ppstate.S.ASLEEP:
-                if enter:
-                    self.worker_home()
                 # wait to be woken up
                 pass
             case ppstate.S.ASLEEP_IN_USE:

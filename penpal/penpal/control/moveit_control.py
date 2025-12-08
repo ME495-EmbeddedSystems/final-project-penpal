@@ -1,6 +1,8 @@
 """Controller implementation using MoveIt. Lacks force control."""
 
 import asyncio
+import traceback
+from typing import Any
 
 from geometry_msgs.msg import Pose, Quaternion, PoseStamped
 
@@ -143,6 +145,59 @@ class MoveItPPControl(PPControlBase):
         # wait for everything to boot up
         await asyncio.sleep(3.0)
 
+    async def send_goal_async(
+        self,
+        client: ActionClient,
+        goal: Any,
+        action_desc: str,
+        raise_on_fail: bool = True,
+    ) -> bool:
+        """
+        Send a goal to an action server. Handle errors loudly.
+
+        Args:
+            client (ActionClient): action client
+            goal (Any): action goal request
+            action_desc (str): string description of what this action is
+            raise_on_fail (bool, optional): raise an exception on failure.
+
+        Returns:
+            bool: True if successful, false otherwise.
+
+        """
+        errmsg = f'Action {action_desc}: '
+        handle = await client.send_goal_async(goal)
+        if handle is None:
+            errmsg += 'handle is None.'
+            self._logger.error(errmsg)
+            if raise_on_fail:
+                raise PPControlError(errmsg)
+            else:
+                return False
+        response = await handle.get_result_async()
+        if response is None:
+            errmsg += 'response is None.'
+            self._logger.error(errmsg)
+            if raise_on_fail:
+                raise PPControlError(errmsg)
+            else:
+                return False
+        result = response.result
+        if (
+            result.error_code.val != MoveItErrorCodes.SUCCESS
+            or not result.success
+        ):
+            errmsg += f'Failed result (err={result.error_code.val}) - {result}'
+            self._logger.error(errmsg)
+            if raise_on_fail:
+                raise PPControlError(errmsg)
+            else:
+                return False
+        else:
+            errmsg += 'Success!'
+            self._logger.info(errmsg)
+            return True
+
     async def set_tcp_frame(self, T_en: np.ndarray) -> None:
         """
         Set the transformation from the EE to NE frame.
@@ -222,35 +277,24 @@ class MoveItPPControl(PPControlBase):
 
         request.goal_constraints = [constraints]
         goal_msg.request = request
-        self._logger.info(
-            f'GRIPPING to {offset_m}: Sending goal to /move_action...'
+        await self.send_goal_async(
+            self._c_franka_grasp, goal_msg, f'Gripping to offset {offset_m}m'
         )
-        response_goal_handle = await self._c_move_group.send_goal_async(
-            goal_msg
-        )
-        self._logger.info(
-            f'Received response goal handle: {response_goal_handle.accepted}'
-        )
-        self._logger.info('Awaiting the result')
-        response = await response_goal_handle.get_result_async()
-        self._logger.debug(f'Received the result: {response}')
-        self._logger.info('Returning the result')
-
-        return response.result
 
     async def reset_gripper(self) -> None:
         """Reset the gripper to fully open."""
         # remove the pen marker if it's present
         await self.remove_pen()
-        await self.ctl.gripper_move(0.025)
+        await self.gripper_move(0.025)
 
-    async def gripper_move(self, width: float, speed: float = 0.04):
+    async def gripper_move(self, width: float, speed: float = 0.04) -> bool:
         """
         Move the gripper out to the desired offset.
 
         Args:
             width: Offset (meters) of each finger from the EE frame.
             speed: speed of gripper opening.
+
         """
         goal = Move.Goal()
         width = float(width)
@@ -260,20 +304,18 @@ class MoveItPPControl(PPControlBase):
         amount = min(MostOpen, max(width, MostClosed))
         goal.width = amount
         goal.speed = speed
-        handle = await self._c_franka_move.send_goal_async(goal)
-        response = await handle.get_result_async()
-        if response.result.success:
-            self._logger.info(f'Gripper moved to {amount}m')
-        else:
-            self._logger.error(f'Gripper failed: {response.result}')
+        return await self.send_goal_async(
+            self._c_franka_move, goal, f'Gripper move to {amount}m'
+        )
 
-    async def gripper_grasp(self, width: float, speed: float = 0.04):
+    async def gripper_grasp(self, width: float, speed: float = 0.04) -> bool:
         """
         Move the gripper in to the desired offset.
 
         Args:
             width: Offset (meters) of each finger from the EE frame.
             speed: speed of gripper opening.
+
         """
         goal = Grasp.Goal()
         width = float(width)
@@ -284,12 +326,9 @@ class MoveItPPControl(PPControlBase):
         amount = min(MostOpen, max(width, MostClosed))
         goal.width = amount
         goal.speed = speed
-        handle = await self._c_franka_grasp.send_goal_async(goal)
-        response = await handle.get_result_async()
-        if response.result.success:
-            self._logger.info(f'Gripper moved to {amount}m')
-        else:
-            self._logger.error(f'Gripper failed: {response.result.error}')
+        return await self.send_goal_async(
+            self._c_franka_grasp, goal, f'Gripper grasp to {amount}m'
+        )
 
     async def move_to_ee_pose(
         self,
@@ -297,7 +336,7 @@ class MoveItPPControl(PPControlBase):
         goal_ee_orientation: np.ndarray | None,
         start_joints: np.ndarray | None = None,
         execute_immediately: bool = False,
-    ) -> ClientGoalHandle | None:
+    ) -> bool:
         """
         Move from a specified end-effector configuration to another.
 
@@ -365,6 +404,7 @@ class MoveItPPControl(PPControlBase):
             orient_constraint.absolute_y_axis_tolerance = 0.05
             orient_constraint.absolute_z_axis_tolerance = 0.05
             orient_constraint.weight = 1.0
+            goal_constraint.orientation_constraints = []
             goal_constraint.orientation_constraints.append(orient_constraint)
             # type: ignore
 
@@ -381,24 +421,9 @@ class MoveItPPControl(PPControlBase):
             f'Sending goal to /move_action (pos:{goal_ee_position},'
             f'ori:{goal_ee_orientation})...'
         )
-        goal_handle = await self._c_move_group.send_goal_async(goal_msg)
-        if goal_handle is None:
-            self._logger.error(
-                'Received response goal of None from send_goal_async.'
-            )
-        else:
-            self._logger.info(
-                f'Received response goal handle: {goal_handle.accepted}'
-            )
-        res_msg = await goal_handle.get_result_async()
-        result = res_msg.result
-        if result.error_code.val != MoveItErrorCodes.SUCCESS:
-            self._logger.error(
-                f'Move failed with error code: {result.error_code.val} res: {result}'
-            )
-        else:
-            self._logger.info('Move execution succeeded.')
-        return goal_handle
+        return await self.send_goal_async(
+            self._c_move_group, goal_msg, 'move to EE pose'
+        )
 
     async def plan_cartesian_path(
         self,
@@ -469,17 +494,10 @@ class MoveItPPControl(PPControlBase):
             # execute the cartesian path
             request = ExecuteTrajectory.Goal()
             request.trajectory = response.solution
-            resp = await self._c_execute_trajectory.send_goal_async(request)
-            if resp is not None and resp.accepted:
-                res = await resp.get_result_async()
-                if res.result.error_code.val != MoveItErrorCodes.SUCCESS:
-                    self._logger.error(
-                        f'Cartesian path execution failed: {res}'
-                    )
-                    raise PPControlError('Cartesian Path execution failed.')
-                self._logger.info('Cartesian path execution success!')
-            else:
-                self._logger.error('Failed to execute cartesian path.')
+
+            await self.send_goal_async(
+                self._c_execute_trajectory, request, 'Execute cartesian path'
+            )
         return response
 
     def joint_constraints(self, joints):
@@ -507,7 +525,7 @@ class MoveItPPControl(PPControlBase):
         self,
         named_config: str,
         execute_immediately: bool = False,
-    ) -> MoveGroup.Result | None:
+    ) -> bool:
         """
         Plan a path from any valid starting pose to a named configuration.
 
@@ -572,20 +590,10 @@ class MoveItPPControl(PPControlBase):
         planning_options.plan_only = not execute_immediately
         goal_msg.planning_options = planning_options
         self._logger.info('Sending goal')
-        response_goal = await self._c_move_group.send_goal_async(goal_msg)
-        if response_goal is None:
-            self._logger.error('response_goal=None')
-            return
-        self._logger.info(
-            f'Received response goal handle: {response_goal.accepted}'
-        )
-        response = await response_goal.get_result_async()
-        if response is None:
-            self._logger.error('response=None')
-            return None
 
-        self._logger.info('Execution complete.')
-        return response.result
+        return await self.send_goal_async(
+            self._c_move_group, goal_msg, f'Move to name {named_config}'
+        )
 
     async def add_demo_board(self) -> None:
         """Spawn a board from board_detector at hard_coded location."""
@@ -679,7 +687,7 @@ class MoveItPPControl(PPControlBase):
         await asyncio.sleep(1.0)
         self._scene_pub.publish(scene_msg)
         self._logger.info('Pen in planning scene.')
-    
+
     async def remove_pen(self) -> None:
         """Remove the pen from the planning scene."""
         pen = CollisionObject()
