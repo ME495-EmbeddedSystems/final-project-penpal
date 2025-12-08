@@ -440,7 +440,7 @@ class PenPal(Node):
         match s:
             case ppstate.S.STARTUP:
                 # go straight to asleep after a reset.
-                self.worker_startup_actions()
+                # self.worker_startup_actions()
                 self._fsm.transition(ppstate.E.STARTUP_COMPLETE)
 
             case ppstate.S.ASLEEP:
