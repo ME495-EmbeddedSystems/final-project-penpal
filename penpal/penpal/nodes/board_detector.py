@@ -72,7 +72,7 @@ class BoardDetector(Node):
         self.T_base_calib = np.eye(4)
         # need x,y,z,w
         # R_base_calib = Rotation.from_quat(base_calib_quat)
-        R_base_calib = Rotation.from_euler('z', (90), degrees=True)
+        R_base_calib = Rotation.from_euler('zyz', (90, 180, -90), degrees=True)
 
         self.T_base_calib[:3, :3] = R_base_calib.as_matrix()
         self.T_base_calib[:3, 3] = np.array(base_calib_xyz, dtype=float)
@@ -218,7 +218,7 @@ class BoardDetector(Node):
     def _publish_base_camera_tf(self, T_base_camera: np.ndarray) -> None:
         """Publish BASE -> CAMERA transform as a static TF."""
         base_frame_id = 'base'
-        camera_frame_id = 'camera_link'
+        # camera_frame_id = 'camera_link'
         camera_frame_id = 'camera_color_optical_frame'
         tf = TransformStamped()
         tf.header.stamp = self.get_clock().now().to_msg()
