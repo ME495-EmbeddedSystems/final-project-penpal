@@ -16,8 +16,6 @@ from franka_msgs.srv import SetFullCollisionBehavior
 
 from penpal.control import (
     moveit_control,
-    moveit_control_freespace,
-    position_control,
     pp_control,
 )
 from penpal.control.pp_control import Trajectory
@@ -245,9 +243,7 @@ def ee_change_matrix():
     return T_final.flatten(order='F').tolist()
 
 
-async def integration_test(
-    node: Node, ctl: moveit_control_freespace.FreeSpaceMoveItPPControl
-) -> None:
+async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
     """Test move plan functions."""
     logger = node.get_logger()
     collision_service = node.create_client(

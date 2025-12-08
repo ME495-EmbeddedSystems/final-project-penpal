@@ -5,6 +5,7 @@ import asyncio
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
+from penpal.write_planner import BoardInfo
 from rclpy.node import Node
 
 from penpal.control.moveit_control import MoveItPPControl
@@ -106,11 +107,13 @@ class FreespacePlanner:
         start_pose = np.array([*target_position, *target_orientation_quat])
         return start_pose
 
-    async def move_to_board(self) -> None:
+    async def move_to_board(
+        self, board_info: BoardInfo, off_board_height_m: float
+    ) -> None:
         """Move the pen to hover slightly above the board."""
-        demo_board_pose = np.array([0.5, 0.0, 0.6])
-        demo_board_rot = R.from_euler('xyz', [0, 0, 0], degrees=True)
-        buffer = 0.05
+        demo_board_pose = board_info.pos
+        demo_board_rot = board_info.ori
+        buffer = off_board_height_m
         start_pose = self._calculate_start_pose(
             buffer, demo_board_pose, demo_board_rot
         )
