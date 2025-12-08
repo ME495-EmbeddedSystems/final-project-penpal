@@ -221,6 +221,7 @@ class PPControlBase(abc.ABC):
             pt.x = float(wp[0])
             pt.y = float(wp[1])
             pt.z = float(wp[2])
+            marker.points = []
             marker.points.append(pt)
 
         self._marker_pub.publish(marker)

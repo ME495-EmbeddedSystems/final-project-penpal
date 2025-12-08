@@ -612,17 +612,21 @@ class MoveItPPControl(PPControlBase):
         pen_pose.orientation.y = 0.7071068
         pen_pose.orientation.z = 0.0
         pen_pose.orientation.w = 0.7071068
+        pen.primitives = []
         pen.primitives.append(cylinder)
+        pen.primitive_poses = []
         pen.primitive_poses.append(pen_pose)
         pen.operation = CollisionObject.ADD
 
         # Publish the addition
         scene_msg = PS()
+        scene_msg.world.collision_objects = []
         scene_msg.world.collision_objects.append(pen)
         scene_msg.is_diff = True
         color_msg = ObjectColor()
         color_msg.id = 'pen'
         color_msg.color = ColorRGBA(r=1.0, g=1.0, b=1.0, a=1.0)
+        scene_msg.object_colors = []
         scene_msg.object_colors.append(color_msg)
         await asyncio.sleep(1.0)
         self._scene_pub.publish(scene_msg)
@@ -637,6 +641,7 @@ class MoveItPPControl(PPControlBase):
 
         # Publish the removal
         scene_msg = PS()
+        scene_msg.world.collision_objects = []
         scene_msg.world.collision_objects.append(pen)
         scene_msg.is_diff = True
         self._scene_pub.publish(scene_msg)
@@ -656,6 +661,7 @@ class MoveItPPControl(PPControlBase):
         attached_pen.object.operation = CollisionObject.ADD
 
         scene_msg = PS()
+        scene_msg.robot_state.attached_collision_objects = []
         scene_msg.robot_state.attached_collision_objects.append(attached_pen)
         scene_msg.is_diff = True
         self._scene_pub.publish(scene_msg)

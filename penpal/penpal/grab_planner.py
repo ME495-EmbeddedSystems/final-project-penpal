@@ -42,15 +42,9 @@ class GrabPlanner:
         await self.ctl.configure()
 
         self._logger.info('Robot moving to pre grasp position.')
-        goal = await self.ctl.move_to_ee_pose(
+        await self.ctl.move_to_ee_pose(
             pre_grasp_pos, pen_ori, execute_immediately=True
         )
-        res = await goal.get_result_async()  # type: ignore
-        if res.result.error_code.val != 1:  # type: ignore
-            msg = f'Pre-grasp position error code {res.result.error_code.val}. obj: {res.result}'
-            self._logger.error(msg)
-
-            raise GrabError(msg)
 
         await self.ctl.gripper_move(0.025)
         point_data = np.hstack([pen_pose, pen_ori, np.array([0])])
@@ -102,7 +96,7 @@ class GrabPlanner:
         world_normal_vector = board_pose_rotation.apply(board_normal)
         current_pen_direction = np.array([1, 0, 0])
         desired_pen_direction = world_normal_vector
-        R_align, _ = R.align_vectors(
+        R_align, _ = R.align_vectors(  # type: ignore
             [desired_pen_direction], [current_pen_direction]
         )
         R_flip = R.from_euler('x', 180, degrees=True)
@@ -159,12 +153,8 @@ class GrabPlanner:
         await self.ctl.set_collision_thresholds(free_space_req)
 
         self._logger.info('Moving to start position')
-        goal_handle = await self.ctl.move_to_ee_pose(
+        await self.ctl.move_to_ee_pose(
             goal_ee_position=start_pose[:3],
             goal_ee_orientation=start_pose[3:],
             execute_immediately=True,
         )
-        res = await goal_handle.get_result_async()
-        if res.result.error_code.val != 1:
-            self._logger.error(f'Failed, Error: {res.result.error_code.val}')
-            return
