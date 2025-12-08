@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from threading import Lock
 
 import numpy as np
+from penpal.penpal.utils import MovingAveragePoseFilter
 from scipy.spatial.transform import Rotation as R
 
 from rclpy.node import Node
@@ -182,6 +183,7 @@ class WritePlanner:
         self._logger = node.get_logger().get_child('WritePlanner')
         self._board: BoardInfo | None = None
         self._boardinfo_write_lock = Lock()
+        self._board_filter = MovingAveragePoseFilter(queue_size=10)
 
     async def write_characters(
         self,
@@ -379,10 +381,27 @@ class WritePlanner:
         """Return the most recently update board location + dimensions."""
         if self._board is None:
             raise ValueError('No BoardInfo has been received by WritePlanner.')
-        else:
-            return self._board
+
+        # should we be concerned about race conditions? i'll make a copy in case
+        with self._boardinfo_write_lock:
+            board = self._board
+
+        pos_filt, ori_filt = self._board_filter.get_filtered_pose(
+            board.pos, board.ori
+        )
+
+        return BoardInfo(
+            pos=pos_filt,
+            ori=ori_filt,
+            width_m=board.width_m,
+            height_m=board.height_m,
+            writeable_area=board.writeable_area.copy(),
+        )
 
     def set_board_info(self, board: BoardInfo) -> None:
         """Set new board info for the planner to use. Thread safe."""
+
         with self._boardinfo_write_lock:
             self._board = board
+
+        self._board_filter.add_pose_to_queue(self._board)
