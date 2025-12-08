@@ -71,73 +71,6 @@ Visualization Manager:
           Expand Link Details: false
           Expand Tree: false
           Link Tree Style: Links in Alphabetic Order
-          base:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-          fer_hand:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
-          fer_hand_tcp:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-          fer_leftfinger:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
-          fer_link0:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
-          fer_link1:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
-          fer_link2:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
-          fer_link3:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
-          fer_link4:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
-          fer_link5:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
-          fer_link6:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
-          fer_link7:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
-          fer_link8:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-          fer_rightfinger:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
         Loop Animation: false
         Robot Alpha: 0.5
         Robot Color: 150; 50; 150
@@ -184,73 +117,6 @@ Visualization Manager:
           Expand Link Details: false
           Expand Tree: false
           Link Tree Style: Links in Alphabetic Order
-          base:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-          fer_hand:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
-          fer_hand_tcp:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-          fer_leftfinger:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
-          fer_link0:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
-          fer_link1:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
-          fer_link2:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
-          fer_link3:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
-          fer_link4:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
-          fer_link5:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
-          fer_link6:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
-          fer_link7:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
-          fer_link8:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-          fer_rightfinger:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-            Value: true
         Robot Alpha: 0.5
         Show Robot Collision: false
         Show Robot Visual: true
@@ -266,44 +132,16 @@ Visualization Manager:
         base:
           Value: true
         camera_color_frame:
-          Value: true
+          Value: false
         camera_color_optical_frame:
-          Value: true
+          Value: false
         camera_depth_frame:
-          Value: true
+          Value: false
         camera_depth_optical_frame:
-          Value: true
+          Value: false
         camera_link:
           Value: true
-        fer_hand:
-          Value: false
-        fer_hand_tcp:
-          Value: false
-        fer_leftfinger:
-          Value: false
-        fer_link0:
-          Value: false
-        fer_link1:
-          Value: false
-        fer_link2:
-          Value: false
-        fer_link3:
-          Value: false
-        fer_link4:
-          Value: false
-        fer_link5:
-          Value: false
-        fer_link6:
-          Value: false
-        fer_link7:
-          Value: false
-        fer_link8:
-          Value: false
-        fer_rightfinger:
-          Value: false
         pen:
-          Value: true
-        tag0:
           Value: true
         tag_calib:
           Value: true
@@ -311,30 +149,17 @@ Visualization Manager:
       Name: TF
       Show Arrows: true
       Show Axes: true
-      Show Names: false
+      Show Names: true
       Tree:
         base:
-          camera_color_optical_frame:
-            tag0:
-              {}
-            tag_calib:
-              {}
-          fer_link0:
-            fer_link1:
-              fer_link2:
-                fer_link3:
-                  fer_link4:
-                    fer_link5:
-                      fer_link6:
-                        fer_link7:
-                          fer_link8:
-                            fer_hand:
-                              fer_hand_tcp:
-                                {}
-                              fer_leftfinger:
-                                {}
-                              fer_rightfinger:
-                                {}
+          camera_link:
+            camera_color_frame:
+              camera_color_optical_frame:
+                tag_calib:
+                  {}
+            camera_depth_frame:
+              camera_depth_optical_frame:
+                {}
           pen:
             {}
       Update Interval: 0
@@ -343,7 +168,7 @@ Visualization Manager:
       Enabled: true
       Name: Marker - WB
       Namespaces:
-        whiteboard: true
+        {}
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -440,10 +265,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.3199993669986725
+      Pitch: 0.41999903321266174
       Target Frame: base
       Value: Orbit (rviz_default_plugins)
-      Yaw: 6.245176315307617
+      Yaw: 6.260187149047852
     Saved: ~
 Window Geometry:
   Camera:
@@ -459,9 +284,9 @@ Window Geometry:
     collapsed: false
   MotionPlanning - Trajectory Slider:
     collapsed: false
-  QMainWindow State: 000000ff00000000fd0000000100000000000002b4000003b6fc0200000006fb00000044004d006f00740069006f006e0050006c0061006e006e0069006e00670020002d0020005400720061006a006500630074006f0072007900200053006c00690064006500720000000000ffffffff0000004100fffffffb000000100044006900730070006c006100790073010000003d000001b8000000c900fffffffb0000001c004d006f00740069006f006e0050006c0061006e006e0069006e00670000000129000001880000018800fffffffb0000000800480065006c0070000000029a0000006e0000006e00fffffffb0000000a0056006900650077007300000001d3000000db000000a400fffffffb0000000c00430061006d00650072006101000001fb000001f80000001600ffffff000004c2000003b600000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd0000000100000000000002b4000003b6fc0200000006fb00000044004d006f00740069006f006e0050006c0061006e006e0069006e00670020002d0020005400720061006a006500630074006f0072007900200053006c00690064006500720000000000ffffffff0000004100fffffffb000000100044006900730070006c006100790073010000003d000001b8000000c900fffffffb0000001c004d006f00740069006f006e0050006c0061006e006e0069006e00670000000129000001880000017d00fffffffb0000000800480065006c0070000000029a0000006e0000006e00fffffffb0000000a0056006900650077007300000001d3000000db000000a400fffffffb0000000c00430061006d00650072006101000001fb000001f80000001600ffffff000004c2000003b600000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Views:
     collapsed: false
   Width: 1916
   X: 0
-  Y: 1080
+  Y: 0
