@@ -10,6 +10,7 @@ from scipy.spatial.transform import Rotation
 from penpal_interfaces.msg import BoardInfo
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, QoSDurabilityPolicy
 
 from sensor_msgs.msg import CameraInfo
 from geometry_msgs.msg import PoseStamped, Point, TransformStamped
@@ -27,6 +28,10 @@ class BoardDetector(Node):
         super().__init__('board_detector')
 
         self.T_base_camera: Optional[np.ndarray] = None
+
+        marker_qos = QoSProfile(
+            depth=10, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL
+        )
 
         # board + tag geometry
         self.width: float = self.declare_parameter('board_width_m', 0.8).value
@@ -119,21 +124,21 @@ class BoardDetector(Node):
 
         # --------------- Marker Publishers ---------------
         self.marker_pub = self.create_publisher(
-            Marker, 'whiteboard_outline', 10
+            Marker, 'whiteboard_outline', marker_qos
         )
 
         # write-space visualization
         self.write_space_pub = self.create_publisher(
             Marker,
             'penpal_write_space',
-            10,
+            marker_qos,
         )
 
         # debug line from BASE -> CALIB_TAG
         self._debug_pub = self.create_publisher(
             Marker,
             'calib_link',
-            10,
+            marker_qos,
         )
 
         self.get_logger().info('BoardDetector running')
