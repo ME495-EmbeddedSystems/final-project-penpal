@@ -51,7 +51,7 @@ class FreespacePlanner:
         point_data = np.hstack([pen_pose, pen_ori, np.array([0])])
         traj_approach = Trajectory('pen_grab', point_data.reshape(1, 8))
         await self.ctl._execute_trajectory(traj_approach, 0.01)
-        await self.ctl.gripper_grasp(0.005)
+        await self.ctl.gripper_grasp(0.0045)
         await self.ctl.attach_pen()
         await asyncio.sleep(3.0)
 
@@ -77,7 +77,7 @@ class FreespacePlanner:
         """
         T_final = np.eye(4)
         # T_final[0:3, 0:3] = R.from_euler('xy', (180, 90), True).as_matrix()
-        T_final[2, 3] = 0.1
+        T_final[0, 3] = 0.1  # The pen sticks out in the X direction.
         return T_final.flatten(order='F').tolist()
 
     async def home_arm(self) -> None:
@@ -91,21 +91,40 @@ class FreespacePlanner:
         await self.ctl.reset_gripper()
 
     def _calculate_start_pose(
-        self, buffer, board_pose_position: np.ndarray, board_pose_rotation: R
-    ):
-        """Calculate the start pose to place the pen tip normal to the board."""
-        board_normal = np.array([1, 0, 0])
-        world_normal_vector = board_pose_rotation.apply(board_normal)
-        current_pen_direction = np.array([1, 0, 0])
-        desired_pen_direction = world_normal_vector
-        R_align, _ = R.align_vectors(  # type: ignore
-            [desired_pen_direction], [current_pen_direction]
+        self,
+        buffer: float,
+        board_pose_position: np.ndarray,
+        board_pose_rotation: R,
+    ) -> np.ndarray:
+        """
+        Calculate the start pose so that:
+
+        - +X_tcp is aligned with the board normal (+Z_board)
+        - TCP is 'buffer' meters in front of the board along -normal.
+        """
+
+        # Board normal in BOARD frame and in WORLD frame
+        board_normal_board = np.array([0.0, 0.0, -1.0])
+        world_normal = board_pose_rotation.apply(board_normal_board)
+
+        # Same orientation as WritePlanner.DOWN_Q
+        R_board_tcp = R.from_matrix(
+            np.array(
+                [
+                    [0.0, 1.0, 0.0],  # x_tcp in board frame
+                    [0.0, 0.0, 1.0],  # y_tcp in board frame
+                    [1.0, 0.0, 0.0],  # z_tcp in board frame
+                ]
+            )
         )
-        R_flip = R.from_euler('x', 180, degrees=True)
-        target_rot = R_align * R_flip
-        target_position = board_pose_position - (world_normal_vector * buffer)
-        target_orientation_quat = target_rot.as_quat(True)
-        start_pose = np.array([*target_position, *target_orientation_quat])
+        # World -> TCP
+        target_rot = board_pose_rotation * R_board_tcp
+
+        # Put TCP 'buffer' meters in front of the board
+        target_position = board_pose_position + world_normal * buffer
+
+        q = target_rot.as_quat(True)
+        start_pose = np.array([*target_position, *q])
         return start_pose
 
     async def move_to_board(
