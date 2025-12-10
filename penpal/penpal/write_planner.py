@@ -167,8 +167,8 @@ class WritePlanner:
         )
     ).as_quat(True)
     """Quaternion orientation where +X_tcp is board normal."""
-    #DOWN_Q = R.from_rotvec([0, 0, -np.pi / 2]).as_quat(True)
-    #"""Quaternion orientation pointing straight down."""
+    # DOWN_Q = R.from_rotvec([0, 0, -np.pi / 2]).as_quat(True)
+    # """Quaternion orientation pointing straight down."""
 
     @dataclass
     class Config:
@@ -195,10 +195,6 @@ class WritePlanner:
         self._logger = node.get_logger().get_child('WritePlanner')
         self._board: BoardInfo | None = None
         self._boardinfo_write_lock = Lock()
-
-        #self._shim_rot = R.from_euler('y', (90,), True).as_matrix()
-        self._shim_rot = R.from_euler('y', (0,), True).as_matrix()
-        self._logger.info(f'SHIM ROTATION: {self._shim_rot}')
 
     async def write_characters(
         self,
@@ -237,7 +233,6 @@ class WritePlanner:
         for traj in short_trajs:
             board = self.get_latest_board_info()
             rot = board.ori
-            rot = R.from_matrix(rot.as_matrix() @ self._shim_rot)
             world_traj = traj.transform(board.pos, rot)
             await self.control.execute_trajectory(
                 world_traj, self.c.ee_velocity_m_s
@@ -400,16 +395,6 @@ class WritePlanner:
             raise ValueError('No BoardInfo has been received by WritePlanner.')
         else:
             return self._board
-
-        # return BoardInfo(
-        #     pos=np.array([0.5, 0.0, 0.6]),
-        #     ori=R.identity(),
-        #     # pos=np.array([-0.4, 0.0, 0.6]),
-        #     # ori=R.from_euler('z', (180,), True),
-        #     width_m=0.8,
-        #     height_m=0.61,
-        #     writeable_area=np.array([[0.0, -0.305], [0.8, -0.61]]),
-        # )
 
     def set_board_info(self, board: BoardInfo) -> None:
         """Set new board info for the planner to use. Thread safe."""
