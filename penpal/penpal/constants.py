@@ -4,7 +4,7 @@ from scipy.spatial.transform import Rotation as R
 import numpy as np
 
 
-R_board_tcp = R.from_matrix(
+R_tcp_board = R.from_matrix(
     np.array(
         [
             [0, 0, -1],
@@ -13,6 +13,9 @@ R_board_tcp = R.from_matrix(
         ]
     )
 )
+
+R_board_tcp = R_tcp_board.inv()
+
 """
 Rotation for the transform from board frame to TCP frame.
 
@@ -32,3 +35,4 @@ board +y is TCP -z
 board +z is TCP -x
 
 """
+

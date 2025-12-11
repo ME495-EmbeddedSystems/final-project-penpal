@@ -11,7 +11,7 @@ from franka_msgs.srv import SetFullCollisionBehavior
 
 from penpal.control.moveit_control import MoveItPPControl
 from penpal.control.pp_control import Trajectory
-from penpal.constants import R_board_tcp
+from penpal.constants import R_board_tcp, R_tcp_board
 
 
 class GrabError(Exception):
@@ -104,12 +104,13 @@ class FreespacePlanner:
         - +X_tcp is aligned with the board normal (+Z_board)
         - TCP is 'buffer' meters in front of the board along -normal.
         """
+
         # Board normal in BOARD frame and in WORLD frame
         board_normal_board = np.array([0.0, 0.0, 1.0])
         world_normal = board_pose_rotation.apply(board_normal_board)
 
         # World -> TCP
-        target_rot = board_pose_rotation * R_board_tcp
+        target_rot = board_pose_rotation * R_tcp_board
 
         # Put TCP 'buffer' meters in front of the board
         target_position = board_pose_position + world_normal * buffer

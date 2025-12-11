@@ -13,7 +13,7 @@ from scipy.spatial.transform import Rotation as R
 from rclpy.node import Node
 
 from penpal.control.pp_control import PPControlBase, Trajectory
-from penpal.constants import R_board_tcp
+from penpal.constants import R_board_tcp, R_tcp_board
 
 
 @dataclass
