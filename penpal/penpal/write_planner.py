@@ -13,6 +13,7 @@ from scipy.spatial.transform import Rotation as R
 from rclpy.node import Node
 
 from penpal.control.pp_control import PPControlBase, Trajectory
+from penpal.constants import R_board_tcp
 
 
 @dataclass
@@ -154,21 +155,8 @@ class BoardInfo:
 class WritePlanner:
     """Compute trajectories to write on the real board."""
 
-    # X_tcp -> +Z_board (board normal)
-    # Y_tcp -> +X_board (right on the board)
-    # Z_tcp -> +Y_board (up along the board)
-    DOWN_Q = R.from_matrix(
-        np.array(
-            [
-                [0.0, 1.0, 0.0],  # column 1: x_tcp in board frame
-                [0.0, 0.0, 1.0],  # column 2: y_tcp in board frame
-                [1.0, 0.0, 0.0],  # column 3: z_tcp in board frame
-            ]
-        )
-    ).as_quat(True)
-    """Quaternion orientation where +X_tcp is board normal."""
-    # DOWN_Q = R.from_rotvec([0, 0, -np.pi / 2]).as_quat(True)
-    # """Quaternion orientation pointing straight down."""
+    DOWN_Q = R_board_tcp.as_quat(True)
+    """End-effector orientation relative to the board."""
 
     @dataclass
     class Config:

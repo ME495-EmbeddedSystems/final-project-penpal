@@ -257,9 +257,9 @@ class MockBoardDetector(Node):
         mock_header = Header()
         mock_header.frame_id = 'base'
         mock_header.stamp = self.get_clock().now().to_msg()
-        
-        center = np.array([0.1, -0.4, 0.6])  # board center in base frame
-        rot = Rotation.from_euler('xz', (90,180), degrees=True)
+
+        center = np.array([0.1, 0.4, 0.6])  # board center in base frame
+        rot = Rotation.from_euler('xz', (90, 180), degrees=True)
         R = rot.as_matrix()
         n_tags = 2
 

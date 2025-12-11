@@ -1,7 +1,6 @@
 """Controller implementation using MoveIt. Lacks force control."""
 
 import asyncio
-import traceback
 from typing import Any
 
 from geometry_msgs.msg import Pose, Quaternion, PoseStamped
@@ -69,12 +68,6 @@ class MoveItPPControl(PPControlBase):
             GetCartesianPath,
             'compute_cartesian_path',
             callback_group=self._cbgroup,
-        )
-        self._scene_pub = self._node.create_publisher(
-            PS, '/planning_scene', 10
-        )
-        self._board_sub = self._node.create_subscription(
-            PoseStamped, 'whiteboard_pose', self.board_cb, 10
         )
         self._scene_pub = self._node.create_publisher(
             PS, '/planning_scene', 10

@@ -351,7 +351,7 @@ class PenPal(Node):
     async def _perform_write(
         self,
         chars: list[font_trajectory.Character],
-    ) -> None:
+    ) -> list[font_trajectory.Character]:
         """Perform the actual write sequence."""
         await self._fplanner.ctl.configure()
         await self._fplanner.move_to_board(
@@ -360,7 +360,7 @@ class PenPal(Node):
         )
 
         await self._write_planner.control.configure()
-        await self._write_planner.write_characters(
+        return await self._write_planner.write_characters(
             chars, self._fonts.c.line_spacing_factor
         )
 

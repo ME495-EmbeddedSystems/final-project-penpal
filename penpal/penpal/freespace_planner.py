@@ -7,10 +7,11 @@ from scipy.spatial.transform import Rotation as R
 
 from penpal.write_planner import BoardInfo
 from rclpy.node import Node
+from franka_msgs.srv import SetFullCollisionBehavior
 
 from penpal.control.moveit_control import MoveItPPControl
 from penpal.control.pp_control import Trajectory
-from franka_msgs.srv import SetFullCollisionBehavior
+from penpal.constants import R_board_tcp
 
 
 class GrabError(Exception):
@@ -97,26 +98,16 @@ class FreespacePlanner:
         board_pose_rotation: R,
     ) -> np.ndarray:
         """
-        Calculate the start pose so that:
+        Calculate the start pose for writing.
 
+        Such that:
         - +X_tcp is aligned with the board normal (+Z_board)
         - TCP is 'buffer' meters in front of the board along -normal.
         """
-
         # Board normal in BOARD frame and in WORLD frame
-        board_normal_board = np.array([0.0, 0.0, -1.0])
+        board_normal_board = np.array([0.0, 0.0, 1.0])
         world_normal = board_pose_rotation.apply(board_normal_board)
 
-        # Same orientation as WritePlanner.DOWN_Q
-        R_board_tcp = R.from_matrix(
-            np.array(
-                [
-                    [0.0, 1.0, 0.0],  # x_tcp in board frame
-                    [0.0, 0.0, 1.0],  # y_tcp in board frame
-                    [1.0, 0.0, 0.0],  # z_tcp in board frame
-                ]
-            )
-        )
         # World -> TCP
         target_rot = board_pose_rotation * R_board_tcp
 
