@@ -13,6 +13,7 @@ from scipy.spatial.transform import Rotation as R
 from rclpy.node import Node
 
 from penpal.control.pp_control import PPControlBase, Trajectory
+from penpal.constants import R_board_tcp, R_tcp_board
 
 
 @dataclass
@@ -154,14 +155,16 @@ class BoardInfo:
 class WritePlanner:
     """Compute trajectories to write on the real board."""
 
-    DOWN_Q = R.from_rotvec([0, 0, -np.pi / 2]).as_quat(True)
-    """Quaternion orientation pointing straight down."""
+    DOWN_Q = R_board_tcp.as_quat(True)
+    """
+    End-effector orientation such that the pen points down into the board.
+    """
 
     @dataclass
     class Config:
         """Configuration for this class."""
 
-        traj_len: int = 10
+        traj_len: int = 100
         """Max length of trajectory to write at a time."""
         ee_velocity_m_s: float = 0.02
         """End-effector forward velocity while writing."""
@@ -219,7 +222,8 @@ class WritePlanner:
         # transforming each into world frame as its time comes.
         for traj in short_trajs:
             board = self.get_latest_board_info()
-            world_traj = traj.transform(board.pos, board.ori)
+            rot = board.ori
+            world_traj = traj.transform(board.pos, rot)
             await self.control.execute_trajectory(
                 world_traj, self.c.ee_velocity_m_s
             )

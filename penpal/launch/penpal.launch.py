@@ -39,7 +39,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 'controller',
-                default_value='mock',
+                default_value='moveit',
                 description='Sets type of controller to use in PenPal node. '
                 'See PenPal node for details.',
             ),

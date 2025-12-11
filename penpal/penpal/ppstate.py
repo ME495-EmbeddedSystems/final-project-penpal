@@ -9,6 +9,8 @@ from rclpy.logging import RcutilsLogger
 class S(Enum):
     """State for PenPal node."""
 
+    STARTUP = auto()
+    """Startup state that immediately goes to sleep."""
     ASLEEP = auto()
     """Not in conversational mode."""
     ASLEEP_IN_USE = auto()
@@ -28,10 +30,16 @@ class S(Enum):
 class E(Enum):
     """Events driving the penpal node state machine."""
 
+    STARTUP_COMPLETE = auto()
+    """Finished performing startup actions"""
     WAKE = auto()
     """Wake command received."""
     WRITEMESSAGE_CALLED = auto()
     """WriteMessage command used while asleep."""
+    GRAB_PEN_CALLED = auto()
+    """Grab pen command used while asleep."""
+    GRAB_PEN_COMPLETE = auto()
+    """Successfully grabbed the pen."""
     SLEEP = auto()
     """Sleep command received."""
     BOARD_VISIBLE = auto()
@@ -67,7 +75,7 @@ class ConvoFSM:
         self, transition_lock: Lock, logger: RcutilsLogger | None = None
     ) -> None:
         """Initialize the object."""
-        self._s = S.ASLEEP
+        self._s = S.STARTUP
         self._lock = transition_lock
         self._logger = logger
 
@@ -90,16 +98,20 @@ class ConvoFSM:
             new_s = self._s
 
             match self._s:
+                case S.STARTUP:
+                    if e == E.STARTUP_COMPLETE:
+                        new_s = S.ASLEEP
                 case S.ASLEEP:
                     if e == E.WAKE:
                         new_s = S.READY_TO_READ
-                    if e == E.WRITEMESSAGE_CALLED:
+                    if e == E.WRITEMESSAGE_CALLED or e == E.GRAB_PEN_CALLED:
                         new_s = S.ASLEEP_IN_USE
                 case S.ASLEEP_IN_USE:
                     if e in [
                         E.WRITE_FAILED,
                         E.WRITE_INCOMPLETE,
                         E.WRITE_SUCCEEDED,
+                        E.GRAB_PEN_COMPLETE,
                     ]:
                         new_s = S.ASLEEP
                 case S.READY_TO_READ:

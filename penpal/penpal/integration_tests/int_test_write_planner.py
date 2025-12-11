@@ -41,6 +41,10 @@ class MockController(PPControlBase):
         """Grip mock."""
         pass
 
+    async def configure(self) -> None:
+        """One-time setup."""
+        return await super().configure()
+
 
 async def test_static_board() -> tuple[list[Trajectory], BoardInfo]:
     """Write some characters on a non-moving board."""

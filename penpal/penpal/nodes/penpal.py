@@ -8,7 +8,6 @@ import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
 import traceback
-from typing import Any, List, Literal
 from threading import Lock
 import json
 
@@ -17,10 +16,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 from rclpy.node import Node
-from rclpy.time import Time
-from rclpy.parameter import Parameter
 from rcl_interfaces.msg import ParameterDescriptor
-from rclpy.qos import QoSProfile, qos_profile_rosout_default
 from rclpy.action import ActionServer
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.action.server import ServerGoalHandle
@@ -33,9 +29,13 @@ from penpal_interfaces.action import WriteMessage
 from penpal_interfaces.msg import BoardInfo as BoardInfoMsg
 
 from penpal import font_trajectory
-from penpal import grab_planner
+from penpal import freespace_planner
 from penpal import write_planner
-from penpal.control import moveit_control, impedance_control
+from penpal.control import (
+    moveit_control,
+    impedance_control,
+    moveit_control_freespace,
+)
 from penpal import ppstate
 from penpal.utils import LockedString
 
@@ -190,8 +190,8 @@ class PenPal(Node):
         # it _cannot_ be used at the same time as the other one, and this
         # isn't hard-enforced in the controller code, so we must take care
         # to enforce this in our logic here. We use the FSM formalism for this.
-        grab_ctl = moveit_control.MoveItPPControl(self)
-        self._grabber = grab_planner.GrabPlanner(self, grab_ctl)
+        grab_ctl = moveit_control_freespace.FreeSpaceMoveItPPControl(self)
+        self._fplanner = freespace_planner.FreespacePlanner(self, grab_ctl)
 
         # thread pool executor for long running arm tasks
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
@@ -214,6 +214,9 @@ class PenPal(Node):
         )
         self._srv_wake = self.create_service(Trigger, 'wake', self._cb_wake)
         self._srv_sleep = self.create_service(Trigger, 'sleep', self._cb_sleep)
+        self._srv_sleep = self.create_service(
+            Trigger, 'grab_pen', self._cb_grab_pen
+        )
         self._tick = self.create_timer(
             1.0 / self.c.timer_freq_hz, self._cb_tick
         )
@@ -284,27 +287,15 @@ class PenPal(Node):
             and self._board_sequence_start_t is not None
         )
 
-        # self.get_logger().info(
-        #     'last reading: '
-        #     + str(self._board_last_reading_t)
-        #     + '; seq start: '
-        #     + str(self._board_sequence_start_t)
-        # )
         if first_info_received:
             last_valid_s = self._board_last_reading_t.nanoseconds / 1.0e9  # type: ignore
             seq_start_s = self._board_sequence_start_t.nanoseconds / 1.0e9  # type: ignore
             t_since_valid = now_s - last_valid_s
             t_since_invalid = now_s - seq_start_s
-            # self.get_logger().info(
-            #     f'since valid: {t_since_valid}; since invalid: {t_since_invalid}'
-            # )
             if (
                 t_since_valid <= self.c.board_visibility_thresh_s
                 and t_since_invalid > self.c.board_visibility_thresh_s
             ):
-                # self.get_logger().info(
-                #     f'Board visible! since valid: {t_since_valid}; since invalid: {t_since_invalid}'
-                # )
                 return True
 
         return False
@@ -315,7 +306,6 @@ class PenPal(Node):
             rthresh = self.c.workspace_dimensions_m[0]
             hthresh = self.c.workspace_dimensions_m[1]
             board = self._write_planner.get_latest_board_info()
-            # self.get_logger().info(str(board))
 
             # board's position is already in base frame.
             # evaluate if all 4 corners of the writing area are in reach.
@@ -325,9 +315,6 @@ class PenPal(Node):
                 r = np.linalg.norm(corner[0:2])
                 h = corner[2]
                 is_in_workspace = r < rthresh and (h > 0 and h < hthresh)
-                # self.get_logger().info(
-                #     f'CORNER{i}: r={r} h={h} in_workspace={is_in_workspace}'
-                # )
                 if not is_in_workspace:
                     return False
             return True
@@ -339,7 +326,7 @@ class PenPal(Node):
         try:
             result = asyncio.run(coroutine_func)
             return result
-        except Exception as err:
+        except Exception as err:  # noqa: B902
             tb = traceback.format_exc()
             self.get_logger().error(
                 f'{type(err).__name__} while running event loop'
@@ -352,9 +339,30 @@ class PenPal(Node):
             self._run_async_worker_in_thread, coroutine_func
         )
 
+    async def _perform_home(self) -> None:
+        """Perform async home."""
+        await self._fplanner.ctl.configure()
+        await self._fplanner.home_arm()
+
     def worker_home(self) -> None:
         """Send the robot to the home position in the worker thread."""
-        self.schedule_in_worker(self._grabber.home_arm())
+        self.schedule_in_worker(self._perform_home())
+
+    async def _perform_write(
+        self,
+        chars: list[font_trajectory.Character],
+    ) -> list[font_trajectory.Character]:
+        """Perform the actual write sequence."""
+        await self._fplanner.ctl.configure()
+        await self._fplanner.move_to_board(
+            self._write_planner.get_latest_board_info(),
+            self._write_planner.c.off_board_height_m,
+        )
+
+        await self._write_planner.control.configure()
+        return await self._write_planner.write_characters(
+            chars, self._fonts.c.line_spacing_factor
+        )
 
     def worker_write(
         self,
@@ -369,39 +377,26 @@ class PenPal(Node):
         chars = self._fonts.write_text(
             text, font_name, font_size_mm, pen_thickness_mm
         )
-        future = self.schedule_in_worker(
-            self._write_planner.write_characters(
-                chars, self._fonts.c.line_spacing_factor
+        future = self.schedule_in_worker(self._perform_write(chars))
+
+        # block here for now.
+        # TODO figure out how to not need to block.
+        unwritten_chars: list[write_planner.Character] = future.result()  # type: ignore
+
+        self.get_logger().info(f'Finished writing message "{text}"!')
+        cstr = ''.join([c.char for c in unwritten_chars])
+
+        if len(unwritten_chars) > 0:
+            self.get_logger().warning(
+                f'Unable to write the end of the message: {cstr}'
             )
-        )
+            self._fsm.transition(ppstate.E.WRITE_INCOMPLETE)
+        else:
+            self._fsm.transition(ppstate.E.WRITE_SUCCEEDED)
 
-        try:
-            # block here for now.
-            # TODO figure out how to not need to block.
-            unwritten_chars: list[write_planner.Character] = future.result()  # type: ignore
+        return unwritten_chars
 
-            self.get_logger().info(f'Finished writing message "{text}"!')
-            cstr = ''.join([c.char for c in unwritten_chars])
-
-            if len(unwritten_chars) > 0:
-                self.get_logger().warning(
-                    f'Unable to write the end of the message: {cstr}'
-                )
-                self._fsm.transition(ppstate.E.WRITE_INCOMPLETE)
-            else:
-                self._fsm.transition(ppstate.E.WRITE_SUCCEEDED)
-
-            return unwritten_chars
-
-        except Exception as err:
-            tb = traceback.format_exc()
-            self.get_logger().error(
-                f'{type(err).__name__} in write worker: {err}\n\nTraceback:\n{tb}'
-            )
-            self._fsm.transition(ppstate.E.WRITE_FAILED)
-            raise err
-
-    async def _async_trigger_vlm(self) -> None:
+    async def _perform_trigger_vlm(self) -> None:
         """Actual async function to trigger the vlm and wait for the response."""
         resp: Trigger.Response = await self._c_ocr.call_async(
             Trigger.Request()
@@ -414,8 +409,20 @@ class PenPal(Node):
 
     def worker_trigger_vlm(self) -> None:
         """Use the worker thread to get text to write from the VLM."""
-        self.schedule_in_worker(self._async_trigger_vlm())
+        self.schedule_in_worker(self._perform_trigger_vlm())
         self._fsm.transition(ppstate.E.OCR_VLM_TRIGGERED)
+
+    async def _perform_startup_actions(self) -> None:
+        """Perform startup actions in worker thread."""
+        await asyncio.sleep(1.5)
+        await self._fplanner.ctl.remove_pen()
+        # await self._fplanner.reset_gripper()
+        await self._fplanner.home_arm()
+
+    def worker_startup_actions(self) -> None:
+        """Perform startup actions, blocking."""
+        future = self.schedule_in_worker(self._perform_startup_actions())
+        future.result(20.0)
 
     def _cb_tick(self, info: TimerInfo) -> None:
         """Handle periodic tasks. Timer callback."""
@@ -432,15 +439,20 @@ class PenPal(Node):
         s = self._fsm.get_state()
         enter = s != self._prev_state
         match s:
+            case ppstate.S.STARTUP:
+                # go straight to asleep after a reset.
+                self.worker_startup_actions()
+                self._fsm.transition(ppstate.E.STARTUP_COMPLETE)
+
             case ppstate.S.ASLEEP:
-                if enter:
-                    self.worker_home()
                 # wait to be woken up
                 pass
             case ppstate.S.ASLEEP_IN_USE:
                 # wait to be woken up
                 pass
             case ppstate.S.READY_TO_READ:
+                if enter:
+                    self.worker_home()
                 # nothing to do; we just wait for visibility
                 pass
             case ppstate.S.READING:
@@ -500,6 +512,22 @@ class PenPal(Node):
         )
         return response
 
+    async def _perform_grab_pen(self) -> None:
+        """Grab the pen; called in the worker thread."""
+        await self._fplanner.ctl.configure()
+        await self._fplanner.grab_pen()
+        self._fsm.transition(ppstate.E.GRAB_PEN_COMPLETE)
+
+    def _cb_grab_pen(
+        self, req: Trigger.Request, resp: Trigger.Response
+    ) -> Trigger.Response:
+        """Handle grab pen service call."""
+        self._fsm.transition(ppstate.E.GRAB_PEN_CALLED)
+        self.schedule_in_worker(self._perform_grab_pen())
+        resp.success = True
+        resp.message = 'Retrieving pen.'
+        return resp
+
     def _cb_sleep(
         self, request: Trigger.Request, response: Trigger.Response
     ) -> Trigger.Response:
@@ -544,7 +572,7 @@ class PenPal(Node):
             res.unwritten_characters = cstr
             return res
 
-        except Exception:
+        except Exception:  # noqa: B902
             # we already make a fuss about this in the worker_write function.
             # we can just swallow this.
             goal_handle.abort()
