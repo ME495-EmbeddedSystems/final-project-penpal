@@ -54,7 +54,7 @@ class FreespacePlanner:
         await self.ctl._execute_trajectory(traj_approach, 0.01)
         await self.ctl.gripper_grasp(0.0045)
         await self.ctl.attach_pen()
-        await asyncio.sleep(3.0)
+        await asyncio.sleep(1.0)
 
         # Set up SetTCPFrame
         tcp_matrix = self._get_ee_transform_matrix()
@@ -66,7 +66,7 @@ class FreespacePlanner:
             named_config='ready',
             execute_immediately=True,
         )
-        wait_t = 5.0
+        wait_t = 1.0
         self._logger.info(f'Waiting {wait_t} seconds...')
         await asyncio.sleep(wait_t)
 

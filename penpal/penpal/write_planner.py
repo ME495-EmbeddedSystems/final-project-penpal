@@ -156,7 +156,9 @@ class WritePlanner:
     """Compute trajectories to write on the real board."""
 
     DOWN_Q = R_board_tcp.as_quat(True)
-    """End-effector orientation relative to the board."""
+    """
+    End-effector orientation such that the pen points down into the board.
+    """
 
     @dataclass
     class Config:
