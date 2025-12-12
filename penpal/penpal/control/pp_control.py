@@ -9,6 +9,7 @@ from scipy.spatial.transform import Rotation as R
 
 from geometry_msgs.msg import Point
 from rclpy.node import Node
+from rclpy.duration import Duration
 from visualization_msgs.msg import Marker
 
 
@@ -183,7 +184,7 @@ class PPControlBase(abc.ABC):
         pass
 
     async def publish_marker(
-        self, traj: Trajectory, lifetime_s: float = 10
+        self, traj: Trajectory, lifetime_s: float = 10.0
     ) -> None:
         """Publish trajectory as a line marker to rviz."""
         if self._marker_pub is None:
@@ -199,6 +200,8 @@ class PPControlBase(abc.ABC):
             return
 
         marker = Marker()
+
+        marker.lifetime = Duration(seconds=lifetime_s).to_msg()
         marker.header.frame_id = self.c.world_frame
         marker.header.stamp = self._node.get_clock().now().to_msg()
         marker.ns = 'pp_trajectories'
@@ -213,7 +216,6 @@ class PPControlBase(abc.ABC):
         marker.color.g = 1.0
         marker.color.b = 0.0
         marker.color.a = 1.0
-        marker.lifetime = lifetime_s
 
         # add XYZ points
         for wp in traj.data:
