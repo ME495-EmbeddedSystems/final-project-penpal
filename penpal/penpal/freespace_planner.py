@@ -76,10 +76,12 @@ class FreespacePlanner:
 
         Hardcoded to match pen dimensions.
         """
+        # ---------------- Begin_Citation [5] ---------------- # noqa: E266
         T_final = np.eye(4)
         # T_final[0:3, 0:3] = R.from_euler('xy', (180, 90), True).as_matrix()
         T_final[0, 3] = 0.1  # The pen sticks out in the X direction.
         return T_final.flatten(order='F').tolist()
+        # ---------------- End_Citation [5] ---------------- # noqa: E266
 
     async def home_arm(self) -> None:
         """Send the arm to the home position."""
@@ -104,7 +106,7 @@ class FreespacePlanner:
         - +X_tcp is aligned with the board normal (+Z_board)
         - TCP is 'buffer' meters in front of the board along -normal.
         """
-
+        # ---------------- Begin_Citation [5] ---------------- # noqa: E266
         # Board normal in BOARD frame and in WORLD frame
         board_normal_board = np.array([0.0, 0.0, 1.0])
         world_normal = board_pose_rotation.apply(board_normal_board)
@@ -114,7 +116,7 @@ class FreespacePlanner:
 
         # Put TCP 'buffer' meters in front of the board
         target_position = board_pose_position + world_normal * buffer
-
+        # ---------------- End_Citation [5] ---------------- # noqa: E266
         q = target_rot.as_quat(True)
         start_pose = np.array([*target_position, *q])
         return start_pose

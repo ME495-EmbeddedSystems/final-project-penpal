@@ -1,3 +1,4 @@
+# ---------------- Begin_Citation [3][4] ---------------- # noqa: E266
 """Standalone test for FontTrajectory (no ROS nodes required).
 
 How to run (from repo root):
@@ -333,3 +334,5 @@ def main() -> None:
 
 if __name__ == '__main__':
     main()
+
+# ---------------- End_Citation [3][4] ---------------- # noqa: E266

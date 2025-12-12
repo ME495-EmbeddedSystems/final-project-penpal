@@ -1,4 +1,30 @@
-"""Generation of 2D trajectories (plus pressure) given font + text."""
+# ---------------- Begin_Citation [3][4] ---------------- # noqa: E266
+"""Generation of 2D trajectories (plus pressure) given font + text.
+
+This module currently supports three ways to turn text into pen trajectories:
+
+1) TTF/OTF OUTLINE MODE (default, actually used in our project)
+   - We read glyph outlines from a TrueType/OpenType font using fontTools.
+   - Each glyph is treated as one or more closed contours (polygons).
+   - Every contour becomes one "stroke": pen up → move to start → pen down
+     → follow the contour → (optionally) lift pen at the end.
+
+2) TTF SKELETON MODE (experimental, not used in the current pipeline)
+   - For some simple letters we approximate a single-stroke skeleton from
+     the filled outline:
+       * rasterize the outline to an image,
+       * skeletonize the filled region,
+       * trace the skeleton pixels into stroke polylines.
+   - Intended for plotter-like devices that prefer one stroke per letter.
+
+3) HERSHEY SINGLE-STROKE FONTS (optional, not used in the current pipeline)
+   - Uses the external "Hershey-Fonts" package.
+   - Each character is already defined as one or more polylines (single strokes),
+     so no outline or skeletonization is needed.
+
+In the actual working code, only the first mode is used.
+"""
+
 
 from __future__ import annotations
 
@@ -993,3 +1019,5 @@ class FontTrajectory:
             new_pts.append([xy[0], xy[1], z])
 
         return np.asarray(new_pts, dtype=float)
+
+# ---------------- End_Citation [3][4] ---------------- # noqa: E266
