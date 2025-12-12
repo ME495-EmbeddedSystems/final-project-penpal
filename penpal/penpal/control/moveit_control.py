@@ -593,6 +593,50 @@ class MoveItPPControl(PPControlBase):
             self._c_move_group, goal_msg, f'Move to name {named_config}'
         )
 
+    async def add_static_scene_collision_objects(self) -> None:
+        """Add the necessary collision objects for safety (ie table)."""
+        fudge = 2.0
+        table_length_m = 3 * fudge
+        table_width_m = 2 * fudge
+        table_height_m = 4 * fudge  # approximate
+        table = CollisionObject()
+        table.header.frame_id = 'base'
+        table.id = 'table'
+        box = SolidPrimitive()
+        box.type = SolidPrimitive.BOX
+        box.dimensions = [
+            table_length_m,
+            table_width_m,
+            table_height_m,
+        ]  # [x, y, z]
+        # Hard coded pen location
+        table_pose = Pose()
+        table_pose.position.x = 0.0
+        table_pose.position.y = 0.0
+        table_pose.position.z = -table_height_m / 2
+        table_pose.orientation.x = 0.0
+        table_pose.orientation.y = 0.0
+        table_pose.orientation.z = 0.0
+        table_pose.orientation.w = 1.0
+        table.primitives = []
+        table.primitives.append(box)
+        table.primitive_poses = []
+        table.primitive_poses.append(table_pose)
+        table.operation = CollisionObject.ADD
+
+        # Publish the addition
+        scene_msg = PS()
+        scene_msg.world.collision_objects = []
+        scene_msg.world.collision_objects.append(table)
+        scene_msg.is_diff = True
+        color_msg = ObjectColor()
+        color_msg.id = 'table'
+        color_msg.color = ColorRGBA(r=0.5, g=0.5, b=1.0, a=1.0)
+        scene_msg.object_colors = []
+        scene_msg.object_colors.append(color_msg)
+        self._scene_pub.publish(scene_msg)
+        self._logger.info('Table in planning scene.')
+
     async def add_fixed_pen(self) -> None:
         """Spawn a collision object pen at a hardcoded location."""
         pen = CollisionObject()
@@ -626,7 +670,7 @@ class MoveItPPControl(PPControlBase):
         color_msg.color = ColorRGBA(r=1.0, g=1.0, b=1.0, a=1.0)
         scene_msg.object_colors = []
         scene_msg.object_colors.append(color_msg)
-        await asyncio.sleep(1.0)
+        # await asyncio.sleep(1.0)
         self._scene_pub.publish(scene_msg)
         self._logger.info('Pen in planning scene.')
 

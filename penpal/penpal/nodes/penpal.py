@@ -423,6 +423,7 @@ class PenPal(Node):
     async def _perform_startup_actions(self) -> None:
         """Perform startup actions in worker thread."""
         await asyncio.sleep(1.0)
+        await self._fplanner.ctl.add_static_scene_collision_objects()
         await self._fplanner.ctl.remove_pen()
         # await self._fplanner.reset_gripper()
         # await self._fplanner.home_arm()
