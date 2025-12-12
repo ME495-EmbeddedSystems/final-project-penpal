@@ -3,38 +3,41 @@
 import asyncio
 from typing import Any
 
-from geometry_msgs.msg import Pose, Quaternion, PoseStamped
+from franka_msgs.action import Grasp, Move
+from franka_msgs.srv import SetFullCollisionBehavior
+from franka_msgs.srv import SetTCPFrame
+
+from geometry_msgs.msg import Pose, PoseStamped, Quaternion
 
 from moveit_msgs.action import ExecuteTrajectory, MoveGroup
 from moveit_msgs.msg import (
+    AttachedCollisionObject,
     BoundingVolume,
+    CollisionObject,
     Constraints,
     JointConstraint,
     MotionPlanRequest,
     MoveItErrorCodes,
+    ObjectColor,
     OrientationConstraint,
     PlanningOptions,
     PositionConstraint,
     RobotState,
-    AttachedCollisionObject,
-    CollisionObject,
-    ObjectColor,
 )
-from franka_msgs.srv import SetFullCollisionBehavior
+
 from moveit_msgs.msg import PlanningScene as PS
-from moveit_msgs.srv import GetCartesianPath
 from moveit_msgs.srv import ApplyPlanningScene
-from std_msgs.msg import ColorRGBA
-from franka_msgs.action import Grasp, Move
+from moveit_msgs.srv import GetCartesianPath
+
 import numpy as np
+
+from std_msgs.msg import ColorRGBA
 
 from penpal.control.pp_control import PPControlBase, PPControlError, Trajectory
 
 from rclpy.action import ActionClient
-from rclpy.action.client import ClientGoalHandle
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.node import Node
-from franka_msgs.srv import SetTCPFrame
 
 from shape_msgs.msg import SolidPrimitive
 
@@ -251,7 +254,8 @@ class MoveItPPControl(PPControlBase):
 
         Args:
             offset_m: Offset (meters) of each finger from the EE frame.
-            grip_force_N: Force to apply once gripped (i.e. to the marker when closed).
+            grip_force_N: Force to apply once gripped
+            (i.e. to the marker when closed).
             If None, don't control the force.
 
         """
@@ -476,7 +480,7 @@ class MoveItPPControl(PPControlBase):
             self._logger.warn('Still waiting for service')
 
         self._logger.info('Request Cartesian path from service')
-        response = await self._c_cartesian_path.call_async(request)  # type: ignore
+        response = await self._c_cartesian_path.call_async(request)
 
         if execute_immediately:
             # check that we successfully planned

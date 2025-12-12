@@ -322,7 +322,12 @@ class PenPal(Node):
         return False
 
     def _run_async_worker_in_thread(self, coroutine_func):
-        """Run an async function using a new event loop. Intended for use in worker thread."""
+        """
+        Run an async function.
+
+        Run the function using a new event loop.
+        Intended for use in worker thread.
+        """
         try:
             result = asyncio.run(coroutine_func)
             return result
@@ -397,7 +402,12 @@ class PenPal(Node):
         return unwritten_chars
 
     async def _perform_trigger_vlm(self) -> None:
-        """Actual async function to trigger the vlm and wait for the response."""
+        """
+        Run perform_trigger.
+
+        Actual async function to trigger the vlm
+        and wait for the response.
+        """
         resp: Trigger.Response = await self._c_ocr.call_async(
             Trigger.Request()
         )  # type: ignore
@@ -467,7 +477,7 @@ class PenPal(Node):
                     text = self._text_to_write.text
                     if text is None:
                         raise ValueError(
-                            'No text available to write. This should be unreachable!'
+                            'No text available to write. This is unreachable!'
                         )
                     self.worker_write(
                         text,

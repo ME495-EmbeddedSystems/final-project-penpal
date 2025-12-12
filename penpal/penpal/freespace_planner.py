@@ -2,16 +2,19 @@
 
 import asyncio
 
-import numpy as np
-from scipy.spatial.transform import Rotation as R
-
-from penpal.write_planner import BoardInfo
-from rclpy.node import Node
 from franka_msgs.srv import SetFullCollisionBehavior
+
+import numpy as np
+
+from penpal.constants import R_board_tcp, R_tcp_board
+from penpal.write_planner import BoardInfo
 
 from penpal.control.moveit_control import MoveItPPControl
 from penpal.control.pp_control import Trajectory
-from penpal.constants import R_board_tcp, R_tcp_board
+
+from scipy.spatial.transform import Rotation as R
+
+from rclpy.node import Node
 
 
 class GrabError(Exception):
@@ -104,7 +107,6 @@ class FreespacePlanner:
         - +X_tcp is aligned with the board normal (+Z_board)
         - TCP is 'buffer' meters in front of the board along -normal.
         """
-
         # Board normal in BOARD frame and in WORLD frame
         board_normal_board = np.array([0.0, 0.0, 1.0])
         world_normal = board_pose_rotation.apply(board_normal_board)
@@ -173,3 +175,5 @@ class FreespacePlanner:
             goal_ee_orientation=start_pose[3:],
             execute_immediately=True,
         )
+
+

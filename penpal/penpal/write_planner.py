@@ -8,12 +8,13 @@ from dataclasses import dataclass, field
 from threading import Lock
 
 import numpy as np
-from scipy.spatial.transform import Rotation as R
+
+from penpal.constants import R_board_tcp, R_tcp_board
+from penpal.control.pp_control import PPControlBase, Trajectory
 
 from rclpy.node import Node
 
-from penpal.control.pp_control import PPControlBase, Trajectory
-from penpal.constants import R_board_tcp, R_tcp_board
+from scipy.spatial.transform import Rotation as R
 
 
 @dataclass
@@ -51,8 +52,8 @@ class Character:
         """
         Return the bounding rectangle around the character in mm.
 
-        Note: somewhat expensive to calculate. get from font_trajectory if this is
-        too slow for you.
+        Note: somewhat expensive to calculate. get from font_trajectory if
+        this is too slow for you.
 
         Returns:
             np.ndarray: [TL, BR] where each is [x, y]
@@ -246,7 +247,7 @@ class WritePlanner:
 
         Args:
             cs: list of characters to write.
-            line_spacing_factor: space between lines as a fraction of line height
+            line_spacing_factor: space between lines as fraction of line height
             padding_mm: padding within the bounding box, css style
 
         Returns:

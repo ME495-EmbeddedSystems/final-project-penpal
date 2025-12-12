@@ -51,7 +51,7 @@ class E(Enum):
     published by the BoardDetector) for longer than the threshold
     duration."""
     BOARD_IN_WORKSPACE = auto()
-    """The board has been fully inside the arm's workspace for 
+    """The board has been fully inside the arm's workspace for
     longer than the threshold duration."""
     WRITE_FAILED = auto()
     """An attempt to write the board failed for some reason."""

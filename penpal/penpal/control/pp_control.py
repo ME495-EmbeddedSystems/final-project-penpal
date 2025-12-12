@@ -1,14 +1,18 @@
 """Base class - executes trajectories in EE space."""
 
 from __future__ import annotations
+
 import abc
 from dataclasses import dataclass
 
+from geometry_msgs.msg import Point
+
 import numpy as np
+
+from rclpy.node import Node
+
 from scipy.spatial.transform import Rotation as R
 
-from geometry_msgs.msg import Point
-from rclpy.node import Node
 from visualization_msgs.msg import Marker
 
 
@@ -26,7 +30,7 @@ class Trajectory:
     """human-readable label for debugging purposes."""
     data: np.ndarray
     """
-    list of points to move the EE through. Nx8 array for N trajectory waypoints.
+    list of points to move the EE. Nx8 array for N trajectory waypoints.
     Each waypoint provides [pose, force scalar in the orientation direction],
     pose being x,y,z and orientation qx, qy, qz, qw as quaternion
     like so:
@@ -140,8 +144,8 @@ class PPControlBase(abc.ABC):
 
         Args:
             traj (Trajectory): path to send the EE through space
-            target_ee_velocity_m_s (float): target average velocity for the trajectory
-            execution
+            target_ee_velocity_m_s (float): target average velocity
+            for the trajectory execution
 
         """
         pass
@@ -157,8 +161,8 @@ class PPControlBase(abc.ABC):
 
         Args:
             traj (Trajectory): path to send the EE through space
-            target_ee_velocity_m_s (float): target average velocity for the trajectory
-            execution
+            target_ee_velocity_m_s (float): target average velocity for
+            the trajectory execution
 
         """
         self._logger.info(f"Executing trajectory '{traj.label}'")
@@ -176,7 +180,8 @@ class PPControlBase(abc.ABC):
 
         Args:
             offset_m: Offset (meters) of each finger from the EE frame.
-            grip_force_N: Force to apply once gripped (i.e. to the marker when closed).
+            grip_force_N: Force to apply once gripped
+            (i.e. to the marker when closed).
             If None, don't control the force.
 
         """
@@ -226,7 +231,7 @@ class PPControlBase(abc.ABC):
 
         self._marker_pub.publish(marker)
         self._logger.debug(
-            f'Published marker id={marker.id} with {len(marker.points)} points '
+            f'Published marker id={marker.id} with {len(marker.points)} points'
             f'on /pp_trajectories'
         )
         pass

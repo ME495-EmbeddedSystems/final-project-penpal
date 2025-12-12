@@ -18,6 +18,7 @@ class PathCollectorPen(BasePen):
     """Pen that converts glyph outlines (lines + curves) into polylines."""
 
     def __init__(self, glyph_set, steps_per_curve: int = 20) -> None:
+        """Initialize path controller."""
         super().__init__(glyph_set)
         self.steps = steps_per_curve
         # List of contours; each contour is a list of (x, y) points.
@@ -82,7 +83,8 @@ class FontTrajectory:
 
     Supports two font types:
     - TTF/OTF fonts via add_font()
-    - Hershey single-stroke fonts via add_hershey_font() (recommended for plotters)
+    - Hershey single-stroke fonts via add_hershey_font()
+    (recommended for plotters)
     """
 
     # Available Hershey font names
@@ -137,7 +139,8 @@ class FontTrajectory:
         space_advance_factor: float = 0.5
         # Default drawing pressure in [0, 1].
         default_pressure: float = 1.0
-        # Whether to convert glyph outline to a single-stroke skeleton (TTF only).
+        # Whether to convert glyph outline to a single-stroke skeleton
+        # (TTF only).
         use_skeleton: bool = False
         # Rasterized image size used for skeletonization.
         skeleton_img_size: int = 256
@@ -156,7 +159,7 @@ class FontTrajectory:
 
     def add_font(self, otf_path: pathlib.Path) -> None:
         """
-        Register a new font from an OTF/TTF file so it can be used by this class.
+        Register a new font from an OTF/TTF file to be used by this class.
 
         The font will be stored under a name derived from the file stem,
         e.g. "DejaVuSans" for "DejaVuSans.ttf".
