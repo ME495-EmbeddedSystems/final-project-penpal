@@ -4,6 +4,25 @@ from scipy.spatial.transform import Rotation as R
 import numpy as np
 
 
+T_EE_pen = np.array(
+    [
+        [0, 0, -1, 0.08],
+        [0, 1, 0, 0],
+        [1, 0, 0, 0.02],
+        [0, 0, 0, 1],
+    ]
+)
+"""
+Pen tip expressed in TCP frame
+
+orientation:
+- pen x is ee -z
+- pen y is ee Y
+- pen z is ee x
+
+"""
+
+
 R_tcp_board = R.from_matrix(
     np.array(
         [
@@ -35,4 +54,3 @@ board +y is TCP -z
 board +z is TCP -x
 
 """
-
