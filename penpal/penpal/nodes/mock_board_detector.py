@@ -41,7 +41,7 @@ class MockBoardDetector(Node):
             'base_frame_id', 'base'
         ).value
         self.camera_frame_id: str = self.declare_parameter(
-            'camera_frame_id', 'camera_color_optical_frame'
+            'camera_frame_id', 'camera_link'
         ).value
 
         # id of the calibration tag (on the table)

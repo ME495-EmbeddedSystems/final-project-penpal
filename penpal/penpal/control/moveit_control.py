@@ -441,6 +441,8 @@ class MoveItPPControl(PPControlBase):
         start_ee_pose (np.ndarray): start pose [x,y,z,qx,qy,qz,qw].
         If not provided, use current robot pose as start pose.
         execute_immediately (bool): immediately execute the path.
+        velocity_scale (float):
+        accel_scale (float):
 
         Return:
         ------

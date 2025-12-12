@@ -1,8 +1,8 @@
 """Direct position control using individual joint controllers."""
 
-from rclpy.node import Node
-
 from penpal.control.pp_control import PPControlBase, Trajectory
+
+from rclpy.node import Node
 
 
 class ImpedancePPControl(PPControlBase):

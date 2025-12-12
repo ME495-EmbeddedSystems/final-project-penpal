@@ -1,23 +1,23 @@
 """Detect pose + dimensions of a rectangular whiteboard using AprilTags."""
 
-from typing import Optional, Tuple, Dict
+from typing import Dict, Optional, Tuple
 
 import cv2
 import numpy as np
-import transforms3d.quaternions as tquat
 from scipy.spatial.transform import Rotation
+import transforms3d.quaternions as tquat
 
 from penpal_interfaces.msg import BoardInfo
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, QoSDurabilityPolicy
+from rclpy.qos import QoSDurabilityPolicy, QoSProfile
 
+from apriltag_msgs.msg import AprilTagDetection, AprilTagDetectionArray
+from geometry_msgs.msg import Point, PoseStamped, TransformStamped
 from sensor_msgs.msg import CameraInfo
-from geometry_msgs.msg import PoseStamped, Point, TransformStamped
-from visualization_msgs.msg import Marker
-from apriltag_msgs.msg import AprilTagDetectionArray, AprilTagDetection
 from std_msgs.msg import Header
 from tf2_ros import StaticTransformBroadcaster
+from visualization_msgs.msg import Marker
 
 
 class BoardDetector(Node):
@@ -59,13 +59,6 @@ class BoardDetector(Node):
         base_calib_xyz = self.declare_parameter(
             'base_calib_tag_xyz',
             [-0.3, 0.0, 0.0],
-        ).value
-
-        # known orientation of calib tag in BASE frame, [qx, qy, qz, qw]
-        base_calib_quat = self.declare_parameter(
-            'base_calib_tag_quat',
-            [0.0, 0.0, np.sin(np.pi / 4), np.cos(np.pi / 4)],
-            # [0.0, 0.0, 0.0, 1.0],
         ).value
 
         # homogeneous transform T_base_calib_tag
@@ -219,7 +212,7 @@ class BoardDetector(Node):
         """Publish BASE -> CAMERA transform as a static TF."""
         base_frame_id = 'base'
         # camera_frame_id = 'camera_link'
-        camera_frame_id = 'camera_color_optical_frame'
+        camera_frame_id = 'camera_link'
         tf = TransformStamped()
         tf.header.stamp = self.get_clock().now().to_msg()
         tf.header.frame_id = base_frame_id

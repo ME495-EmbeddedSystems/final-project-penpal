@@ -1,14 +1,14 @@
 """Gemini OCR + QA Engine."""
 
+from dataclasses import dataclass
 import io
 import json
 import os
-from dataclasses import dataclass
 from typing import Optional
 
-import numpy as np
 from google import genai
 from google.genai import types
+import numpy as np
 from PIL import Image
 
 

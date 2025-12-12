@@ -1,16 +1,15 @@
 """ROS 2 node wrapper for GeminiOCREngine."""
 
-from typing import Optional
 import json
+from typing import Optional
 
 import cv2
-import numpy as np
 from cv_bridge import CvBridge
 from example_interfaces.srv import Trigger
+import numpy as np
+from penpal.ocr_engine import BoardQAResult, GeminiOCREngine
 from rclpy.node import Node
 from sensor_msgs.msg import Image as RosImage
-
-from penpal.ocr_engine import GeminiOCREngine, BoardQAResult
 
 
 class GeminiOCRNode(Node):
@@ -75,7 +74,7 @@ class GeminiOCRNode(Node):
             response.message = 'No board image received yet.'
             return response
 
-        self.get_logger().info("Processing board request with Gemini...")
+        self.get_logger().info('Processing board request with Gemini...')
 
         try:
             qa: BoardQAResult = self._engine.read_and_answer_board(
@@ -92,7 +91,7 @@ class GeminiOCRNode(Node):
             }
 
             # validation
-            if not qa.question and "Error" in qa.answer:
+            if not qa.question and 'Error' in qa.answer:
                 response.success = False
                 response.message = qa.answer
             else:
