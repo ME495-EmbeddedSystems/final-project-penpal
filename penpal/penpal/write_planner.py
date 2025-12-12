@@ -13,7 +13,7 @@ from scipy.spatial.transform import Rotation as R
 from rclpy.node import Node
 
 from penpal.control.pp_control import PPControlBase, Trajectory
-from penpal.constants import R_board_tcp, R_tcp_board
+from penpal.constants import R_board_tcp, R_tcp_board, T_EE_pen
 
 
 @dataclass
@@ -132,6 +132,17 @@ class BoardInfo:
         # remove extra 1's and transpose to return R3 row vectors.
         return corners_s[0:3, :].T
 
+    def get_writeable_area_corners(self) -> np.ndarray:
+        """
+        Get 4 corners of the writeable area in board frame.
+        """
+        TL = [*self.writeable_area[0, :], 0, 1]
+        TR = [self.writeable_area[1, 0], self.writeable_area[0, 1], 0, 1]
+        BR = [*self.writeable_area[1, :], 0, 1]
+        BL = [self.writeable_area[0, 0], self.writeable_area[1, 1], 0, 1]
+        corners = np.array([TL, TR, BR, BL]).T
+        return corners
+
     def get_writeable_area_corners_world_frame(self) -> np.ndarray:
         """
         Get the 4 corners of the writeable area in world frame.
@@ -155,9 +166,14 @@ class BoardInfo:
 class WritePlanner:
     """Compute trajectories to write on the real board."""
 
-    DOWN_Q = R_tcp_board.as_quat(True)
+    DOWN_ORI = R.from_euler('xz', (180, 270), True)
     """
-    End-effector orientation such that the pen points down into the board.
+    Pen tip orientation such that the pen points down into the board;
+    z axis points straight out of the tip of the pen, so we just want to
+    flip the pen over.
+
+    Rotation about that new z axis is arbitrary; in this case 
+    we leave it as-is, no additional rotation.
     """
 
     @dataclass
@@ -170,7 +186,7 @@ class WritePlanner:
         """End-effector forward velocity while writing."""
         max_force_N: float = 1.0
         """Maximum pressure to apply into the board."""
-        off_board_height_m: float = 0.03
+        off_board_height_m: float = 0.015
         """Distance to lift the pen off the board when moving between chars."""
         pen_lift_thresh_N: float = 1e-4
         """Force threshold below which the pen is lifted off the board."""
@@ -328,12 +344,22 @@ class WritePlanner:
                 )
                 return trajs, missing_chars
 
+            # translate down orientation to account for the EE->pen tip
+            # transform
+            T_board_pen = np.eye(4)
+            T_board_pen[:3, :3] = WritePlanner.DOWN_ORI.as_matrix()
+            T_board_EE = T_board_pen @ np.linalg.inv(T_EE_pen)
+            R_board_EE_q = R.from_matrix(T_board_EE[:3, :3]).as_quat(True)
+
             data = np.zeros(shape=(char.trajectory.shape[0], 8))
             data[:, 0:2] = (char.trajectory[:, 0:2] / 1000.0) + offset
-            data[:, 3:7] = self.DOWN_Q[np.newaxis, :]
+            data[:, 0:3] += T_board_EE[:3, 3]
+            data[:, 3:7] = R_board_EE_q[np.newaxis, :]
             data[:, 7] = char.trajectory[:, 2] * self.c.max_force_N
             traj = Trajectory(char.char, data)
             trajs.append(traj)
+
+        # end by lifting off the board
 
         return self._insert_pen_lifts(trajs), []
 
