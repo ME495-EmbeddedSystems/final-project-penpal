@@ -94,7 +94,7 @@ class Trajectory:
             new_label = f'{self.label}_{i}'
             traj = Trajectory(
                 label=new_label,
-                data=self.data[n_points * i : n_points * (i + 1), :],
+                data=self.data[n_points * i: n_points * (i + 1), :],
             )
             segs.append(traj)
 
@@ -102,7 +102,7 @@ class Trajectory:
         if self.data.shape[0] % n_points != 0:
             new_label = f'{self.label}_{n_segments - 1}'
             traj = Trajectory(
-                label=new_label, data=self.data[n_points * n_segments :, :]
+                label=new_label, data=self.data[n_points * n_segments:, :]
             )
             segs.append(traj)
 

@@ -31,8 +31,6 @@ from moveit_msgs.srv import GetCartesianPath
 
 import numpy as np
 
-from std_msgs.msg import ColorRGBA
-
 from penpal.control.pp_control import PPControlBase, PPControlError, Trajectory
 
 from rclpy.action import ActionClient
@@ -40,6 +38,7 @@ from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.node import Node
 
 from shape_msgs.msg import SolidPrimitive
+from std_msgs.msg import ColorRGBA
 
 
 class MoveItPPControl(PPControlBase):

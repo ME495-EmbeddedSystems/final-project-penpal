@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import math
 import pathlib
-from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
 from fontTools.pens.basePen import BasePen
 from fontTools.ttLib import TTFont
-
 import numpy as np
-
 from penpal.write_planner import Character
 
 
