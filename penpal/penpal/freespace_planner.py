@@ -7,14 +7,11 @@ from franka_msgs.srv import SetFullCollisionBehavior
 import numpy as np
 
 from penpal.constants import R_board_tcp, R_tcp_board
-from penpal.write_planner import BoardInfo
-
 from penpal.control.moveit_control import MoveItPPControl
 from penpal.control.pp_control import Trajectory
-
-from scipy.spatial.transform import Rotation as R
-
+from penpal.write_planner import BoardInfo
 from rclpy.node import Node
+from scipy.spatial.transform import Rotation as R
 
 
 class GrabError(Exception):
@@ -175,5 +172,3 @@ class FreespacePlanner:
             goal_ee_orientation=start_pose[3:],
             execute_immediately=True,
         )
-
-

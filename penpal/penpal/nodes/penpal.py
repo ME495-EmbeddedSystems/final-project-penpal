@@ -5,39 +5,38 @@ Authors: Conor
 """
 
 import asyncio
-from dataclasses import dataclass, field
-from pathlib import Path
-import traceback
-from threading import Lock
-import json
-
 import concurrent.futures
-import numpy as np
-from scipy.spatial.transform import Rotation as R
+from dataclasses import dataclass, field
+import json
+from pathlib import Path
+from threading import Lock
+import traceback
 
-from rclpy.node import Node
-from rcl_interfaces.msg import ParameterDescriptor
-from rclpy.action import ActionServer
-from rclpy.executors import MultiThreadedExecutor
-from rclpy.action.server import ServerGoalHandle
 from ament_index_python.packages import get_package_share_directory
-from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from example_interfaces.srv import Trigger
-from rclpy.timer import TimerInfo
-
-from penpal_interfaces.action import WriteMessage
-from penpal_interfaces.msg import BoardInfo as BoardInfoMsg
+import numpy as np
 
 from penpal import font_trajectory
 from penpal import freespace_planner
+from penpal import ppstate
 from penpal import write_planner
 from penpal.control import (
-    moveit_control,
     impedance_control,
+    moveit_control,
     moveit_control_freespace,
 )
-from penpal import ppstate
 from penpal.utils import LockedString
+from penpal_interfaces.action import WriteMessage
+from penpal_interfaces.msg import BoardInfo as BoardInfoMsg
+
+from rcl_interfaces.msg import ParameterDescriptor
+from rclpy.action import ActionServer
+from rclpy.action.server import ServerGoalHandle
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.node import Node
+from rclpy.timer import TimerInfo
+from scipy.spatial.transform import Rotation as R
 
 
 class PenPal(Node):

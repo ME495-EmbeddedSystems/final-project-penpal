@@ -2,21 +2,19 @@
 
 from typing import Dict, Optional, Tuple
 
+from apriltag_msgs.msg import AprilTagDetection, AprilTagDetectionArray
 import cv2
+from geometry_msgs.msg import Point, PoseStamped, TransformStamped
 import numpy as np
-from scipy.spatial.transform import Rotation
-import transforms3d.quaternions as tquat
-
 from penpal_interfaces.msg import BoardInfo
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile
-
-from apriltag_msgs.msg import AprilTagDetection, AprilTagDetectionArray
-from geometry_msgs.msg import Point, PoseStamped, TransformStamped
+from scipy.spatial.transform import Rotation
 from sensor_msgs.msg import CameraInfo
 from std_msgs.msg import Header
 from tf2_ros import StaticTransformBroadcaster
+import transforms3d.quaternions as tquat
 from visualization_msgs.msg import Marker
 
 

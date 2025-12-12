@@ -1,7 +1,7 @@
 """ROS 2 node wrapper for QwenOCREngine."""
 
-from typing import Optional
 import json
+from typing import Optional
 
 from example_interfaces.srv import Trigger
 from rclpy.node import Node

@@ -1,4 +1,5 @@
-"""Standalone test for FontTrajectory (no ROS nodes required).
+"""
+Standalone test for FontTrajectory (no ROS nodes required).
 
 How to run (from repo root):
     cd penpal_ws/src/final-project-penpal
@@ -43,7 +44,8 @@ class DummyWriter:
         self.characters: list[Character] = []
 
     def write_characters(self, characters: list[Character]) -> None:
-        """API-compatible with WritePlanner.write_characters().
+        """
+        API-compatible with WritePlanner.write_characters().
 
         Instead of sending commands to the robot, we just store the characters.
         """
@@ -51,7 +53,8 @@ class DummyWriter:
 
 
 def plot_characters(characters: list[Character]) -> None:
-    """Plot the trajectories of all characters in 2D (x, y).
+    """
+    Plot the trajectories of all characters in 2D (x, y).
 
     Pen-down segments (z > 0) are drawn as solid lines.
     Pen-up segments (z == 0) are skipped.
@@ -100,12 +103,12 @@ def plot_characters(characters: list[Character]) -> None:
 
 
 def plot_flat_path_colored(path: np.ndarray) -> None:
-    """Plot a single flattened path.
+    """
+    Plot a single flattened path.
 
-    Blue  = pen down (z > 0) segments as lines.
+    Blue = pen down (z > 0) segments as lines.
     Orange = pen up (z == 0) points as markers (no line).
     """
-
     path = np.asarray(path, dtype=float)
     if path.shape[0] < 2:
         print('Path too short to plot.')
@@ -151,12 +154,13 @@ def plot_flat_path_colored(path: np.ndarray) -> None:
 
 
 def animate_flat_path_colored(path: np.ndarray, interval_ms: int = 10) -> None:
-    """Animate a flattened path.
-
-    Blue  = pen-down segments (z > 0) drawn as line segments.
-    Orange dot = current pen-up position (z <= 0); pen-up segments are not drawn as lines.
     """
+    Animate a flattened path.
 
+    Blue = pen-down segments (z > 0) drawn as line segments.
+    Orange dot = current pen-up position (z <= 0);
+                 pen-up segments are not drawn as lines.
+    """
     path = np.asarray(path, dtype=float)
     if path.shape[0] == 0:
         print('Empty path, nothing to animate.')
@@ -245,6 +249,7 @@ def animate_flat_path_colored(path: np.ndarray, interval_ms: int = 10) -> None:
 
 
 def main() -> None:
+    """Create a dummy WritePlanner for testing."""
     # 1) Create a dummy writer instead of a real WritePlanner
     writer = DummyWriter()
 

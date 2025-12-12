@@ -1,6 +1,6 @@
 """State machine for PenPal node."""
 
-from enum import Enum, auto
+from enum import auto, Enum
 from threading import Lock
 
 from rclpy.logging import RcutilsLogger
