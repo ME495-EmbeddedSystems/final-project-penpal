@@ -9,7 +9,7 @@ from threading import Lock
 
 import numpy as np
 
-from penpal.constants import R_board_tcp, R_tcp_board
+from penpal.constants import R_board_tcp
 from penpal.control.pp_control import PPControlBase, Trajectory
 
 from rclpy.node import Node
