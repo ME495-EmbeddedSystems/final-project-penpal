@@ -590,7 +590,7 @@ class PenPal(Node):
                 req.font_name,
                 req.font_size_mm,
                 req.pen_thickness_mm,
-                True,
+                False,
             )
             cstr = (
                 ''.join([c.char for c in unwritten_chars])

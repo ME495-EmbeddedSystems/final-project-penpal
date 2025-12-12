@@ -116,7 +116,7 @@ class FreespacePlanner:
         target_rot = board_pose_rotation * R_tcp_board
 
         # Put TCP 'buffer' meters in front of the board
-        target_position = board_pose_position - world_normal * buffer
+        target_position = board_pose_position + world_normal * buffer
 
         q = target_rot.as_quat(True)
         start_pose = np.array([*target_position, *q])
@@ -126,7 +126,8 @@ class FreespacePlanner:
         self, board_info: BoardInfo, off_board_height_m: float
     ) -> None:
         """Move the pen to hover slightly above the board."""
-        demo_board_pose = board_info.pos
+        world_corners = board_info.get_writeable_area_corners_world_frame()
+        demo_board_pose = world_corners[0, :]
         demo_board_rot = board_info.ori
         buffer = off_board_height_m
         start_pose = self._calculate_start_pose(
