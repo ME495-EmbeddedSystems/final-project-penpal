@@ -121,7 +121,8 @@ def set_axes_equal(ax: Axes3D) -> None:
     so that spheres appear as spheres, cubes as cubes, etc.
 
     Args:
-      ax: a matplotlib axis, e.g., as output from plt.gca().
+    ----
+    ax (Axes3D): a matplotlib axis, e.g., as output from plt.gca().
 
     """
     x_limits = ax.get_xlim3d()

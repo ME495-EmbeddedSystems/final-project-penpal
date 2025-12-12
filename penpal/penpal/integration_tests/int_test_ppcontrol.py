@@ -118,14 +118,16 @@ def get_circle_trajectory(
     Return a trajectory of a circle.
 
     Args:
-        radius_m (float): radius of the circle
-        center (np.ndarray): square center location [x, y, z]
-        rot: rotation relative to world frame, where shape is on xy plane
-        n_points (float): number of points with which to construct the circle
-        force (np.ndarray): 3dof force applied at EE
+    ----
+    radius_m (float): radius of the circle.
+    center (np.ndarray): square center location [x, y, z].
+    rot (R): rotation relative to world frame, where shape is on xy plane.
+    n_points (float): number of points with which to construct the circle.
+    force (np.ndarray): 3dof force applied at EE.
 
-    Returns:
-        Trajectory: trajectory for a circle in space
+    Return:
+    ------
+    Trajectory: trajectory for a circle in space.
 
     """
     xvals = radius_m * np.sin(np.linspace(0, 2 * np.pi, n_points))
@@ -142,13 +144,15 @@ def get_arrow_trajectory(
     Return a trajectory of an arrow.
 
     Args:
-        scale (float): length of the long line
-        center (np.ndarray): square center location [x, y, z]
-        rot: rotation relative to world frame, where shape is on xy plane
-        force (np.ndarray): 3dof force applied at EE
+    ----
+    scale (float): length of the long line.
+    center (np.ndarray): square center location [x, y, z].
+    rot: rotation relative to world frame, where shape is on xy plane.
+    force (np.ndarray): 3dof force applied at EE.
 
-    Returns:
-        Trajectory: trajectory through 3d space
+    Return:
+    ------
+    Trajectory: trajectory through 3d space.
 
     """
     tip = np.array([0, 0, 0])
@@ -167,13 +171,15 @@ def get_square_trajectory(
     Return a trajectory of a square.
 
     Args:
-        side (float): length of the long line
-        center (np.ndarray): square center location [x, y, z]
-        rot: rotation relative to world frame, where shape is on xy plane
-        force (np.ndarray): 3dof force applied at EE
+    ----
+    side (float): length of the long line.
+    center (np.ndarray): square center location [x, y, z].
+    rot (R): rotation relative to world frame, where shape is on xy plane.
+    force (np.ndarray): 3dof force applied at EE.
 
-    Returns:
-        Trajectory: trajectory through 3d space
+    Return:
+    ------
+    Trajectory: trajectory through 3d space.
 
     """
     bl = -np.array([0.5 * side, 0.5 * side, 0])
@@ -190,7 +196,8 @@ def get_demo_traj_sequence(start_pose: np.ndarray) -> list[Trajectory]:
     Put together a demo trajectory sequence of circle, arrow, sq.
 
     Args:
-        start_pose: [x, y, z, qx, qy, qz, qw]
+    ----
+    start_pose: [x, y, z, qx, qy, qz, qw]
 
     """
     lineh = 0.05

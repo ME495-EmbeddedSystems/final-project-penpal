@@ -152,8 +152,8 @@ class BoardDetector(Node):
         """
         Estimate tag pose (R, t) in CAMERA frame from 4 corners using IPPE_SQUARE.
 
-        Returns
-        -------
+        Return:
+        ------
         (R, t): if successful
             R: 3x3 rotation matrix (TAG frame -> CAMERA frame)
             t: shape (3,) translation vector (tag origin in CAMERA frame)

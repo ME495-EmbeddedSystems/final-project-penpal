@@ -210,12 +210,13 @@ class FontTrajectory:
         objects
 
         Args:
-            text (str): text string to generate.
-            font_name (str): name of the font to use. must have been added
-                using add_font()
-            font_size_mm (float): Height of the tallest glyphs in mm
-            pen_thickness_mm (float): thickness of the pen we're using to draw.
-            const_speed (bool): if true, even out spacing of trajectory points.
+        ----
+        text (str): text string to generate.
+        font_name (str): name of the font to use. must have been added
+                         using add_font().
+        font_size_mm (float): Height of the tallest glyphs in mm.
+        pen_thickness_mm (float): thickness of the pen we're using to draw.
+        const_speed (bool): if true, even out spacing of trajectory points.
 
         """
         characters = self._text_to_characters(

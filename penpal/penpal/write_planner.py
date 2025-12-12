@@ -55,7 +55,8 @@ class Character:
         Note: somewhat expensive to calculate. get from font_trajectory if
         this is too slow for you.
 
-        Returns:
+        Return:
+        ------
             np.ndarray: [TL, BR] where each is [x, y]
 
         """
@@ -115,7 +116,8 @@ class BoardInfo:
         """
         Get the 4 corners of the board in world frame.
 
-        Returns:
+        Return:
+        ------
             np.ndarray: [[TL], [TR], [BR], [BL]] with each being [x,y,z]
 
         """
@@ -137,7 +139,8 @@ class BoardInfo:
         """
         Get the 4 corners of the writeable area in world frame.
 
-        Returns:
+        Return:
+        ------
             np.ndarray: [[TL], [TR], [BR], [BL]] with each being [x,y,z]
 
         """
@@ -198,13 +201,15 @@ class WritePlanner:
         Creates newlines when necessary.
 
         Args:
-            characters (list[Character]): list of characters to write.
-            line_spacing_factor (float): space between lines
-                represented as a fraction of line height
+        ----
+        characters (list[Character]): list of characters to write.
+        line_spacing_factor (float): space between lines represented as
+                                     a fraction of line height.
 
-        Returns:
-            list[Character]: characters which did not get written due
-                to running out of room, if any.
+        Return:
+        ------
+        list[Character]: characters which did not get written due
+                         to running out of room, if any.
 
         """
         # create a 3D plan for writing the characters in board frame.
@@ -246,15 +251,17 @@ class WritePlanner:
         - inserting newlines where appropriate
 
         Args:
-            cs: list of characters to write.
-            line_spacing_factor: space between lines as fraction of line height
-            padding_mm: padding within the bounding box, css style
+        ----
+        cs (list[Character]): list of characters to write.
+        line_spacing_factor (float): space between lines as fraction of line height.
+        padding_mm (float): padding within the bounding box, css style.
 
-        Returns:
-            list[Trajectory]: ordered list of trajectories, one for
-                each character.
-            list[Character]: list of characters that weren't written
-                due to running out of vertical room (if any).
+        Return:
+        ------
+        list[Trajectory]: ordered list of trajectories, one for
+                          each character.
+        list[Character]: list of characters that weren't written
+                         due to running out of vertical room (if any).
 
         """
         trajs = []

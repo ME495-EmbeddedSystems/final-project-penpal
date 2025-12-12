@@ -67,11 +67,11 @@ class PenPal(Node):
 
     Publishers
     ---------
-    move_group: motion & planning commands to MoveIt
+    move_group: motion & planning commands to MoveIt.
 
     Subscribers
     ----------
-    board_info: pose & metadata about the whiteboard
+    board_info: pose & metadata about the whiteboard.
 
     Clients
     -------
