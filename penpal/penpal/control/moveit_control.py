@@ -634,8 +634,17 @@ class MoveItPPControl(PPControlBase):
         color_msg.color = ColorRGBA(r=0.5, g=0.5, b=1.0, a=1.0)
         scene_msg.object_colors = []
         scene_msg.object_colors.append(color_msg)
+        req = ApplyPlanningScene.Request()
+        req.scene = scene_msg
+        resp = await self._ps_client.call_async(req)
+        if resp is None or not resp.success:
+            self._logger.error(
+                'Failed to apply planning scene (table not added).'
+            )
+        else:
+            self._logger.info('Table in planning scene.')
+
         self._scene_pub.publish(scene_msg)
-        self._logger.info('Table in planning scene.')
 
     async def add_fixed_pen(self) -> None:
         """Spawn a collision object pen at a hardcoded location."""
