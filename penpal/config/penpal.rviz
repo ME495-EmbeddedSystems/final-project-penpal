@@ -7,8 +7,10 @@ Panels:
         - /TF1
         - /TF1/Frames1
         - /Marker - WB1
+        - /Pose1
         - /Marker - WB writespace1
         - /Marker - WB writespace1/Topic1
+        - /Pose2
       Splitter Ratio: 0.5
     Tree Height: 379
   - Class: rviz_common/Help
@@ -99,18 +101,13 @@ Visualization Manager:
       Show Names: true
       Tree:
         base:
-          camera_link:
-            camera_color_frame:
-              camera_color_optical_frame:
-                tag0:
-                  {}
-                tag1:
-                  {}
-                tag_calib:
-                  {}
-            camera_depth_frame:
-              camera_depth_optical_frame:
-                {}
+          camera_color_optical_frame:
+            tag0:
+              {}
+            tag1:
+              {}
+            tag_calib:
+              {}
           fer_link0:
             fer_link1:
               fer_link2:
@@ -151,11 +148,11 @@ Visualization Manager:
       Class: rviz_default_plugins/Pose
       Color: 255; 25; 0
       Enabled: true
-      Head Length: 0.30000001192092896
-      Head Radius: 0.10000000149011612
+      Head Length: 0.10000000149011612
+      Head Radius: 0.07999999821186066
       Name: Pose
-      Shaft Length: 1
-      Shaft Radius: 0.05000000074505806
+      Shaft Length: 0.10000000149011612
+      Shaft Radius: 0.029999999329447746
       Shape: Arrow
       Topic:
         Depth: 80
@@ -199,6 +196,26 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /penpal_write_space
       Value: true
+    - Alpha: 1
+      Axes Length: 1
+      Axes Radius: 0.10000000149011612
+      Class: rviz_default_plugins/Pose
+      Color: 255; 50; 255
+      Enabled: true
+      Head Length: 0.30000001192092896
+      Head Radius: 0.10000000149011612
+      Name: Pose
+      Shaft Length: 1
+      Shaft Radius: 0.05000000074505806
+      Shape: Arrow
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /EE_destination_pose
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -232,10 +249,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.21999916434288025
+      Pitch: 0.5249988436698914
       Target Frame: base
       Value: Orbit (rviz_default_plugins)
-      Yaw: 5.500191688537598
+      Yaw: 5.965173244476318
     Saved: ~
 Window Geometry:
   Camera:

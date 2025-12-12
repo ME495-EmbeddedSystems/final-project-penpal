@@ -183,8 +183,7 @@ class PPControlBase(abc.ABC):
         pass
 
     async def publish_marker(
-        self,
-        traj: Trajectory,
+        self, traj: Trajectory, lifetime_s: float = 10
     ) -> None:
         """Publish trajectory as a line marker to rviz."""
         if self._marker_pub is None:
@@ -214,6 +213,7 @@ class PPControlBase(abc.ABC):
         marker.color.g = 1.0
         marker.color.b = 0.0
         marker.color.a = 1.0
+        marker.lifetime = lifetime_s
 
         # add XYZ points
         for wp in traj.data:

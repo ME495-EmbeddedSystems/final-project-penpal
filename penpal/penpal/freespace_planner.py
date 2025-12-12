@@ -8,6 +8,7 @@ from scipy.spatial.transform import Rotation as R
 from penpal.write_planner import BoardInfo
 from rclpy.node import Node
 from franka_msgs.srv import SetFullCollisionBehavior
+from geometry_msgs.msg import PoseStamped
 
 from penpal.control.moveit_control import MoveItPPControl
 from penpal.control.pp_control import Trajectory
@@ -27,7 +28,10 @@ class FreespacePlanner:
         """Initialize the object."""
         self.ctl = controller
         self._node = node
-        self._logger = node.get_logger().get_child('GrabPlanner')
+        self._logger = node.get_logger().get_child(self.__class__.__name__)
+        self._dest_pose_pub = node.create_publisher(
+            PoseStamped, 'EE_destination_pose', 10
+        )
 
     async def grab_pen(self) -> None:
         """Grab the pen (must be visible to camera)."""
@@ -104,7 +108,6 @@ class FreespacePlanner:
         - +X_tcp is aligned with the board normal (+Z_board)
         - TCP is 'buffer' meters in front of the board along -normal.
         """
-
         # Board normal in BOARD frame and in WORLD frame
         board_normal_board = np.array([0.0, 0.0, 1.0])
         world_normal = board_pose_rotation.apply(board_normal_board)
@@ -113,7 +116,7 @@ class FreespacePlanner:
         target_rot = board_pose_rotation * R_tcp_board
 
         # Put TCP 'buffer' meters in front of the board
-        target_position = board_pose_position + world_normal * buffer
+        target_position = board_pose_position - world_normal * buffer
 
         q = target_rot.as_quat(True)
         start_pose = np.array([*target_position, *q])
@@ -129,6 +132,7 @@ class FreespacePlanner:
         start_pose = self._calculate_start_pose(
             buffer, demo_board_pose, demo_board_rot
         )
+        self.publish_move_destination_pose(start_pose, 'Write Start Pose')
         self._logger.info('Setting collision behavior for move to board...')
         free_space_req = SetFullCollisionBehavior.Request()
         free_space_req.upper_torque_thresholds_nominal = [
@@ -173,3 +177,32 @@ class FreespacePlanner:
             goal_ee_orientation=start_pose[3:],
             execute_immediately=True,
         )
+
+    def publish_move_destination_pose(
+        self, dest_pose: np.ndarray, label: str
+    ) -> None:
+        """
+        Publish a pose for the move destination.
+
+        Args:
+            dest_pose (np.ndarray): [x,y,z, qx,qy,qz,qw]
+            label: descriptive name for this pose for debugging.
+
+        """
+        self._logger.info(f'Publishing move destination pose {label}')
+        center = dest_pose[:3]
+        q = dest_pose[3:]
+
+        pose = PoseStamped()
+        pose.header.frame_id = self.ctl.c.world_frame
+        pose.header.stamp = self._node.get_clock().now().to_msg()
+        pose.pose.position.x = float(center[0])
+        pose.pose.position.y = float(center[1])
+        pose.pose.position.z = float(center[2])
+
+        pose.pose.orientation.w = float(q[0])
+        pose.pose.orientation.x = float(q[1])
+        pose.pose.orientation.y = float(q[2])
+        pose.pose.orientation.z = float(q[3])
+
+        self._dest_pose_pub.publish(pose)

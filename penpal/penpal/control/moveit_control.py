@@ -709,6 +709,9 @@ class MoveItPPControl(PPControlBase):
         self._scene_pub.publish(scene_msg)
         self._logger.info('Attached pen to gripper.')
 
+    def publish_destination_pose(self, pose: np.ndarray) -> None:
+        """Publish a pose arrow."""
+
     def start_state(self, joints):
         """Set start state."""
         robotstate = RobotState()

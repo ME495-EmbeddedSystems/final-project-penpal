@@ -155,7 +155,7 @@ class BoardInfo:
 class WritePlanner:
     """Compute trajectories to write on the real board."""
 
-    DOWN_Q = R_board_tcp.as_quat(True)
+    DOWN_Q = R_tcp_board.as_quat(True)
     """
     End-effector orientation such that the pen points down into the board.
     """
@@ -211,6 +211,7 @@ class WritePlanner:
         trajs, leftovers = self._plan_path_in_board_frame(
             characters, line_spacing_factor
         )
+        self._logger.info('3D write plan created. Beginning to write...')
 
         # in order to ensure responsiveness to board pose updates,
         # each character's trajectory is split into several to be
