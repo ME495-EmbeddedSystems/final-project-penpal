@@ -34,12 +34,10 @@ class E(Enum):
     """Finished performing startup actions"""
     WAKE = auto()
     """Wake command received."""
-    WRITEMESSAGE_CALLED = auto()
-    """WriteMessage command used while asleep."""
-    GRAB_PEN_CALLED = auto()
-    """Grab pen command used while asleep."""
-    GRAB_PEN_COMPLETE = auto()
-    """Successfully grabbed the pen."""
+    MOVE_FROM_SLEEP_CALLED = auto()
+    """WriteMessage or home command used while asleep."""
+    MOVE_FROM_SLEEP_COMPLETE = auto()
+    """arm moving command completed while asleep."""
     SLEEP = auto()
     """Sleep command received."""
     BOARD_VISIBLE = auto()
@@ -104,14 +102,14 @@ class ConvoFSM:
                 case S.ASLEEP:
                     if e == E.WAKE:
                         new_s = S.READY_TO_READ
-                    if e == E.WRITEMESSAGE_CALLED or e == E.GRAB_PEN_CALLED:
+                    if e == E.MOVE_FROM_SLEEP_CALLED:
                         new_s = S.ASLEEP_IN_USE
                 case S.ASLEEP_IN_USE:
                     if e in [
                         E.WRITE_FAILED,
                         E.WRITE_INCOMPLETE,
                         E.WRITE_SUCCEEDED,
-                        E.GRAB_PEN_COMPLETE,
+                        E.MOVE_FROM_SLEEP_COMPLETE,
                     ]:
                         new_s = S.ASLEEP
                 case S.READY_TO_READ:
