@@ -72,24 +72,51 @@ def get_demo_traj_sequence_dynamic(
 
 """
 
-
 def calculate_start_pose(buffer,
                          board_pose_position: np.array,
                          board_pose_rotation: R):
-    """Calculate the start pose to place the pen tip normal to the board."""
+
+    world_Z_vector = np.array([0, 0, 1])
+    board_normal = np.array([1, 0, 0])
+    desired_X_axis = board_pose_rotation.apply(board_normal)
+
+    desired_vertical_axis = world_Z_vector
+    desired_Y_axis = np.cross(desired_X_axis, desired_vertical_axis) 
+
+    desired_Y_axis /= np.linalg.norm(desired_Y_axis)
+    desired_Z_axis = np.cross(desired_X_axis, desired_Y_axis)
+    R_matrix = np.vstack([desired_X_axis, desired_Y_axis, desired_Z_axis]).T
+    target_rot = R.from_matrix(R_matrix)
+    target_position = board_pose_position - (desired_X_axis * buffer)
+    target_orientation_quat = target_rot.as_quat()
+    start_pose = np.array([*target_position, *target_orientation_quat])
+    return start_pose
+"""
+def calculate_start_pose(buffer,
+                         board_pose_position: np.array,
+                         board_pose_rotation: R):
+    Calculate the start pose to place the pen tip normal to the board.
     board_normal = np.array([1, 0, 0])
     world_normal_vector = board_pose_rotation.apply(board_normal)
     current_pen_direction = np.array([1, 0, 0])
-    desired_pen_direction = world_normal_vector
-    R_align, _ = R.align_vectors([desired_pen_direction],
-                                 [current_pen_direction])
+    world_Z_vector = np.array([0, 0, 1])
+    desired_X_axis = board_pose_rotation.apply(board_normal)
+    desired_Y_axis = np.cross(desired_X_axis, world_Z_vector)
+    desired_Y_axis /= np.linalg.norm(desired_Y_axis)
+    desired_Z_axis = np.cross(desired_X_axis, desired_Y_axis)
+    R_align_constrained = np.vstack([desired_X_axis, desired_Y_axis, desired_Z_axis]).T
+    R_align = R.from_matrix(R_align_constrained)
+    
+    #desired_pen_direction = world_normal_vector
+    #R_align, _ = R.align_vectors([desired_pen_direction],
+    #                             [current_pen_direction])
     R_flip = R.from_euler('x', 180, degrees=True)
     target_rot = R_align * R_flip
     target_position = board_pose_position - (world_normal_vector * buffer)
     target_orientation_quat = target_rot.as_quat()
     start_pose = np.array([*target_position, *target_orientation_quat])
     return start_pose
-
+"""
 
 def traj_from_points(
     label: str,
@@ -191,6 +218,85 @@ def get_square_trajectory(
 
 
 def get_demo_traj_sequence(start_pose: np.ndarray) -> list[Trajectory]:
+    lineh = 0.05
+    off_board_dist = 0.02
+    rot = R.from_quat(start_pose[3:])
+    circle_c = start_pose[:3]
+    horizontal_unit_vec = rot.apply(np.array([0, 1, 0]))
+    vertical_unit_vec = rot.apply(np.array([0, 0, 1]))
+    circle_r = lineh / 2
+    arrow_width = lineh
+    half_square = lineh / 2
+    gap = 0.02
+    space = lineh * 1.5
+
+    current_center = circle_c.copy()
+    circle_traj = get_circle_trajectory(circle_r, current_center, rot, 50)
+    out = []
+    out.append(circle_traj)
+
+    last_right_edge = current_center + horizontal_unit_vec * circle_r
+    horizontal_offset_m = gap + (arrow_width / 2)
+
+    arrow_c = last_right_edge + horizontal_unit_vec * horizontal_offset_m
+    board_gap = rot.apply(np.array([-off_board_dist, 0, 0]))
+    space_traj_ca = Trajectory('space', np.array([
+        circle_traj.data[-1] + np.array([*board_gap, 0, 0, 0, 0, 0]),
+        np.array([*arrow_c, *rot.as_quat(), 0.0]) + np.array([*board_gap, 0, 0, 0, 0, 0]),
+    ]))
+    out.append(space_traj_ca)
+
+    arrow_traj = get_arrow_trajectory(lineh, arrow_c, rot)
+    out.append(arrow_traj)
+    last_right_edge = arrow_c.copy()
+    horizontal_offset_m = gap + half_square
+    square_c = last_right_edge + horizontal_unit_vec * horizontal_offset_m
+    space_traj_as = Trajectory('space', np.array([
+        arrow_traj.data[-1] + np.array([*board_gap, 0, 0, 0, 0, 0]),
+        np.array([*square_c, *rot.as_quat(), 0.0]) + np.array([*board_gap, 0, 0, 0, 0, 0]),
+    ]))
+    out.append(space_traj_as)
+
+    square_traj = get_square_trajectory(lineh, square_c, rot)
+    out.append(square_traj)
+    start_center_2 = circle_c + vertical_unit_vec * space
+    current_center = start_center_2.copy()
+
+    square2_traj = get_square_trajectory(lineh, current_center, rot)
+    space_traj_1to2 = Trajectory('space', np.array([
+        square_traj.data[-1] + np.array([*board_gap, 0, 0, 0, 0, 0]),
+        np.array([*current_center, *rot.as_quat(), 0.0]) + np.array([*board_gap, 0, 0, 0, 0, 0]),
+    ]))
+    out.append(space_traj_1to2)
+
+    out.append(square2_traj)
+    last_right_edge = current_center + horizontal_unit_vec * half_square
+
+    horizontal_offset_m = gap + circle_r
+    circle2_c = last_right_edge + horizontal_unit_vec * horizontal_offset_m
+
+    space_traj_sc = Trajectory('space', np.array([
+        square2_traj.data[-1] + np.array([*board_gap, 0, 0, 0, 0, 0]),
+        np.array([*circle2_c, *rot.as_quat(), 0.0]) + np.array([*board_gap, 0, 0, 0, 0, 0]),
+    ]))
+    out.append(space_traj_sc)
+
+    circle2_traj = get_circle_trajectory(circle_r, circle2_c, rot, 50)
+    out.append(circle2_traj)
+    last_right_edge = circle2_c + horizontal_unit_vec * circle_r
+
+    horizontal_offset_m = gap + (arrow_width / 2)
+    arrow2_c = last_right_edge + horizontal_unit_vec * horizontal_offset_m
+    space_traj_ca2 = Trajectory('space', np.array([
+        circle2_traj.data[-1] + np.array([*board_gap, 0, 0, 0, 0, 0]),
+        np.array([*arrow2_c, *rot.as_quat(), 0.0]) + np.array([*board_gap, 0, 0, 0, 0, 0]),
+    ]))
+    out.append(space_traj_ca2)
+    arrow2_traj = get_arrow_trajectory(lineh, arrow2_c, rot)
+    out.append(arrow2_traj)
+    return out
+
+def get_demo_traj_sequence_real(start_pose: np.ndarray) -> list[Trajectory]:
     """
     Put together a demo trajectory sequence of circle, arrow, sq.
 
@@ -251,7 +357,7 @@ async def generate_write_sequence(
     font_name: str = 'Roboto-Regular',
     font_size_mm: float = 30.0,
     pen_thickness_mm: float = 2.0,
-    line_spacing_factor: float = 1.2
+    space_factor: float = 1.2
 ) -> list[pp_control.Trajectory]:
     """Sets up the BoardInfo, character, and final trajectories."""
 
@@ -282,7 +388,7 @@ async def generate_write_sequence(
         font_size_mm=font_size_mm,
         pen_thickness_mm=pen_thickness_mm,
     )
-    seq = await wp.write_characters(chars, line_spacing_factor)
+    seq = await wp.write_characters(chars, space_factor)
     return seq
 
 
@@ -349,14 +455,14 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
             execute_immediately=True,
         )
 
-        wait_t = 5.0
+        wait_t = 2.0
         logger.info(f'Waiting {wait_t} seconds...')
         await asyncio.sleep(wait_t)
         logger.info('Starting integration test...')
         await ctl.configure()
 
         demo_board_pose = np.array([0.5, 0.0, 0.6])
-        demo_board_rot = R.from_euler('xyz', [0, 0, 0], degrees=True)
+        demo_board_rot = R.from_euler('xyz', [180, 0, 0], degrees=True)
         buffer = 0.05
         start_pose = calculate_start_pose(buffer,
                                           demo_board_pose,
@@ -380,9 +486,9 @@ async def integration_test(node: Node, ctl: pp_control.PPControlBase) -> None:
             node.get_logger().error(f'Failed, Error: {res.result.error_code.val}')
             return
 
-        #seq = get_demo_traj_sequence(start_pose)
-        seq = await generate_write_sequence(node, ctl, text_to_write,
-                                            demo_board_pose, demo_board_rot)
+        seq = get_demo_traj_sequence(start_pose)
+        # seq = await generate_write_sequence(node, ctl, text_to_write,
+        #                                     demo_board_pose, demo_board_rot)
 
         # # Define Treshold - Orange Zone
         # high_req = SetFullCollisionBehavior.Request()
