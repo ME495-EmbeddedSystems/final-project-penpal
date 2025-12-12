@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+import math
 import pathlib
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
-import math
-import numpy as np
-from fontTools.ttLib import TTFont
 from fontTools.pens.basePen import BasePen
+from fontTools.ttLib import TTFont
+
+import numpy as np
 
 from penpal.write_planner import Character
 
@@ -216,7 +217,7 @@ class FontTrajectory:
                 using add_font()
             font_size_mm (float): Height of the tallest glyphs in mm
             pen_thickness_mm (float): thickness of the pen we're using to draw.
-            const_speed (bool): if true, even out the spacing of trajectory points.
+            const_speed (bool): if true, even out spacing of trajectory points.
 
         """
         characters = self._text_to_characters(
@@ -269,7 +270,7 @@ class FontTrajectory:
         text: str,
         font_name: str,
         font_size_mm: float,
-        pen_thickness_mm: float,  # currently unused, reserved for pressure mapping
+        pen_thickness_mm: float,  # reserved for pressure mapping
     ) -> list[Character]:
         """
         Convert a text string into a list of Character objects.
@@ -288,7 +289,8 @@ class FontTrajectory:
         # Otherwise, use TTF font
         if font_name not in self._fonts:
             raise ValueError(
-                f"Font '{font_name}' has not been added via add_font() or add_hershey_font()."
+                f"Font '{font_name}' has not been added \
+                    via add_font() or add_hershey_font()."
             )
 
         return self._text_to_characters_ttf(
@@ -308,7 +310,8 @@ class FontTrajectory:
 
         # Normalize rendering so that typical glyph height ~= font_size_mm.
         # After this call, coordinates returned by strokes_for_text() are in
-        # the same scale (we treat them directly as millimeters in the board frame).
+        # the same scale
+        # (we treat them directly as millimeters in the board frame).
         hf.normalize_rendering(font_size_mm)
 
         # Optional: make sure there is no extra internal spacing from the font,
@@ -421,7 +424,7 @@ class FontTrajectory:
 
         characters: list[Character] = []
 
-        # Simple left-to-right, top-to-bottom layout in a "virtual board" frame.
+        # Simple left-to-right, top-to-bottom layout in "virtual board" frame.
         cursor_x = 0.0  # in mm
         cursor_y = 0.0  # in mm
 
@@ -452,7 +455,7 @@ class FontTrajectory:
                 )
 
             if not paths_norm:
-                # Skip characters without outlines (e.g., unsupported codepoints).
+                # Skip characters w/o outlines (e.g., unsupported codepoints).
                 cursor_x += char_advance
                 continue
 
@@ -481,7 +484,8 @@ class FontTrajectory:
                 target_step_mm=self.c.target_step_mm,
                 pressure=self.c.default_pressure,
                 font_size_mm=font_size_mm,
-                closed_paths=not self.c.use_skeleton,  # outline: closed, skeleton: open
+                closed_paths=not self.c.use_skeleton,  # outline: closed,
+                                                       # skeleton: open
             )
             characters.append(char_obj)
 
@@ -753,7 +757,7 @@ class FontTrajectory:
                 if len(path_pix) >= 2:
                     skeleton_paths_pix.append(path_pix)
 
-        # ---------- 5) Convert pixel paths back to normalized coords ----------
+        # ---------- 5) Convert pixel paths back to normalized coords -------
         def pix_path_to_norm(path_pix: list[tuple[int, int]]):
             pts_norm: list[tuple[float, float]] = []
             for r, c in path_pix:
@@ -786,9 +790,10 @@ class FontTrajectory:
         closed: bool = True,
     ) -> list[tuple[float, float]]:
         """
+        Resample path.
+
         Resample a path so that distances between successive points
         are roughly <= target_step_mm.
-
         Path is assumed to be in physical units (mm).
         If closed=True, last point connects back to the first.
         """
@@ -831,7 +836,7 @@ class FontTrajectory:
         closed_paths: bool = True,
     ) -> Character:
         """
-        Convert a list of 2D paths (in mm) into a Character with Nx3 trajectory.
+        Convert 2D paths list (in mm) into a Character with Nx3 trajectory.
 
         For each path, we:
           - Move pen (z=0) to the first point.
