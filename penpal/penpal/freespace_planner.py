@@ -135,7 +135,7 @@ class FreespacePlanner:
         world_corners = board_info.get_writeable_area_corners_world_frame()
         demo_board_pose = world_corners[0, :]
         demo_board_rot = board_info.ori
-        buffer = off_board_height_m
+        buffer = 0.1
         start_pose = self._calculate_start_pose(
             buffer, demo_board_pose, demo_board_rot
         )
