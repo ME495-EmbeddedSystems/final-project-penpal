@@ -99,7 +99,7 @@ class FreespacePlanner:
         self,
         buffer: float,
         board_pose_position: np.ndarray,
-        board_pose_rotation: R,
+        R_world_board: R,
     ) -> np.ndarray:
         """
         Calculate the start pose for writing.
@@ -110,10 +110,16 @@ class FreespacePlanner:
         """
         # Board normal in BOARD frame and in WORLD frame
         board_normal_board = np.array([0.0, 0.0, 1.0])
-        world_normal = board_pose_rotation.apply(board_normal_board)
+        world_normal = R_world_board.apply(board_normal_board)
+
+        down = R.from_euler('xz', (180, 270), True)
+        T_board_pen = np.eye(4)
+        T_board_pen[:3, :3] = down.as_matrix()
+        T_board_EE = T_board_pen @ np.linalg.inv(T_EE_pen)
+        R_board_EE = R.from_matrix(T_board_EE[:3, :3])
 
         # World -> TCP
-        target_rot = board_pose_rotation * R_tcp_board
+        target_rot = R_world_board * R_board_EE
 
         # Put TCP 'buffer' meters in front of the board
         target_position = board_pose_position + world_normal * buffer
