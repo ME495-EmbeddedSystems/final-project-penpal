@@ -217,6 +217,10 @@ class PenPal(Node):
         self._srv_sleep = self.create_service(
             Trigger, 'grab_pen', self._cb_grab_pen
         )
+        self._srv_sleep = self.create_service(
+            Trigger, 'get_state', self._cb_get_state
+        )
+        self._srv_sleep = self.create_service(Trigger, 'home', self._cb_home)
         self._tick = self.create_timer(
             1.0 / self.c.timer_freq_hz, self._cb_tick
         )
@@ -351,6 +355,7 @@ class PenPal(Node):
     async def _perform_write(
         self,
         chars: list[font_trajectory.Character],
+        publish_markers: bool = False,
     ) -> list[font_trajectory.Character]:
         """Perform the actual write sequence."""
         await self._fplanner.ctl.configure()
@@ -361,7 +366,7 @@ class PenPal(Node):
 
         await self._write_planner.control.configure()
         return await self._write_planner.write_characters(
-            chars, self._fonts.c.line_spacing_factor
+            chars, self._fonts.c.line_spacing_factor, publish_markers
         )
 
     def worker_write(
@@ -370,6 +375,7 @@ class PenPal(Node):
         font_name: str,
         font_size_mm: float,
         pen_thickness_mm: float,
+        publish_markers: bool = False,
     ) -> list[write_planner.Character]:
         """Use the worker thread to write with the robot."""
         self.get_logger().info(f'Writing message "{text}" to board...')
@@ -377,7 +383,9 @@ class PenPal(Node):
         chars = self._fonts.write_text(
             text, font_name, font_size_mm, pen_thickness_mm
         )
-        future = self.schedule_in_worker(self._perform_write(chars))
+        future = self.schedule_in_worker(
+            self._perform_write(chars, publish_markers)
+        )
 
         # block here for now.
         # TODO figure out how to not need to block.
@@ -414,10 +422,10 @@ class PenPal(Node):
 
     async def _perform_startup_actions(self) -> None:
         """Perform startup actions in worker thread."""
-        await asyncio.sleep(1.5)
+        await asyncio.sleep(1.0)
         await self._fplanner.ctl.remove_pen()
         # await self._fplanner.reset_gripper()
-        await self._fplanner.home_arm()
+        # await self._fplanner.home_arm()
 
     def worker_startup_actions(self) -> None:
         """Perform startup actions, blocking."""
@@ -516,16 +524,34 @@ class PenPal(Node):
         """Grab the pen; called in the worker thread."""
         await self._fplanner.ctl.configure()
         await self._fplanner.grab_pen()
-        self._fsm.transition(ppstate.E.GRAB_PEN_COMPLETE)
+        self._fsm.transition(ppstate.E.MOVE_FROM_SLEEP_COMPLETE)
 
     def _cb_grab_pen(
         self, req: Trigger.Request, resp: Trigger.Response
     ) -> Trigger.Response:
         """Handle grab pen service call."""
-        self._fsm.transition(ppstate.E.GRAB_PEN_CALLED)
+        self._fsm.transition(ppstate.E.MOVE_FROM_SLEEP_COMPLETE)
         self.schedule_in_worker(self._perform_grab_pen())
         resp.success = True
         resp.message = 'Retrieving pen.'
+        return resp
+
+    def _cb_get_state(
+        self, req: Trigger.Request, resp: Trigger.Response
+    ) -> Trigger.Response:
+        """Handle grab pen service call."""
+        resp.success = True
+        resp.message = self._fsm.get_state().name
+        return resp
+
+    def _cb_home(
+        self, req: Trigger.Request, resp: Trigger.Response
+    ) -> Trigger.Response:
+        """Handle grab pen service call."""
+        self._fsm.transition(ppstate.E.MOVE_FROM_SLEEP_CALLED)
+        self.schedule_in_worker(self._perform_home())
+        resp.success = True
+        resp.message = 'Homing robot.'
         return resp
 
     def _cb_sleep(
@@ -546,7 +572,7 @@ class PenPal(Node):
         self.get_logger().debug(f'WriteMessage called with text: {req.text}')
 
         # transition must be called first for concurrency
-        self._fsm.transition(ppstate.E.WRITEMESSAGE_CALLED)
+        self._fsm.transition(ppstate.E.MOVE_FROM_SLEEP_CALLED)
         if self._fsm.is_awake():
             self.get_logger().error(
                 'Call to WriteMessage not permitted while PenPal '
@@ -559,7 +585,11 @@ class PenPal(Node):
 
         try:
             unwritten_chars = self.worker_write(
-                req.text, req.font_name, req.font_size_mm, req.pen_thickness_mm
+                req.text,
+                req.font_name,
+                req.font_size_mm,
+                req.pen_thickness_mm,
+                True,
             )
             cstr = (
                 ''.join([c.char for c in unwritten_chars])

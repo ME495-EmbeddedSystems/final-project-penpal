@@ -92,6 +92,7 @@ class MoveItPPControl(PPControlBase):
 
     async def configure(self) -> None:
         """One-time setup to use the controller."""
+        await super().configure()
         if not self._c_collision.wait_for_service(timeout_sec=5.0):
             msg = 'Service SetFullCollisionBehavior not there.'
             self._logger.error(msg)

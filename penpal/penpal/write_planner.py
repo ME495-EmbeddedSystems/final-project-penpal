@@ -190,6 +190,7 @@ class WritePlanner:
         self,
         characters: list[Character],
         line_spacing_factor: float,
+        publish_markers: bool = False,
     ) -> list[Character]:
         """
         Write a list of characters to the board.
@@ -225,7 +226,9 @@ class WritePlanner:
             rot = board.ori
             world_traj = traj.transform(board.pos, rot)
             await self.control.execute_trajectory(
-                world_traj, self.c.ee_velocity_m_s
+                world_traj,
+                self.c.ee_velocity_m_s,
+                publish_markers=publish_markers,
             )
 
         return leftovers

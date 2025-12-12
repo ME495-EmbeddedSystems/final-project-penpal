@@ -233,5 +233,4 @@ class PPControlBase(abc.ABC):
 
     async def configure(self) -> None:
         """Configure control parameters, TCP frame, collision behavior, etc."""
-        # TODO
-        # raise NotImplementedError
+        self._logger.info(f'Configuring {self.__class__.__name__}!')
