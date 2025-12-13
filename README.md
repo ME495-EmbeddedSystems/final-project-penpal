@@ -18,7 +18,6 @@ The system integrates:
 All perception, reasoning, and motion are performed dynamically at runtime, allowing the robot to adapt to changes in board position and orientation.
 
 ## Quickstart Guide
-
 1. __Prerequisites__
 - Ubuntu 24.04
 - Python 3.10+
@@ -54,16 +53,6 @@ export GOOGLE_API_KEY='[INSERT YOUR API KEY HERE]'
 # launch Penpal!
 `ros2 launch penpal penpal.launch.py`
 ```
-
-The robot will:
-
-Detect the board
-
-Read the question
-
-Generate a minimal answer
-
-Plan and execute a writing trajectory
 
 3. __Commanding Penpal__
 CONOR!!!!!
