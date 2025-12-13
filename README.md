@@ -42,3 +42,32 @@ colcon build
 export GOOGLE_API_KEY='[INSERT YOUR API KEY HERE]'
 
 ```
+
+## Usage and Commands
+```bash
+## ONE-OFF COMMANDS
+# to write a single hard-coded message
+ros2 action send_goal /write_message penpal_interfaces/action/WriteMessage '{text: "HELLO WORLD"}'
+
+# to pick up the pen
+ros2 service call /grab_pen example_interfaces/srv/Trigger "{}"
+
+## CONVERSATIONAL COMMANDS
+# begin conversational mode
+ros2 service call /wake example_interfaces/srv/Trigger "{}" 
+
+# disable conversational mode
+ros2 service call /sleep example_interfaces/srv/Trigger "{}" 
+
+```
+
+
+## Challenges
+### Integration
+- Significantly multithreaded code in the penpal node - many actions need to be
+done in parallel
+- Integrating many distinct functions into one architecture
+
+### WritePlanner & Transforms
+- management of many frames, complex trajectories, and the transforms between them
+- most of these transforms were handled manually (using numpy, scipy) rather than using the TF tree, due to the sheer amount of information to handle.
