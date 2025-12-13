@@ -1,19 +1,19 @@
 """Penpal vision launch file."""
 
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch_ros.substitutions import FindPackageShare
 from launch.substitutions import (
-    PathJoinSubstitution,
+    EnvironmentVariable,
     EqualsSubstitution,
     LaunchConfiguration,
-    EnvironmentVariable,
     NotEqualsSubstitution,
+    PathJoinSubstitution,
 )
-from launch.conditions import IfCondition
 from launch_ros.actions import Node
-from ament_index_python.packages import get_package_share_directory
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
@@ -94,7 +94,7 @@ def generate_launch_description():
                         # calibration settings:
                         'calib_tag_id': 2,
                         'base_frame_id': 'base',
-                        'camera_frame_id': 'camera_color_optical_frame',
+                        'camera_frame_id': 'camera_link',
                         'base_calib_tag_xyz': [0.30, 0.0, 0.0],
                         'base_calib_tag_quat': [0.0, 0.0, 0.0, 1.0],
                     }

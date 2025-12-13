@@ -1,8 +1,10 @@
 """Integration test for the Gemini OCR + QA service."""
+
 import json
+
+from example_interfaces.srv import Trigger
 import rclpy
 from rclpy.node import Node
-from example_interfaces.srv import Trigger
 
 
 class BoardClient(Node):
@@ -43,11 +45,11 @@ def main():
             print('=' * 40)
             print('\nTRANSCRIPTION:')
             print('-' * 13)
-            print(f'   {data.get('question', 'No text found')}')
+            print(f"   {data.get('question', 'No text found')}")
             print('=' * 40)
             print('\nRESPONSE:')
             print('-' * 9)
-            print(f'   {data.get('answer', 'No answer generated')}')
+            print(f"   {data.get('answer', 'No answer generated')}")
             print('\n' + '-' * 40 + '\n')
         else:
             print('\n[Error] Service call failed!')

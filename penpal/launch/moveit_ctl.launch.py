@@ -1,13 +1,6 @@
 """Integration test launchfile for motion controller."""
 
 from launch import LaunchDescription
-from launch.actions import (
-    IncludeLaunchDescription,
-    RegisterEventHandler,
-    Shutdown,
-)
-from launch.event_handlers import OnProcessExit
-from launch.launch_description_sources import AnyLaunchDescriptionSource
 from launch.substitutions import PathJoinSubstitution
 
 from launch_ros.actions import Node

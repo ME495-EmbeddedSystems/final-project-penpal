@@ -12,10 +12,10 @@ def test_fsm_basic():
     (without testing internal logic cuz that makes a britle test.)
     """
     lock = Lock()
-    fsm = ppstate.PPFSM(lock)
+    fsm = ppstate.ConvoFSM(lock)
 
-    assert fsm.state == ppstate.S.ASLEEP
-    assert not fsm.is_awake
+    assert fsm.get_state() == ppstate.S.STARTUP
+    assert not fsm.is_awake() == ppstate.S.ASLEEP
 
     # try a transition to make sure it doesn't crash
     s = fsm.transition(ppstate.E.BOARD_IN_WORKSPACE)

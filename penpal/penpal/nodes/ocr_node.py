@@ -1,16 +1,53 @@
-"""ROS 2 node wrapper for GeminiOCREngine."""
+"""
+ROS 2 node wrapper for GeminiOCREngine.
 
-from typing import Optional
+Wraps a vision-language model (VLM) OCR engine as a ROS 2 Trigger service.
+When triggered, the node reads the latest available camera image, transcribes the
+whiteboard text, and produces a short answer suitable for writing back onto the board.
+
+Service
+-------
+- read_and_answer_board (example_interfaces/srv/Trigger)
+    Request: empty
+    Response:
+      - success: bool
+      - message: JSON string payload with fields like:
+          {
+            "question": "string",
+            "answer": "string (concise)",
+            "ocr_text": "string",
+            "ocr_lines": ["..."],
+            "ocr_raw": "string",
+            "answer_raw": "string"
+          }
+
+Topics
+------
+- image_topic (sensor_msgs/msg/Image)
+    Camera RGB image stream used for OCR/QA.
+
+Parameters
+----------
+- image_topic (string):
+    Topic name to subscribe to for RGB images.
+- service_name (string):
+    Trigger service ('read_and_answer_board').
+- model configuration parameters (strings / floats):
+    Model id/name, device, temperature, and any prompt controls as implemented
+    by the OCR engine.
+
+"""
+
 import json
+from typing import Optional
 
 import cv2
-import numpy as np
 from cv_bridge import CvBridge
 from example_interfaces.srv import Trigger
+import numpy as np
+from penpal.ocr_engine import BoardQAResult, GeminiOCREngine
 from rclpy.node import Node
 from sensor_msgs.msg import Image as RosImage
-
-from penpal.ocr_engine import GeminiOCREngine, BoardQAResult
 
 
 class GeminiOCRNode(Node):
@@ -75,7 +112,7 @@ class GeminiOCRNode(Node):
             response.message = 'No board image received yet.'
             return response
 
-        self.get_logger().info("Processing board request with Gemini...")
+        self.get_logger().info('Processing board request with Gemini...')
 
         try:
             qa: BoardQAResult = self._engine.read_and_answer_board(
@@ -92,7 +129,7 @@ class GeminiOCRNode(Node):
             }
 
             # validation
-            if not qa.question and "Error" in qa.answer:
+            if not qa.question and 'Error' in qa.answer:
                 response.success = False
                 response.message = qa.answer
             else:

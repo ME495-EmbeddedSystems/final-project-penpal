@@ -1,10 +1,9 @@
 """Unit tests for pp_control.py."""
 
 import numpy as np
-from scipy.spatial.transform import Rotation as R
-import pytest
-
 from penpal.control.pp_control import Trajectory
+import pytest
+from scipy.spatial.transform import Rotation as R
 
 
 @pytest.fixture

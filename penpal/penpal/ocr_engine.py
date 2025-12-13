@@ -1,14 +1,14 @@
 """Gemini OCR + QA Engine."""
 
+from dataclasses import dataclass
 import io
 import json
 import os
-from dataclasses import dataclass
 from typing import Optional
 
-import numpy as np
 from google import genai
 from google.genai import types
+import numpy as np
 from PIL import Image
 
 
@@ -108,7 +108,8 @@ class GeminiOCREngine:
         prompt_text = (
             'Analyze this whiteboard image.\n'
             '1. Transcribe exactly what is written on the board.\n'
-            '2. Treat the transcription as a question and provide a clear, concise answer.\n'
+            '2. Treat the transcription as a question and'
+            '   provide a clear, concise answer.\n'
             'Return the result as a valid JSON object with this schema:\n'
             '{\n'
             '  "transcription": "string (exact text on board)",\n'
