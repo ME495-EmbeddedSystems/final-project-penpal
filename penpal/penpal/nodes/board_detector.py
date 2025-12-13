@@ -50,6 +50,7 @@ Notes
 - PenPal uses board_info timing + tag-count thresholds to determine whether
   the board is "visible" and stable. So this node should publish continuously,
   even if detections are intermittent (with n_tags reflecting quality).
+
 """
 
 

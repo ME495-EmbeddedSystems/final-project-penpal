@@ -1,5 +1,6 @@
 # ---------------- Begin_Citation [2] ---------------- # noqa: E266
-"""Unit tests for penpal.font_trajectory.FontTrajectory.
+"""
+Unit tests for penpal.font_trajectory.FontTrajectory.
 
 These tests focus on the basic TTF-outline path generation that is actually
 used in the project. Hershey fonts and skeletonization are NOT exercised here,
@@ -8,11 +9,10 @@ to keep dependencies and runtime small.
 
 from __future__ import annotations
 
-import unittest
 from pathlib import Path
+import unittest
 
 import numpy as np
-
 from penpal.font_trajectory import FontTrajectory
 
 
@@ -23,17 +23,17 @@ class TestFontTrajectoryTTF(unittest.TestCase):
     def setUpClass(cls) -> None:
         """Load a known TTF font once for all tests."""
         # When this file lives under penpal/test/, parents[1] is penpal/.
-        fonts_dir = Path(__file__).resolve().parents[1] / "fonts"
-        cls.roboto_path = fonts_dir / "Roboto-Regular.ttf"
+        fonts_dir = Path(__file__).resolve().parents[1] / 'fonts'
+        cls.roboto_path = fonts_dir / 'Roboto-Regular.ttf'
 
         if not cls.roboto_path.is_file():
             # If the font is missing, skip all tests in this class
             raise unittest.SkipTest(
-                f"Roboto-Regular.ttf not found at {cls.roboto_path}"
+                f'Roboto-Regular.ttf not found at {cls.roboto_path}'
             )
 
     def _make_font(self, font_size_mm: float = 10.0) -> FontTrajectory:
-        """Helper: create a FontTrajectory and register Roboto-Regular."""
+        """Create a FontTrajectory and register Roboto-Regular."""
         ft = FontTrajectory()
         ft.add_font(self.roboto_path)
         # Sanity check: config looks reasonable
@@ -50,18 +50,18 @@ class TestFontTrajectoryTTF(unittest.TestCase):
         ft = self._make_font(font_size_mm=10.0)
 
         chars = ft.write_text(
-            text="H",
-            font_name="Roboto-Regular",
+            text='H',
+            font_name='Roboto-Regular',
             font_size_mm=10.0,
             pen_thickness_mm=1.0,
             const_speed=False,  # use raw per-path sampling here
         )
 
-        # We expect exactly one Character object for text "H".
+        # We expect exactly one Character object for text 'H'.
         self.assertEqual(len(chars), 1)
 
         ch = chars[0]
-        self.assertEqual(ch.char, "H")
+        self.assertEqual(ch.char, 'H')
         self.assertIsNotNone(ch.trajectory)
 
         traj = np.asarray(ch.trajectory, dtype=float)
@@ -98,14 +98,14 @@ class TestFontTrajectoryTTF(unittest.TestCase):
         font_size = 15.0
 
         chars = ft.write_text(
-            text="A\nB",
-            font_name="Roboto-Regular",
+            text='A\nB',
+            font_name='Roboto-Regular',
             font_size_mm=font_size,
             pen_thickness_mm=1.0,
             const_speed=False,
         )
 
-        # "A" and "B" become two Character objects in order.
+        # 'A' and 'B' become two Character objects in order.
         self.assertEqual(len(chars), 2)
 
         traj_A = np.asarray(chars[0].trajectory, dtype=float)
@@ -120,7 +120,7 @@ class TestFontTrajectoryTTF(unittest.TestCase):
         self.assertLess(
             mean_y_B,
             mean_y_A - 0.5 * font_size,  # quite a loose bound, but robust
-            msg=f"Expected second line below first: mean_y_A={mean_y_A}, mean_y_B={mean_y_B}",
+            msg=f'Expected second line below first: mean_y_A={mean_y_A}, mean_y_B={mean_y_B}',
         )
 
     # ------------------------------------------------------------------
@@ -133,8 +133,8 @@ class TestFontTrajectoryTTF(unittest.TestCase):
 
         # Use two characters so there is at least one pen-up jump between them.
         chars = ft.write_text(
-            text="AB",
-            font_name="Roboto-Regular",
+            text='AB',
+            font_name='Roboto-Regular',
             font_size_mm=12.0,
             pen_thickness_mm=1.0,
             const_speed=False,  # keep original per-character sampling
@@ -172,8 +172,8 @@ class TestFontTrajectoryTTF(unittest.TestCase):
             max_step - min_step,
             mean_step,
             msg=(
-                f"Step sizes too uneven: "
-                f"min={min_step:.3f}, max={max_step:.3f}, mean={mean_step:.3f}"
+                f'Step sizes too uneven: '
+                f'min={min_step:.3f}, max={max_step:.3f}, mean={mean_step:.3f}'
             ),
         )
 
@@ -187,8 +187,8 @@ class TestFontTrajectoryTTF(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             _ = ft.write_text(
-                text="Hi",
-                font_name="NonexistentFontName",
+                text='Hi',
+                font_name='NonexistentFontName',
                 font_size_mm=10.0,
                 pen_thickness_mm=1.0,
                 const_speed=False,
@@ -199,8 +199,8 @@ class TestFontTrajectoryTTF(unittest.TestCase):
         ft = self._make_font(font_size_mm=10.0)
 
         chars = ft.write_text(
-            text="",
-            font_name="Roboto-Regular",
+            text='',
+            font_name='Roboto-Regular',
             font_size_mm=10.0,
             pen_thickness_mm=1.0,
             const_speed=False,
@@ -209,7 +209,7 @@ class TestFontTrajectoryTTF(unittest.TestCase):
         self.assertEqual(chars, [])
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()
 
 # ---------------- End_Citation [2] ----------------
