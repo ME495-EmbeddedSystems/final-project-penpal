@@ -5,6 +5,10 @@ __Authors: Conor Hayes, Kyuwon Weon, Amber Handal, Tianhao Zhang__
 ## Project Overview
 PenPal uses a vision-guided robotic system to detect a whiteboard in the environment, read handwritten questions from the board using the Gemini vision-language model, generate concise answers, and physically writes responses back onto the board using a Franka Emika arm.
 
+[OCR +QA](https://github.com/user-attachments/assets/d1805035-f93c-4c53-b563-e174fdec6ada)
+
+[Rviz Board Detection](https://github.com/user-attachments/assets/3719fb87-1283-4ab4-acf1-3c977821e4f1)
+
 The system integrates:
 - Computer vision (AprilTag-based pose estimation, `OpenCV` preprocessing)
 - Vision-language models (`Gemini VLM` for OCR + question answering)
@@ -51,27 +55,21 @@ export GOOGLE_API_KEY='[INSERT YOUR API KEY HERE]'
 `ros2 launch penpal penpal.launch.py`
 ```
 
-3. __Usage and Commands__
-```bash
-## ONE-OFF COMMANDS
-# to write a single hard-coded message
-ros2 action send_goal /write_message penpal_interfaces/action/WriteMessage '{text: "HELLO WORLD"}'
+The robot will:
 
-# to pick up the pen
-ros2 service call /grab_pen example_interfaces/srv/Trigger "{}"
+Detect the board
 
-## CONVERSATIONAL COMMANDS
-# begin conversational mode
-ros2 service call /wake example_interfaces/srv/Trigger "{}" 
+Read the question
 
-# disable conversational mode
-ros2 service call /sleep example_interfaces/srv/Trigger "{}" 
+Generate a minimal answer
 
-```
+Plan and execute a writing trajectory
+
+3. __Commanding Penpal__
+CONOR!!!!!
 
 ## System Architecture
-<img width="1161" height="541" alt="PenPal Architecture drawio (1)" src="https://github.com/user-attachments/assets/823825c2-5061-4797-a13e-16957b4c3179" />
-
+CONOR!!!!!
 
 ### Nodes
 `penpal.py`
@@ -103,23 +101,6 @@ Launch arguments:
 
 +`moveit_ctl.launch.py`
 Integration-test launchfile for the MoveIt-based controller.
-
-
-
-
-## Challenges
-### Integration
-- Significantly multithreaded code in the penpal node - many actions need to be
-done in parallel
-- Integrating many distinct functions into one architecture
-
-### WritePlanner & Transforms
-- management of many frames, complex trajectories, and the transforms between them
-- most of these transforms were handled manually (using numpy, scipy) rather than using the TF tree, due to the sheer amount of information to handle.
-
-### Control 
-- Use of joint trajectory controller limited lots of control options. While setCollisionThreshold was used, the upper threshold was set to a wider range than just for controlling the pen tip force to account for torque and force the robot experiences as it accelerates toward the board. 
-- Use of cartesian impedance controller would be a great next step to improve Penpal. 
 
 ## Development Instructions
 This repo contains a pre-commit hook that performs lint checks before you're allowed to commit code, and also auto-formats some of those errors for you (i.e. replacing double quotes with single quotes). This is so we don't have to go back and fight with with ament_lint for a million years like we did in the previous project.
