@@ -351,9 +351,19 @@ class WritePlanner:
             T_board_EE = T_board_pen @ np.linalg.inv(T_EE_pen)
             R_board_EE_q = R.from_matrix(T_board_EE[:3, :3]).as_quat(True)
 
+            # reflect everything across z
+            T_reflect_z = np.eye(4)
+            T_reflect_z[2, 2] = -1
+
             data = np.zeros(shape=(char.trajectory.shape[0], 8))
             data[:, 0:2] = (char.trajectory[:, 0:2] / 1000.0) + offset
             data[:, 0:3] += T_board_EE[:3, 3]
+
+            points_cols = np.vstack(
+                [data[:, 0:3].T, np.ones((1, data.shape[0]))]
+            )
+            points_cols_reflected = T_reflect_z @ points_cols
+            data[:, 0:3] = points_cols_reflected[:3, :].T
             data[:, 3:7] = R_board_EE_q[np.newaxis, :]
             data[:, 7] = char.trajectory[:, 2] * self.c.max_force_N
             traj = Trajectory(char.char, data)
