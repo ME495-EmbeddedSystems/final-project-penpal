@@ -63,7 +63,7 @@ def generate_launch_description():
                 }.items(),
                 condition=IfCondition(
                     NotEqualsSubstitution(
-                        LaunchConfiguration('vision'), 'true'
+                        LaunchConfiguration('vision'), 'mock'
                     )
                 ),
             ),
