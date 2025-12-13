@@ -15,6 +15,7 @@ from launch.substitutions import (
     PathJoinSubstitution,
     EqualsSubstitution,
     LaunchConfiguration,
+    NotEqualsSubstitution,
 )
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
@@ -35,7 +36,8 @@ def generate_launch_description():
                 'vision',
                 default_value='true',
                 description='If true, launch with vision nodes running. '
-                'if "mock", use the mock OCR node and no BoardDetector.',
+                'If "mock", use the mock OCR node and BoardDetector. '
+                'If "mock_board_only", use the real OCR node but mock BD.',
             ),
             DeclareLaunchArgument(
                 'controller',
@@ -57,9 +59,12 @@ def generate_launch_description():
                 ),
                 launch_arguments={
                     'run_rviz': 'false',
+                    'args': LaunchConfiguration('vision'),
                 }.items(),
                 condition=IfCondition(
-                    EqualsSubstitution(LaunchConfiguration('vision'), 'true')
+                    NotEqualsSubstitution(
+                        LaunchConfiguration('vision'), 'mock'
+                    )
                 ),
             ),
             Node(
