@@ -55,10 +55,10 @@ export GOOGLE_API_KEY='[INSERT YOUR API KEY HERE]'
 ```
 
 3. __Commanding Penpal__
-CONOR!!!!!
 
 ## System Architecture
-CONOR!!!!!
+
+<img width="1161" height="541" alt="PenPal Architecture drawio (1)" src="https://github.com/user-attachments/assets/0f4aa0f9-2b06-4f45-a419-2cca967c7aa2" />
 
 ### Nodes
 `penpal.py`
@@ -91,8 +91,23 @@ Launch arguments:
 +`moveit_ctl.launch.py`
 Integration-test launchfile for the MoveIt-based controller.
 
+# Challenges
+### Integration
+- Significantly multithreaded code in the penpal node - many actions need to be
+done in parallel
+- Integrating many distinct functions into one architecture
+
+### WritePlanner & Transforms
+- management of many frames, complex trajectories, and the transforms between them
+- most of these transforms were handled manually (using numpy, scipy) rather than using the TF tree, due to the sheer amount of information to handle.
+
+### Control 
+- Use of joint trajectory controller limited lots of control options. While setCollisionThreshold was used, the upper threshold was set to a wider range than just for controlling the pen tip force to account for torque and force the robot experiences as it accelerates toward the board. 
+- Use of cartesian impedance controller would be a great next step to improve Penpal. 
+
 ## Development Instructions
 This repo contains a pre-commit hook that performs lint checks before you're allowed to commit code, and also auto-formats some of those errors for you (i.e. replacing double quotes with single quotes). This is so we don't have to go back and fight with with ament_lint for a million years like we did in the previous project.
+
 
 It uses the python `pre-commit` framework + the `ruff` formatter+linter to do this; see docs for [pre-commit](https://pre-commit.com/) and [ruff](https://docs.astral.sh/ruff/).
 
