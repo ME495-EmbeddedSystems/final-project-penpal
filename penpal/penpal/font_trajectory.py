@@ -1,5 +1,6 @@
-# ---------------- Begin_Citation [3][4] ---------------- # noqa: E266
-"""Generation of 2D trajectories (plus pressure) given font + text.
+# ---------------- Begin_Citation [1][2] ---------------- # noqa: E266
+"""
+Generation of 2D trajectories (plus pressure) given font + text.
 
 This module currently supports three ways to turn text into pen trajectories:
 
@@ -1027,4 +1028,4 @@ class FontTrajectory:
 
         return np.asarray(new_pts, dtype=float)
 
-# ---------------- End_Citation [3][4] ---------------- # noqa: E266
+# ---------------- End_Citation [1][2] ----------------

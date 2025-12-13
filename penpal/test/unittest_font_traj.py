@@ -1,4 +1,4 @@
-# ---------------- Begin_Citation [4] ---------------- # noqa: E266
+# ---------------- Begin_Citation [2] ---------------- # noqa: E266
 """Unit tests for penpal.font_trajectory.FontTrajectory.
 
 These tests focus on the basic TTF-outline path generation that is actually
@@ -212,4 +212,4 @@ class TestFontTrajectoryTTF(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 
-# ---------------- End_Citation [4] ---------------- # noqa: E266
+# ---------------- End_Citation [2] ----------------

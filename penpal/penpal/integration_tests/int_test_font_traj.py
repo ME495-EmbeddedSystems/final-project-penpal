@@ -1,4 +1,4 @@
-# ---------------- Begin_Citation [3][4] ----------------
+# ---------------- Begin_Citation [1][2] ----------------
 """Standalone test for FontTrajectory (no ROS nodes required).
 
 How to run (from repo root):
@@ -335,4 +335,4 @@ def main() -> None:
 if __name__ == '__main__':
     main()
 
-# ---------------- End_Citation [3][4] ----------------
+# ---------------- End_Citation [1][2] ----------------
