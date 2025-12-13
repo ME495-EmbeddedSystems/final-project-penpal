@@ -9,7 +9,8 @@ from launch.substitutions import (
     EnvironmentVariable,
     EqualsSubstitution,
     LaunchConfiguration,
-    PathJoinSubstitution
+    NotEqualsSubstitution,
+    PathJoinSubstitution,
 )
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
@@ -30,6 +31,11 @@ def generate_launch_description():
                 'run_rviz',
                 default_value='true',
                 description='If true, launch with the internal rviz config.',
+            ),
+            DeclareLaunchArgument(
+                'args',
+                default_value='true',
+                description='If set to "mock_board_only", run using mock board detector.',
             ),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
@@ -94,6 +100,20 @@ def generate_launch_description():
                     }
                 ],
                 output='screen',
+                condition=IfCondition(
+                    NotEqualsSubstitution(
+                        LaunchConfiguration('args'), 'mock_board_only'
+                    )
+                ),
+            ),
+            Node(
+                package='penpal',
+                executable='mock_board_detector',
+                condition=IfCondition(
+                    EqualsSubstitution(
+                        LaunchConfiguration('args'), 'mock_board_only'
+                    )
+                ),
             ),
             Node(
                 package='penpal',
