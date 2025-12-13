@@ -70,6 +70,7 @@ ros2 service call /sleep example_interfaces/srv/Trigger "{}"
 ```
 
 ## System Architecture
+<img width="1161" height="541" alt="PenPal Architecture drawio (1)" src="https://github.com/user-attachments/assets/823825c2-5061-4797-a13e-16957b4c3179" />
 
 
 ### Nodes
@@ -102,6 +103,8 @@ Launch arguments:
 
 +`moveit_ctl.launch.py`
 Integration-test launchfile for the MoveIt-based controller.
+
+
 
 
 ## Challenges
