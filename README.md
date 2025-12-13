@@ -61,8 +61,23 @@ Generate a minimal answer
 
 Plan and execute a writing trajectory
 
-3. __Commanding Penpal__
-CONOR!!!!!
+3. __Usage and Commands__
+```bash
+## ONE-OFF COMMANDS
+# to write a single hard-coded message
+ros2 action send_goal /write_message penpal_interfaces/action/WriteMessage '{text: "HELLO WORLD"}'
+
+# to pick up the pen
+ros2 service call /grab_pen example_interfaces/srv/Trigger "{}"
+
+## CONVERSATIONAL COMMANDS
+# begin conversational mode
+ros2 service call /wake example_interfaces/srv/Trigger "{}" 
+
+# disable conversational mode
+ros2 service call /sleep example_interfaces/srv/Trigger "{}" 
+
+```
 
 ## System Architecture
 CONOR!!!!!
@@ -97,6 +112,17 @@ Launch arguments:
 
 +`moveit_ctl.launch.py`
 Integration-test launchfile for the MoveIt-based controller.
+
+
+## Challenges
+### Integration
+- Significantly multithreaded code in the penpal node - many actions need to be
+done in parallel
+- Integrating many distinct functions into one architecture
+
+### WritePlanner & Transforms
+- management of many frames, complex trajectories, and the transforms between them
+- most of these transforms were handled manually (using numpy, scipy) rather than using the TF tree, due to the sheer amount of information to handle.
 
 ## Development Instructions
 This repo contains a pre-commit hook that performs lint checks before you're allowed to commit code, and also auto-formats some of those errors for you (i.e. replacing double quotes with single quotes). This is so we don't have to go back and fight with with ament_lint for a million years like we did in the previous project.
