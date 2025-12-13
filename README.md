@@ -51,16 +51,6 @@ export GOOGLE_API_KEY='[INSERT YOUR API KEY HERE]'
 `ros2 launch penpal penpal.launch.py`
 ```
 
-The robot will:
-
-Detect the board
-
-Read the question
-
-Generate a minimal answer
-
-Plan and execute a writing trajectory
-
 3. __Usage and Commands__
 ```bash
 ## ONE-OFF COMMANDS
