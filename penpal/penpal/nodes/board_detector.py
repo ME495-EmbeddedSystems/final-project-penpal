@@ -1,4 +1,57 @@
-"""Detect pose + dimensions of a rectangular whiteboard using AprilTags."""
+"""
+Detect pose + dimensions of a rectangular whiteboard using AprilTags.
+
+Computes the pose + dimensions of a rectangular whiteboard using AprilTag
+detections, and publishes a unified BoardInfo message for downstream nodes
+(planning, reachability checks, and writing).
+
+Coordinate frames / conventions
+-------------------------------
+- The detected board pose is published in the robot base/world frame used by
+  the rest of the system (e.g., 'base').
+- Board frame convention (used by planning):
+    +X = right along the board surface
+    +Y = up along the board surface
+    +Z = outward normal (coming off the board)
+
+Published Topics
+----------------
+- board_info (penpal_interfaces/msg/BoardInfo)
+    Pose + metadata describing the whiteboard:
+    - pose: PoseStamped (board origin / reference point in base frame)
+    - width_m, height_m: board dimensions
+    - writeable_area: 2x2 flattened [ [x_tl, y_tl], [x_br, y_br] ] in board frame
+    - n_tags: number of AprilTags detected/used
+    - sequence_number: monotonically increasing counter for reading stability
+
+Subscribed Topics
+-----------------
+- /tag_detections (apriltag_msgs/msg/AprilTagDetectionArray) [example]
+    AprilTag detections in the camera frame (or whatever frame the tag detector
+    publishes). The node uses these detections + known tag layout to estimate
+    board pose.
+
+Parameters
+----------
+- tag_topic (string):
+    Input AprilTag detections topic.
+- board_frame_id (string):
+    Frame id to stamp outgoing board pose (typically 'base').
+- tag_ids / layout parameters (ints / floats):
+    IDs of the tags used (e.g., top-left, bottom-right) and any known offsets
+    that define the board geometry relative to the tags.
+- board_width_m, board_height_m (float):
+    Board dimensions (if not inferred).
+- writeable_area_* (float):
+    Defines the writable rectangle region within the board boundaries.
+
+Notes
+-----
+- PenPal uses board_info timing + tag-count thresholds to determine whether
+  the board is "visible" and stable. So this node should publish continuously,
+  even if detections are intermittent (with n_tags reflecting quality).
+"""
+
 
 from typing import Dict, Optional, Tuple
 

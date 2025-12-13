@@ -1,4 +1,42 @@
-"""ROS 2 node wrapper for GeminiOCREngine."""
+"""
+ROS 2 node wrapper for GeminiOCREngine.
+
+Wraps a vision-language model (VLM) OCR engine as a ROS 2 Trigger service.
+When triggered, the node reads the latest available camera image, transcribes the
+whiteboard text, and produces a short answer suitable for writing back onto the board.
+
+Service
+-------
+- read_and_answer_board (example_interfaces/srv/Trigger)
+    Request: empty
+    Response:
+      - success: bool
+      - message: JSON string payload with fields like:
+          {
+            "question": "string",
+            "answer": "string (concise)",
+            "ocr_text": "string",
+            "ocr_lines": ["..."],
+            "ocr_raw": "string",
+            "answer_raw": "string"
+          }
+
+Topics
+------
+- image_topic (sensor_msgs/msg/Image)
+    Camera RGB image stream used for OCR/QA.
+
+Parameters
+----------
+- image_topic (string):
+    Topic name to subscribe to for RGB images.
+- service_name (string):
+    Trigger service ('read_and_answer_board').
+- model configuration parameters (strings / floats):
+    Model id/name, device, temperature, and any prompt controls as implemented
+    by the OCR engine.
+
+"""
 
 import json
 from typing import Optional
