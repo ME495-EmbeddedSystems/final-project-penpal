@@ -113,7 +113,7 @@ def plot_trajectories_and_board(
     ax.legend()
 
 
-# ------------------ Begin_Citation [1] ------------------
+# ------------------ Begin_Citation [4] ------------------
 def set_axes_equal(ax: Axes3D) -> None:
     """
     Make axes of 3D plot have equal scale.
@@ -145,4 +145,4 @@ def set_axes_equal(ax: Axes3D) -> None:
     ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
 
 
-# ------------------ End_Citation[1] ------------------
+# ------------------ End_Citation[4] ------------------

@@ -1,5 +1,5 @@
-"""
-Standalone test for FontTrajectory (no ROS nodes required).
+# ---------------- Begin_Citation [1][2] ----------------
+"""Standalone test for FontTrajectory (no ROS nodes required).
 
 How to run (from repo root):
     cd penpal_ws/src/final-project-penpal
@@ -334,3 +334,5 @@ def main() -> None:
 
 if __name__ == '__main__':
     main()
+
+# ---------------- End_Citation [1][2] ----------------
