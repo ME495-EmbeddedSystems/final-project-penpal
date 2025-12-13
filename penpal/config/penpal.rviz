@@ -10,7 +10,7 @@ Panels:
         - /Marker - WB writespace1
         - /Marker - WB writespace1/Topic1
       Splitter Ratio: 0.5
-    Tree Height: 379
+    Tree Height: 360
   - Class: rviz_common/Help
     Name: Help
   - Class: rviz_common/Views
@@ -88,10 +88,6 @@ Visualization Manager:
           Value: true
         tag0:
           Value: true
-        tag1:
-          Value: true
-        tag_calib:
-          Value: true
       Marker Scale: 1
       Name: TF
       Show Arrows: true
@@ -99,18 +95,6 @@ Visualization Manager:
       Show Names: true
       Tree:
         base:
-          camera_link:
-            camera_color_frame:
-              camera_color_optical_frame:
-                tag0:
-                  {}
-                tag1:
-                  {}
-                tag_calib:
-                  {}
-            camera_depth_frame:
-              camera_depth_optical_frame:
-                {}
           fer_link0:
             fer_link1:
               fer_link2:
@@ -135,8 +119,7 @@ Visualization Manager:
       Enabled: true
       Name: Marker - WB
       Namespaces:
-        calibration_link: true
-        whiteboard: true
+        {}
       Topic:
         Depth: 80
         Durability Policy: Volatile
@@ -182,6 +165,7 @@ Visualization Manager:
         Grid: true
         Marker - WB: true
         Marker - WB writespace: true
+        PlanningScene: true
         Pose: true
         TF: true
         Value: true
@@ -190,7 +174,7 @@ Visualization Manager:
       Enabled: true
       Name: Marker - WB writespace
       Namespaces:
-        penpal_write_space: true
+        {}
       Topic:
         Depth: 80
         Durability Policy: Volatile
@@ -198,6 +182,98 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /penpal_write_space
+      Value: true
+    - Class: moveit_rviz_plugin/PlanningScene
+      Enabled: true
+      Move Group Namespace: ""
+      Name: PlanningScene
+      Planning Scene Topic: /monitored_planning_scene
+      Robot Description: robot_description
+      Scene Geometry:
+        Scene Alpha: 0.8999999761581421
+        Scene Color: 50; 230; 50
+        Scene Display Time: 0.009999999776482582
+        Show Scene Geometry: true
+        Voxel Coloring: Z-Axis
+        Voxel Rendering: Occupied Voxels
+      Scene Robot:
+        Attached Body Color: 150; 50; 150
+        Links:
+          All Links Enabled: true
+          Expand Joint Details: false
+          Expand Link Details: false
+          Expand Tree: false
+          Link Tree Style: Links in Alphabetic Order
+          base:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+          fer_hand:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          fer_hand_tcp:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+          fer_leftfinger:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          fer_link0:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          fer_link1:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          fer_link2:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          fer_link3:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          fer_link4:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          fer_link5:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          fer_link6:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          fer_link7:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          fer_link8:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+          fer_rightfinger:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+        Robot Alpha: 1
+        Show Robot Collision: false
+        Show Robot Visual: true
       Value: true
   Enabled: true
   Global Options:
@@ -242,14 +318,14 @@ Window Geometry:
     collapsed: false
   Displays:
     collapsed: false
-  Height: 1040
+  Height: 1011
   Help:
     collapsed: false
   Hide Left Dock: false
   Hide Right Dock: false
-  QMainWindow State: 000000ff00000000fd0000000100000000000002b4000003b6fc0200000006fb00000044004d006f00740069006f006e0050006c0061006e006e0069006e00670020002d0020005400720061006a006500630074006f0072007900200053006c00690064006500720000000000ffffffff0000000000000000fb000000100044006900730070006c006100790073010000003d000001b8000000c900fffffffb0000001c004d006f00740069006f006e0050006c0061006e006e0069006e00670000000129000001880000000000000000fb0000000800480065006c0070000000029a0000006e0000006e00fffffffb0000000a0056006900650077007300000001d3000000db000000a400fffffffb0000000c00430061006d00650072006101000001fb000001f80000001600ffffff000004c2000003b600000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd0000000100000000000002b400000395fc0200000006fb00000044004d006f00740069006f006e0050006c0061006e006e0069006e00670020002d0020005400720061006a006500630074006f0072007900200053006c00690064006500720000000000ffffffff0000000000000000fb000000100044006900730070006c006100790073010000003f000001a8000000cc00fffffffb0000001c004d006f00740069006f006e0050006c0061006e006e0069006e00670000000129000001880000000000000000fb0000000800480065006c0070000000029a0000006e0000006f00fffffffb0000000a0056006900650077007300000001d3000000db000000a900fffffffb0000000c00430061006d00650072006101000001ed000001e70000001700ffffff000004840000039500000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Views:
     collapsed: false
-  Width: 1916
-  X: 0
-  Y: 0
+  Width: 1854
+  X: 66
+  Y: 32

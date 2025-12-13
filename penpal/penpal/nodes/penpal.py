@@ -280,6 +280,7 @@ class PenPal(Node):
 
         Applies the relevant thresholds to evaluate this.
         """
+        return True
         now_s = self.get_clock().now().nanoseconds / 1.0e9
 
         first_info_received = (
@@ -302,6 +303,7 @@ class PenPal(Node):
 
     def board_is_in_workspace(self) -> bool:
         """Return true if the board is in range of the arm."""
+        return True
         if self.board_is_visible():
             rthresh = self.c.workspace_dimensions_m[0]
             hthresh = self.c.workspace_dimensions_m[1]
@@ -359,7 +361,7 @@ class PenPal(Node):
             self._write_planner.c.off_board_height_m,
         )
 
-        await self._write_planner.control.configure()
+        # await self._write_planner.control.configure()
         return await self._write_planner.write_characters(
             chars, self._fonts.c.line_spacing_factor
         )
