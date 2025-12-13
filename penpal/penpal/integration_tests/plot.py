@@ -3,10 +3,9 @@
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
-from scipy.spatial.transform import Rotation as R
-
 from penpal.control.pp_control import Trajectory
 from penpal.write_planner import BoardInfo
+from scipy.spatial.transform import Rotation as R
 
 
 def plot_trajectory_sequence(
@@ -114,9 +113,7 @@ def plot_trajectories_and_board(
     ax.legend()
 
 
-############### Begin_Citation[1] ####################
-
-
+# ------------------ Begin_Citation [1] ------------------
 def set_axes_equal(ax: Axes3D) -> None:
     """
     Make axes of 3D plot have equal scale.
@@ -124,7 +121,8 @@ def set_axes_equal(ax: Axes3D) -> None:
     so that spheres appear as spheres, cubes as cubes, etc.
 
     Args:
-      ax: a matplotlib axis, e.g., as output from plt.gca().
+    ----
+    ax (Axes3D): a matplotlib axis, e.g., as output from plt.gca().
 
     """
     x_limits = ax.get_xlim3d()
@@ -147,4 +145,4 @@ def set_axes_equal(ax: Axes3D) -> None:
     ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
 
 
-############### End_Citation[1] ####################
+# ------------------ End_Citation[1] ------------------

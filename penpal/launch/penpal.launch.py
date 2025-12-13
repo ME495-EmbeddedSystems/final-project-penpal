@@ -1,24 +1,19 @@
 """Integration test launchfile for motion controller."""
 
-from launch import LaunchDescription
-from launch.actions import (
-    RegisterEventHandler,
-    Shutdown,
-    IncludeLaunchDescription,
-    DeclareLaunchArgument,
-)
-from launch.launch_description_sources import PythonLaunchDescriptionSource
 from ament_index_python.packages import get_package_share_directory
-from launch.launch_description_sources import AnyLaunchDescriptionSource
-from launch.event_handlers import OnProcessExit
+
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (
-    PathJoinSubstitution,
     EqualsSubstitution,
     LaunchConfiguration,
+    NotEqualsSubstitution,
+    PathJoinSubstitution,
 )
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
-from launch.conditions import IfCondition
 
 from moveit_configs_utils import MoveItConfigsBuilder
 
@@ -35,7 +30,8 @@ def generate_launch_description():
                 'vision',
                 default_value='true',
                 description='If true, launch with vision nodes running. '
-                'if "mock", use the mock OCR node and no BoardDetector.',
+                'If "mock", use the mock OCR node and BoardDetector. '
+                'If "mock_board_only", use the real OCR node but mock BD.',
             ),
             DeclareLaunchArgument(
                 'controller',
@@ -57,9 +53,12 @@ def generate_launch_description():
                 ),
                 launch_arguments={
                     'run_rviz': 'false',
+                    'args': LaunchConfiguration('vision'),
                 }.items(),
                 condition=IfCondition(
-                    EqualsSubstitution(LaunchConfiguration('vision'), 'true')
+                    NotEqualsSubstitution(
+                        LaunchConfiguration('vision'), 'mock'
+                    )
                 ),
             ),
             Node(

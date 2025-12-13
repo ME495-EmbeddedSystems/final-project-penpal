@@ -1,21 +1,18 @@
 """Mock node for publishing BoardInfo to PenPal."""
 
-from typing import Optional, Tuple, Dict
+from typing import Optional
 
-import cv2
+from example_interfaces.srv import Trigger
+from geometry_msgs.msg import Point, PoseStamped, TransformStamped
 import numpy as np
-import transforms3d.quaternions as tquat
-from scipy.spatial.transform import Rotation
-
 from penpal_interfaces.msg import BoardInfo
 import rclpy
 from rclpy.node import Node
-
-from geometry_msgs.msg import PoseStamped, Point, TransformStamped
-from visualization_msgs.msg import Marker
+from scipy.spatial.transform import Rotation
 from std_msgs.msg import Header
-from example_interfaces.srv import Trigger
 from tf2_ros import StaticTransformBroadcaster
+import transforms3d.quaternions as tquat
+from visualization_msgs.msg import Marker
 
 
 class MockBoardDetector(Node):
@@ -41,7 +38,7 @@ class MockBoardDetector(Node):
             'base_frame_id', 'base'
         ).value
         self.camera_frame_id: str = self.declare_parameter(
-            'camera_frame_id', 'camera_color_optical_frame'
+            'camera_frame_id', 'camera_link'
         ).value
 
         # id of the calibration tag (on the table)
@@ -244,10 +241,10 @@ class MockBoardDetector(Node):
         #     return
 
         # --- Board geometry in BOARD frame ---
-        W: float = self.width
-        H: float = self.height
-        S: float = self.tag_size
-        hw, hh, hs = W / 2.0, H / 2.0, S / 2.0
+        # W: float = self.width
+        # H: float = self.height
+        # S: float = self.tag_size
+        # hw, hh, hs = W / 2.0, H / 2.0, S / 2.0
 
         # # BOARD frame convention: origin at center, +x right, +y down
         # P_tag_tl_b = np.array([-hw + hs, -hh + hs, 0.0])  # TL tag center

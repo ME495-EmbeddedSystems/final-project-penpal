@@ -2,17 +2,16 @@
 
 import asyncio
 from pathlib import Path
-from matplotlib import pyplot as plt
-from mock import Mock, MagicMock, patch
 
+from matplotlib import pyplot as plt
+from mock import MagicMock, patch
+import numpy as np
+from penpal.control.pp_control import PPControlBase, Trajectory
+from penpal.font_trajectory import FontTrajectory
+from penpal.integration_tests import plot
+from penpal.write_planner import BoardInfo, WritePlanner
 from rclpy.node import Node
 from scipy.spatial.transform import Rotation as R
-import numpy as np
-
-from penpal.integration_tests import plot
-from penpal.write_planner import BoardInfo, WritePlanner, Character
-from penpal.font_trajectory import FontTrajectory
-from penpal.control.pp_control import PPControlBase, Trajectory
 
 
 class MockController(PPControlBase):

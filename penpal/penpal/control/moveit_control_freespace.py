@@ -2,8 +2,7 @@
 
 from penpal.control.moveit_control import MoveItPPControl
 from penpal.integration_tests.int_test_ppcontrol import (
-    SetFullCollisionBehavior,
-)
+    SetFullCollisionBehavior)
 
 
 class FreeSpaceMoveItPPControl(MoveItPPControl):
@@ -11,7 +10,7 @@ class FreeSpaceMoveItPPControl(MoveItPPControl):
 
     async def configure(self) -> None:
         """One-time robot configuration."""
-        # for moving through free space, we currently don't need anything special.
+        # for moving through free space, we don't need anything special.
         free_space_req = SetFullCollisionBehavior.Request()
         free_space_req.upper_torque_thresholds_nominal = [
             60.0,

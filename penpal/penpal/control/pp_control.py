@@ -1,14 +1,18 @@
 """Base class - executes trajectories in EE space."""
 
 from __future__ import annotations
+
 import abc
 from dataclasses import dataclass
 
+from geometry_msgs.msg import Point
+
 import numpy as np
+
+from rclpy.node import Node
+
 from scipy.spatial.transform import Rotation as R
 
-from geometry_msgs.msg import Point
-from rclpy.node import Node
 from visualization_msgs.msg import Marker
 
 
@@ -26,7 +30,7 @@ class Trajectory:
     """human-readable label for debugging purposes."""
     data: np.ndarray
     """
-    list of points to move the EE through. Nx8 array for N trajectory waypoints.
+    list of points to move the EE. Nx8 array for N trajectory waypoints.
     Each waypoint provides [pose, force scalar in the orientation direction],
     pose being x,y,z and orientation qx, qy, qz, qw as quaternion
     like so:
@@ -48,11 +52,13 @@ class Trajectory:
         f stays the same.)
 
         Args:
-            p (np.ndarray): [dx, dy, dz]
-            rot: rotation object
+        ----
+        p (np.ndarray): [dx, dy, dz]
+        rot (R): rotation object.
 
-        Returns:
-            Trajectory: a new Trajectory object.
+        Return:
+        ------
+        Trajectory: a new Trajectory object.
 
         """
         # transform the points
@@ -77,10 +83,12 @@ class Trajectory:
         (except the last one, which may be less)
 
         Args:
-            n_points (int): length of each subj-traj in points.
+        ----
+        n_points (int): length of each subj-traj in points.
 
-        Returns:
-            list[Trajectory]: list of new sub-trajectories
+        Return:
+        ------
+        list[Trajectory]: list of new sub-trajectories.
 
         """
         n_segments = self.data.shape[0] // n_points
@@ -90,7 +98,7 @@ class Trajectory:
             new_label = f'{self.label}_{i}'
             traj = Trajectory(
                 label=new_label,
-                data=self.data[n_points * i : n_points * (i + 1), :],
+                data=self.data[n_points * i: n_points * (i + 1), :],
             )
             segs.append(traj)
 
@@ -98,7 +106,7 @@ class Trajectory:
         if self.data.shape[0] % n_points != 0:
             new_label = f'{self.label}_{n_segments - 1}'
             traj = Trajectory(
-                label=new_label, data=self.data[n_points * n_segments :, :]
+                label=new_label, data=self.data[n_points * n_segments:, :]
             )
             segs.append(traj)
 
@@ -139,9 +147,9 @@ class PPControlBase(abc.ABC):
         Move the EE through a trajectory.
 
         Args:
-            traj (Trajectory): path to send the EE through space
-            target_ee_velocity_m_s (float): target average velocity for the trajectory
-            execution
+        ----
+        traj (Trajectory): path to send the EE through space.
+        target_ee_velocity_m_s (float): target average velocity for the trajectory execution.
 
         """
         pass
@@ -156,9 +164,10 @@ class PPControlBase(abc.ABC):
         Move the EE through a trajectory.
 
         Args:
-            traj (Trajectory): path to send the EE through space
-            target_ee_velocity_m_s (float): target average velocity for the trajectory
-            execution
+        ----
+        traj (Trajectory): path to send the EE through space
+        target_ee_velocity_m_s (float): target average velocity for the trajectory execution
+        publish_markers (bool): flag for publishing Rviz markers
 
         """
         self._logger.info(f"Executing trajectory '{traj.label}'")
@@ -175,9 +184,10 @@ class PPControlBase(abc.ABC):
         Open or close the gripper to the desired offset, then applies a force.
 
         Args:
-            offset_m: Offset (meters) of each finger from the EE frame.
-            grip_force_N: Force to apply once gripped (i.e. to the marker when closed).
-            If None, don't control the force.
+        ----
+        offset_m: Offset (meters) of each finger from the EE frame.
+        grip_force_N (float): Force to apply once gripped (i.e. to the marker
+                              when closed). If None, don't control the force.
 
         """
         pass
@@ -226,7 +236,7 @@ class PPControlBase(abc.ABC):
 
         self._marker_pub.publish(marker)
         self._logger.debug(
-            f'Published marker id={marker.id} with {len(marker.points)} points '
+            f'Published marker id={marker.id} with {len(marker.points)} points'
             f'on /pp_trajectories'
         )
         pass

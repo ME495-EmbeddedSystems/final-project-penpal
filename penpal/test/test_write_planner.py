@@ -1,8 +1,8 @@
 """Unit tests for write_planner.py."""
 
 import numpy as np
-from scipy.spatial.transform import Rotation as R
 from penpal.write_planner import BoardInfo, Character
+from scipy.spatial.transform import Rotation as R
 
 
 def test_board_info_basic() -> None:

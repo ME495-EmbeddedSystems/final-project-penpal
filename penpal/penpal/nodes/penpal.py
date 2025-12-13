@@ -5,39 +5,38 @@ Authors: Conor
 """
 
 import asyncio
-from dataclasses import dataclass, field
-from pathlib import Path
-import traceback
-from threading import Lock
-import json
-
 import concurrent.futures
-import numpy as np
-from scipy.spatial.transform import Rotation as R
+from dataclasses import dataclass, field
+import json
+from pathlib import Path
+from threading import Lock
+import traceback
 
-from rclpy.node import Node
-from rcl_interfaces.msg import ParameterDescriptor
-from rclpy.action import ActionServer
-from rclpy.executors import MultiThreadedExecutor
-from rclpy.action.server import ServerGoalHandle
 from ament_index_python.packages import get_package_share_directory
-from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from example_interfaces.srv import Trigger
-from rclpy.timer import TimerInfo
-
-from penpal_interfaces.action import WriteMessage
-from penpal_interfaces.msg import BoardInfo as BoardInfoMsg
+import numpy as np
 
 from penpal import font_trajectory
 from penpal import freespace_planner
+from penpal import ppstate
 from penpal import write_planner
 from penpal.control import (
-    moveit_control,
     impedance_control,
+    moveit_control,
     moveit_control_freespace,
 )
-from penpal import ppstate
 from penpal.utils import LockedString
+from penpal_interfaces.action import WriteMessage
+from penpal_interfaces.msg import BoardInfo as BoardInfoMsg
+
+from rcl_interfaces.msg import ParameterDescriptor
+from rclpy.action import ActionServer
+from rclpy.action.server import ServerGoalHandle
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.node import Node
+from rclpy.timer import TimerInfo
+from scipy.spatial.transform import Rotation as R
 
 
 class PenPal(Node):
@@ -68,11 +67,11 @@ class PenPal(Node):
 
     Publishers
     ---------
-    move_group: motion & planning commands to MoveIt
+    move_group: motion & planning commands to MoveIt.
 
     Subscribers
     ----------
-    board_info: pose & metadata about the whiteboard
+    board_info: pose & metadata about the whiteboard.
 
     Clients
     -------
@@ -322,7 +321,12 @@ class PenPal(Node):
         return False
 
     def _run_async_worker_in_thread(self, coroutine_func):
-        """Run an async function using a new event loop. Intended for use in worker thread."""
+        """
+        Run an async function.
+
+        Run the function using a new event loop.
+        Intended for use in worker thread.
+        """
         try:
             result = asyncio.run(coroutine_func)
             return result
@@ -397,7 +401,12 @@ class PenPal(Node):
         return unwritten_chars
 
     async def _perform_trigger_vlm(self) -> None:
-        """Actual async function to trigger the vlm and wait for the response."""
+        """
+        Run perform_trigger.
+
+        Actual async function to trigger the vlm
+        and wait for the response.
+        """
         resp: Trigger.Response = await self._c_ocr.call_async(
             Trigger.Request()
         )  # type: ignore
@@ -467,7 +476,7 @@ class PenPal(Node):
                     text = self._text_to_write.text
                     if text is None:
                         raise ValueError(
-                            'No text available to write. This should be unreachable!'
+                            'No text available to write. This is unreachable!'
                         )
                     self.worker_write(
                         text,
