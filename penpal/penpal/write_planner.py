@@ -349,11 +349,29 @@ class WritePlanner:
             T_board_pen = np.eye(4)
             T_board_pen[:3, :3] = WritePlanner.DOWN_ORI.as_matrix()
             T_board_EE = T_board_pen @ np.linalg.inv(T_EE_pen)
+
+            # apply the transformation to all points in the trajectory
+            traj_points = (char.trajectory[:, 0:2] / 1000.0) + offset
+            # in order to do this, we need column vectors
+            traj_points = np.vstack(
+                [
+                    traj_points.T,
+                    np.zeros((1, traj_points.shape[0])),
+                    np.ones((1, traj_points.shape[0])),
+                ]
+            )
+            self._logger.info(
+                'TRAJ POINTS UPDATE SHAPE: ' + str(traj_points.shape)
+            )
+            transformed_traj_points = np.linalg.inv(T_board_EE) @ traj_points
+            self._logger.info(
+                'TRAJ POINTS UPDATE SHAPE: ' + str(traj_points.shape)
+            )
+
             R_board_EE_q = R.from_matrix(T_board_EE[:3, :3]).as_quat(True)
 
             data = np.zeros(shape=(char.trajectory.shape[0], 8))
-            data[:, 0:2] = (char.trajectory[:, 0:2] / 1000.0) + offset
-            data[:, 0:3] += T_board_EE[:3, 3]
+            data[:, 0:3] = transformed_traj_points[:3, :].T
             data[:, 3:7] = R_board_EE_q[np.newaxis, :]
             data[:, 7] = char.trajectory[:, 2] * self.c.max_force_N
             traj = Trajectory(char.char, data)
