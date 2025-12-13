@@ -70,7 +70,7 @@ ros2 service call /sleep example_interfaces/srv/Trigger "{}"
 ```
 
 ## System Architecture
-CONOR!!!!!
+
 
 ### Nodes
 `penpal.py`
@@ -113,6 +113,10 @@ done in parallel
 ### WritePlanner & Transforms
 - management of many frames, complex trajectories, and the transforms between them
 - most of these transforms were handled manually (using numpy, scipy) rather than using the TF tree, due to the sheer amount of information to handle.
+
+### Control 
+- Use of joint trajectory controller limited lots of control options. While setCollisionThreshold was used, the upper threshold was set to a wider range than just for controlling the pen tip force to account for torque and force the robot experiences as it accelerates toward the board. 
+- Use of cartesian impedance controller would be a great next step to improve Penpal. 
 
 ## Development Instructions
 This repo contains a pre-commit hook that performs lint checks before you're allowed to commit code, and also auto-formats some of those errors for you (i.e. replacing double quotes with single quotes). This is so we don't have to go back and fight with with ament_lint for a million years like we did in the previous project.
