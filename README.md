@@ -5,6 +5,10 @@ __Authors: Conor Hayes, Kyuwon Weon, Amber Handal, Tianhao Zhang__
 ## Project Overview
 PenPal uses a vision-guided robotic system to detect a whiteboard in the environment, read handwritten questions from the board using the Gemini vision-language model, generate concise answers, and physically writes responses back onto the board using a Franka Emika arm.
 
+[OCR +QA](https://github.com/user-attachments/assets/d1805035-f93c-4c53-b563-e174fdec6ada)
+
+[Rviz Board Detection](https://github.com/user-attachments/assets/3719fb87-1283-4ab4-acf1-3c977821e4f1)
+
 The system integrates:
 - Computer vision (AprilTag-based pose estimation, `OpenCV` preprocessing)
 - Vision-language models (`Gemini VLM` for OCR + question answering)
@@ -14,7 +18,6 @@ The system integrates:
 All perception, reasoning, and motion are performed dynamically at runtime, allowing the robot to adapt to changes in board position and orientation.
 
 ## Quickstart Guide
-
 1. __Prerequisites__
 - Ubuntu 24.04
 - Python 3.10+
@@ -51,21 +54,10 @@ export GOOGLE_API_KEY='[INSERT YOUR API KEY HERE]'
 `ros2 launch penpal penpal.launch.py`
 ```
 
-The robot will:
-
-Detect the board
-
-Read the question
-
-Generate a minimal answer
-
-Plan and execute a writing trajectory
-
 3. __Commanding Penpal__
-CONOR!!!!!
-
 ## System Architecture
-CONOR!!!!!
+
+<img width="1161" height="541" alt="PenPal Architecture drawio (1)" src="https://github.com/user-attachments/assets/0f4aa0f9-2b06-4f45-a419-2cca967c7aa2" />
 
 ### Nodes
 `penpal.py`
@@ -80,7 +72,7 @@ CONOR!!!!!
 	Mock Trigger-service implementation of OCR/QA. Always returns a static JSON payload for end-to-end testing of PenPal without VLM dependencies.
 
 ### Launchfiles
-+`penpal.launch.py`
+`penpal.launch.py`
 Launches the full system (PenPal + MoveIt RViz + optionally vision, or mocks).
 
 Launch arguments:
@@ -88,18 +80,33 @@ Launch arguments:
 - `mock`: start `mock_ocr_node` + `mock_board_detector` instead (no real vision)
 - `controller` (`default: moveit`)
 
-+`penpal_vision.launch.py`
+`penpal_vision.launch.py`
 Launches the vision system (Realsense + Apriltags + board detection + OCR)
 
 Launch arguments:
 - `gemini_api_key` (`default: $GOOGLE_API_KEY`)
 - `run_rviz` (`default: true`)
 
-+`moveit_ctl.launch.py`
+`moveit_ctl.launch.py`
 Integration-test launchfile for the MoveIt-based controller.
 
-## Development Instructions
+# Challenges
+### Integration
+- Significantly multithreaded code in the penpal node; many actions need to be
+done in parallel
+- Integrating many distinct functions into one architecture
+
+### WritePlanner & Transforms
+- Management of many frames, complex trajectories, and the transforms between them.
+- Most of these transforms were handled manually (using `numpy`, `scipy`) rather than using the TF tree, due to the sheer amount of information to handle.
+
+### Control 
+- Use of joint trajectory controller limited lots of control options. While `setCollisionThreshold` was used, the upper threshold was set to a wider range than just for controlling the pen tip force to account for torque and force the robot experiences as it accelerates toward the board. 
+- Use of cartesian impedance controller would be a great next step to improve Penpal. 
+
+# Development Instructions
 This repo contains a pre-commit hook that performs lint checks before you're allowed to commit code, and also auto-formats some of those errors for you (i.e. replacing double quotes with single quotes). This is so we don't have to go back and fight with with ament_lint for a million years like we did in the previous project.
+
 
 It uses the python `pre-commit` framework + the `ruff` formatter+linter to do this; see docs for [pre-commit](https://pre-commit.com/) and [ruff](https://docs.astral.sh/ruff/).
 
