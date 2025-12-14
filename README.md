@@ -5,7 +5,7 @@ __Authors: Conor Hayes, Kyuwon Weon, Amber Handal, Tianhao Zhang__
 ## Project Overview
 PenPal uses a vision-guided robotic system to detect a whiteboard in the environment, read handwritten questions from the board using the Gemini vision-language model, generate concise answers, and physically writes responses back onto the board using a Franka Emika arm.
 
-[OCR +QA](https://github.com/user-attachments/assets/d1805035-f93c-4c53-b563-e174fdec6ada)
+[OCR +QA](https://github.com/user-attachments/assets/00c8dd63-b2d3-4de4-a2af-8a349b441088)
 
 [Rviz Board Detection](https://github.com/user-attachments/assets/3719fb87-1283-4ab4-acf1-3c977821e4f1)
 
