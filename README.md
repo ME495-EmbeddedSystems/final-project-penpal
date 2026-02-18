@@ -60,15 +60,15 @@ export GOOGLE_API_KEY='[INSERT YOUR API KEY HERE]'
 <img width="1161" height="541" alt="PenPal Architecture drawio (1)" src="https://github.com/user-attachments/assets/0f4aa0f9-2b06-4f45-a419-2cca967c7aa2" />
 
 ### Nodes
-`penpal.py`
+- `penpal.py`
     Top-level orchestrator + FSM. Watches for board visibility, triggers OCR/VLM via a Trigger service client, and sends generated text to the writing stack (planner + controller). Provides wake, sleep, grab_pen services and write_message action. Subscribes to board_info.
-`board_detector.py`
+- `board_detector.py`
 	Real board detector. Consumes AprilTag detections and produces penpal_interfaces/BoardInfo (board_info) containing board pose, dimensions, writable area, and detection metadata (e.g., tag count, sequence number).
-`ocr_node.py`
+- `ocr_node.py`
 	Real OCR + QA node. Provides read_and_answer_board (example_interfaces/Trigger) which captures/uses the latest image and returns a JSON payload containing transcription + a concise answer (and raw debug fields).
-`mock_board_detector.py`
+- `mock_board_detector.py`
 	Publishes a fixed/synthetic board_info for development when the camera/AprilTags aren’t running (useful for testing planning/writing).
-`mock_ocr_node.py`
+- `mock_ocr_node.py`
 	Mock Trigger-service implementation of OCR/QA. Always returns a static JSON payload for end-to-end testing of PenPal without VLM dependencies.
 
 ### Launchfiles
